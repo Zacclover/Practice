@@ -1,453 +1,453 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <!-- 基础页面设置：定义中文语言、字符编码和移动端显示方式 -->
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 基础页面设置：定义中文语言、字符编码和移动端显示方式 -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- 浏览器标签页显示的页面名称 -->
-  <title>竞品洞察台</title>
+  <!-- 浏览器标签页显示的页面名称 -->
+  <title>竞品洞察台</title>
 
-  <style>
-    /* ==============================
-       全局样式
-       统一元素尺寸计算方式
-       ============================== */
-    * {
-      box-sizing: border-box;
-    }
+  <style>
+    /* ==============================
+       全局样式
+       统一元素尺寸计算方式
+       ============================== */
+    * {
+      box-sizing: border-box;
+    }
 
-    /* ==============================
-       页面主体
-       设置整体字体、文字颜色和背景色
-       ============================== */
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      color: #1f2937;
-      background: #f5f7fb;
-    }
+    /* ==============================
+       页面主体
+       设置整体字体、文字颜色和背景色
+       ============================== */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: #1f2937;
+      background: #f5f7fb;
+    }
 
-    /* ==============================
-       顶部导航栏
-       展示产品名称和英文名称
-       ============================== */
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 22px 40px;
-      color: white;
-      background: #4f46e5;
-    }
+    /* ==============================
+       顶部导航栏
+       展示产品名称和英文名称
+       ============================== */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 22px 40px;
+      color: white;
+      background: #4f46e5;
+    }
 
-    header h1 {
-      margin: 0;
-      font-size: 22px;
-    }
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
 
-    /* ==============================
-       页面主要内容区域
-       限制最大宽度并保持居中
-       ============================== */
-    main {
-      max-width: 1050px;
-      margin: 36px auto;
-      padding: 0 24px;
-    }
+    /* ==============================
+       页面主要内容区域
+       限制最大宽度并保持居中
+       ============================== */
+    main {
+      max-width: 1050px;
+      margin: 36px auto;
+      padding: 0 24px;
+    }
 
-    /* ==============================
-       产品介绍区域
-       展示产品价值和添加竞品按钮
-       ============================== */
-    .hero {
-      padding: 32px;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
-    }
+    /* ==============================
+       产品介绍区域
+       展示产品价值和添加竞品按钮
+       ============================== */
+    .hero {
+      padding: 32px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+    }
 
-    .hero h2 {
-      margin-top: 0;
-    }
+    .hero h2 {
+      margin-top: 0;
+    }
 
-    .hero p {
-      color: #6b7280;
-      line-height: 1.7;
-    }
+    .hero p {
+      color: #6b7280;
+      line-height: 1.7;
+    }
 
-    /* ==============================
-       通用按钮
-       用于添加和保存等主要操作
-       ============================== */
-    button {
-      padding: 11px 18px;
-      color: white;
-      background: #4f46e5;
-      border: 0;
-      border-radius: 8px;
-      cursor: pointer;
-    }
+    /* ==============================
+       通用按钮
+       用于添加和保存等主要操作
+       ============================== */
+    button {
+      padding: 11px 18px;
+      color: white;
+      background: #4f46e5;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
 
-    /* ==============================
-       竞品档案区域标题
-       ============================== */
-    .section-title {
-      margin: 32px 0 16px;
-    }
+    /* ==============================
+       竞品档案区域标题
+       ============================== */
+    .section-title {
+      margin: 32px 0 16px;
+    }
 
-    /* ==============================
-       竞品卡片网格
-       根据屏幕宽度自动调整列数
-       ============================== */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(
-        auto-fit,
-        minmax(250px, 1fr)
-      );
-      gap: 16px;
-    }
+    /* ==============================
+       竞品卡片网格
+       根据屏幕宽度自动调整列数
+       ============================== */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(250px, 1fr)
+      );
+      gap: 16px;
+    }
 
-    /* ==============================
-       单个竞品卡片
-       展示产品名称、定位和官网
-       ============================== */
-    .card {
-      padding: 20px;
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-    }
+    /* ==============================
+       单个竞品卡片
+       展示产品名称、定位和官网
+       ============================== */
+    .card {
+      padding: 20px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+    }
 
-    .card h3 {
-      margin: 0 0 10px;
-    }
+    .card h3 {
+      margin: 0 0 10px;
+    }
 
-    .card p {
-      min-height: 48px;
-      color: #6b7280;
-    }
+    .card p {
+      min-height: 48px;
+      color: #6b7280;
+    }
 
-    .card a {
-      color: #4f46e5;
-      text-decoration: none;
-    }
+    .card a {
+      color: #4f46e5;
+      text-decoration: none;
+    }
 
-    /* ==============================
-       空状态
-       没有竞品数据时显示提示信息
-       ============================== */
-    .empty {
-      padding: 28px;
-      color: #6b7280;
-      text-align: center;
-      background: white;
-      border: 1px dashed #cbd5e1;
-      border-radius: 12px;
-    }
+    /* ==============================
+       空状态
+       没有竞品数据时显示提示信息
+       ============================== */
+    .empty {
+      padding: 28px;
+      color: #6b7280;
+      text-align: center;
+      background: white;
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+    }
 
-    /* ==============================
-       添加竞品弹窗
-       用于填写竞品基本信息
-       ============================== */
-    dialog {
-      width: min(460px, calc(100% - 32px));
-      padding: 24px;
-      border: 0;
-      border-radius: 14px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, .2);
-    }
+    /* ==============================
+       添加竞品弹窗
+       用于填写竞品基本信息
+       ============================== */
+    dialog {
+      width: min(460px, calc(100% - 32px));
+      padding: 24px;
+      border: 0;
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .2);
+    }
 
-    /* 弹窗打开时的页面半透明遮罩 */
-    dialog::backdrop {
-      background: rgba(15, 23, 42, .5);
-    }
+    /* 弹窗打开时的页面半透明遮罩 */
+    dialog::backdrop {
+      background: rgba(15, 23, 42, .5);
+    }
 
-    /* ==============================
-       添加竞品表单
-       设置输入项之间的间距
-       ============================== */
-    form {
-      display: grid;
-      gap: 14px;
-    }
+    /* ==============================
+       添加竞品表单
+       设置输入项之间的间距
+       ============================== */
+    form {
+      display: grid;
+      gap: 14px;
+    }
 
-    label {
-      display: grid;
-      gap: 6px;
-      font-weight: 600;
-    }
+    label {
+      display: grid;
+      gap: 6px;
+      font-weight: 600;
+    }
 
-    input,
-    textarea {
-      width: 100%;
-      padding: 10px 12px;
-      font: inherit;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-    }
+    input,
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      font: inherit;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+    }
 
-    textarea {
-      min-height: 90px;
-      resize: vertical;
-    }[下午 5:31]/* ==============================
-       弹窗底部操作按钮区域
-       ============================== */
-    .actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-    }
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }/* ==============================
+       弹窗底部操作按钮区域
+       ============================== */
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
 
-    /* 次要按钮：用于取消操作 */
-    .secondary {
-      color: #374151;
-      background: #e5e7eb;
-    }
-  </style>
+    /* 次要按钮：用于取消操作 */
+    .secondary {
+      color: #374151;
+      background: #e5e7eb;
+    }
+  </style>
 </head>
 
 <body>
-  <!-- ==============================
-       顶部导航栏
-       展示当前产品名称
-       ============================== -->
-  <header>
-    <h1>竞品洞察台</h1>
-    <span>Competitor Insights</span>
-  </header>
+  <!-- ==============================
+       顶部导航栏
+       展示当前产品名称
+       ============================== -->
+  <header>
+    <h1>竞品洞察台</h1>
+    <span>Competitor Insights</span>
+  </header>
 
-  <!-- ==============================
-       页面主要内容
-       包含产品介绍和竞品档案
-       ============================== -->
-  <main>
-    <!-- 产品介绍和主要操作区域 -->
-    <section class="hero">
-      <h2>让竞品研究更有依据</h2>
+  <!-- ==============================
+       页面主要内容
+       包含产品介绍和竞品档案
+       ============================== -->
+  <main>
+    <!-- 产品介绍和主要操作区域 -->
+    <section class="hero">
+      <h2>让竞品研究更有依据</h2>
 
-      <p>
-        集中管理竞品档案、调研证据、横向对比和关键洞察。
-      </p>
+      <p>
+        集中管理竞品档案、调研证据、横向对比和关键洞察。
+      </p>
 
-      <!-- 点击后打开添加竞品弹窗 -->
-      <button id="addButton">
-        添加第一个竞品
-      </button>
-    </section>
+      <!-- 点击后打开添加竞品弹窗 -->
+      <button id="addButton">
+        添加第一个竞品
+      </button>
+    </section>
 
-    <!-- 竞品档案列表区域 -->
-    <h2 class="section-title">竞品档案</h2>
+    <!-- 竞品档案列表区域 -->
+    <h2 class="section-title">竞品档案</h2>
 
-    <!-- JavaScript 会把竞品卡片显示在这里 -->
-    <section
-      id="competitorList"
-      class="grid">
-    </section>
-  </main>
+    <!-- JavaScript 会把竞品卡片显示在这里 -->
+    <section
+      id="competitorList"
+      class="grid">
+    </section>
+  </main>
 
-  <!-- ==============================
-       添加竞品弹窗
-       收集产品名称、官网和产品定位
-       ============================== -->
-  <dialog id="competitorDialog">
-    <form id="competitorForm">
-      <h2>添加竞品</h2>
+  <!-- ==============================
+       添加竞品弹窗
+       收集产品名称、官网和产品定位
+       ============================== -->
+  <dialog id="competitorDialog">
+    <form id="competitorForm">
+      <h2>添加竞品</h2>
 
-      <!-- 竞品名称：必填 -->
-      <label>
-        产品名称
-        <input
-          id="name"
-          required
-          placeholder="例如：Notion">
-      </label>
+      <!-- 竞品名称：必填 -->
+      <label>
+        产品名称
+        <input
+          id="name"
+          required
+          placeholder="例如：Notion">
+      </label>
 
-      <!-- 竞品官网：选填，需要符合网址格式 -->
-      <label>
-        官网链接
-        <input
-          id="website"
-          type="url"
-          placeholder="https://example.com">
-      </label>
+      <!-- 竞品官网：选填，需要符合网址格式 -->
+      <label>
+        官网链接
+        <input
+          id="website"
+          type="url"
+          placeholder="https://example.com">
+      </label>
 
-      <!-- 产品定位：选填 -->
-      <label>
-        产品定位
-        <textarea
-          id="positioning"
-          placeholder="用一句话描述产品定位">
-        </textarea>
-      </label>
+      <!-- 产品定位：选填 -->
+      <label>
+        产品定位
+        <textarea
+          id="positioning"
+          placeholder="用一句话描述产品定位">
+        </textarea>
+      </label>
 
-      <!-- 表单操作按钮 -->
-      <div class="actions">
-        <button
-          class="secondary"
-          id="cancelButton"
-          type="button">
-          取消
-        </button>
+      <!-- 表单操作按钮 -->
+      <div class="actions">
+        <button
+          class="secondary"
+          id="cancelButton"
+          type="button">
+          取消
+        </button>
 
-        <button type="submit">
-          保存竞品
-        </button>
-      </div>
-    </form>
-  </dialog>
+        <button type="submit">
+          保存竞品
+        </button>
+      </div>
+    </form>
+  </dialog>
 
-  <script>
-    /* ==============================
-       数据存储设置
-       定义浏览器 localStorage 使用的名称
-       ============================== */
-    const storageKey = 'competitor-insights-items';
+  <script>
+    /* ==============================
+       数据存储设置
+       定义浏览器 localStorage 使用的名称
+       ============================== */
+    const storageKey = 'competitor-insights-items';
 
-    /* ==============================
-       获取页面元素
-       方便后续操作竞品列表、弹窗和表单
-       ============================== */
-    const list =
-      document.querySelector('#competitorList');
+    /* ==============================
+       获取页面元素
+       方便后续操作竞品列表、弹窗和表单
+       ============================== */
+    const list =
+      document.querySelector('#competitorList');
 
-    const dialog =
-      document.querySelector('#competitorDialog');
+    const dialog =
+      document.querySelector('#competitorDialog');
 
-    const form =
-      document.querySelector('#competitorForm');
+    const form =
+      document.querySelector('#competitorForm');
 
-    /* ==============================
-       读取已经保存的竞品
-       如果没有数据，则使用空数组
-       ============================== */
-    let competitors = JSON.parse(
-      localStorage.getItem(storageKey) || '[]'
-    );
+    /* ==============================
+       读取已经保存的竞品
+       如果没有数据，则使用空数组
+       ============================== */
+    let competitors = JSON.parse(
+      localStorage.getItem(storageKey) || '[]'
+    );
 
-    /* ==============================
-       渲染竞品列表
-       根据数据生成空状态或竞品卡片
-       ============================== */
-    function render() {
-      /* 没有竞品时显示空状态 */
-      if (competitors.length === 0) {
-        list.innerHTML = `
-          <div class="empty">
-            还没有竞品，点击上方按钮添加第一个。
-          </div>
-        `;
+    /* ==============================
+       渲染竞品列表
+       根据数据生成空状态或竞品卡片
+       ============================== */
+    function render() {
+      /* 没有竞品时显示空状态 */
+      if (competitors.length === 0) {
+        list.innerHTML = `
+          <div class="empty">
+            还没有竞品，点击上方按钮添加第一个。
+          </div>
+        `;
 
-        return;
-      }
+        return;
+      }
 
-      /* 有竞品时生成对应的竞品卡片 */
-      list.innerHTML = competitors
-        .map(item => `
-          <article class="card">
-            <h3>${escapeHtml(item.name)}</h3>
+      /* 有竞品时生成对应的竞品卡片 */
+      list.innerHTML = competitors
+        .map(item => `
+          <article class="card">
+            <h3>${escapeHtml(item.name)}</h3>
 
-            <p>
-              ${escapeHtml(
-                item.positioning || '暂未填写产品定位'
-              )}
-            </p>
+            <p>
+              ${escapeHtml(
+                item.positioning || '暂未填写产品定位'
+              )}
+            </p>
 
-            ${
-              item.website
-                ? `
-                  <a
-                    href="${escapeHtml(item.website)}"
-                    target="_blank"
-                    rel="noopener">
-                    访问官网 →
-                  </a>
-                `
-                : ''
-            }
-          </article>
-        `)
-        .join('');
-    }
+            ${
+              item.website
+                ? `
+                  <a
+                    href="${escapeHtml(item.website)}"
+                    target="_blank"
+                    rel="noopener">
+                    访问官网 →
+                  </a>
+                `
+                : ''
+            }
+          </article>
+        `)
+        .join('');
+    }
 
-    /* ==============================
-       内容安全处理
-       避免用户输入被浏览器当作 HTML 执行
-       ============================== */
-    function escapeHtml(value) {
-      const div = document.createElement('div');
-      div.textContent = value;
+    /* ==============================
+       内容安全处理
+       避免用户输入被浏览器当作 HTML 执行
+       ============================== */
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = value;
       return div.innerHTML;
-    }
+    }
 
-    /* ==============================
-       打开弹窗
-       点击“添加第一个竞品”后执行
-       ============================== */
-    document
-      .querySelector('#addButton')
-      .addEventListener('click', () => {
-        dialog.showModal();
-      });
+    /* ==============================
+       打开弹窗
+       点击“添加第一个竞品”后执行
+       ============================== */
+    document
+      .querySelector('#addButton')
+      .addEventListener('click', () => {
+        dialog.showModal();
+      });
 
-    /* ==============================
-       关闭弹窗
-       点击“取消”后不保存数据
-       ============================== */
-    document
-      .querySelector('#cancelButton')
-      .addEventListener('click', () => {
-        dialog.close();
-      });
+    /* ==============================
+       关闭弹窗
+       点击“取消”后不保存数据
+       ============================== */
+    document
+      .querySelector('#cancelButton')
+      .addEventListener('click', () => {
+        dialog.close();
+      });
 
-    /* ==============================
-       保存竞品
-       获取表单内容并保存到浏览器
-       ============================== */
-    form.addEventListener('submit', event => {
-      /* 阻止浏览器刷新页面 */
-      event.preventDefault();
+    /* ==============================
+       保存竞品
+       获取表单内容并保存到浏览器
+       ============================== */
+    form.addEventListener('submit', event => {
+      /* 阻止浏览器刷新页面 */
+      event.preventDefault();
 
-      /* 把新竞品加入数组 */
-      competitors.push({
-        name:
-          document.querySelector('#name')
-            .value
-            .trim(),
+      /* 把新竞品加入数组 */
+      competitors.push({
+        name:
+          document.querySelector('#name')
+            .value
+            .trim(),
 
-        website:
-          document.querySelector('#website')
-            .value
-            .trim(),
+        website:
+          document.querySelector('#website')
+            .value
+            .trim(),
 
-        positioning:
-          document.querySelector('#positioning')
-            .value
-            .trim()
-      });
+        positioning:
+          document.querySelector('#positioning')
+            .value
+            .trim()
+      });
 
-      /* 保存到浏览器 localStorage */
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify(competitors)
-      );
+      /* 保存到浏览器 localStorage */
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify(competitors)
+      );
 
-      /* 清空表单 */
-      form.reset();
+      /* 清空表单 */
+      form.reset();
 
-      /* 关闭添加弹窗 */
-      dialog.close();
+      /* 关闭添加弹窗 */
+      dialog.close();
 
-      /* 重新显示最新竞品列表 */
-      render();
-    });
+      /* 重新显示最新竞品列表 */
+      render();
+    });
 
-    /* ==============================
-       页面初始化
-       第一次打开页面时显示已有数据
-       ============================== */
-    render();
-  </script>
+    /* ==============================
+       页面初始化
+       第一次打开页面时显示已有数据
+       ============================== */
+    render();
+  </script>
 </body>
 </html>
