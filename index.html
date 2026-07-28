@@ -773,33 +773,128 @@
       z-index: 2;
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
-      padding: 8px;
-      background: #f8fafc;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 8px;
+      background: #f8f8f8;
       border-bottom: 1px solid #e5e7eb;
     }
 
+    .rich-toolbar-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .rich-toolbar-divider {
+      flex: 0 0 1px;
+      width: 1px;
+      height: 22px;
+      margin: 0 4px;
+      background: #d1d5db;
+    }
+
     .rich-toolbar button {
-      min-width: 34px;
-      padding: 6px 8px;
-      color: #374151;
-      background: white;
-      border: 1px solid #d1d5db;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      min-width: 32px;
+      height: 32px;
+      padding: 0;
+      color: #4b5563;
+      background: transparent;
+      border: 0;
       border-radius: 6px;
-      font-size: 12px;
+      font-size: 17px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .rich-toolbar button svg {
+      width: 19px;
+      height: 19px;
+      fill: currentColor;
+    }
+
+    .toolbar-letter {
+      color: inherit;
+      font-family: Arial, sans-serif;
+      font-size: 19px;
+      line-height: 1;
+    }
+
+    .toolbar-paragraph {
+      font-family: Georgia, serif;
+      font-weight: 700;
+    }
+
+    .toolbar-heading {
+      display: inline-flex;
+      align-items: flex-start;
+      font-weight: 700;
+      font-size: 17px;
+    }
+
+    .toolbar-heading small {
+      margin-top: 7px;
+      font-size: 9px;
     }
 
     .rich-toolbar button:hover {
-      color: #4338ca;
-      background: #eef2ff;
-      border-color: #a5b4fc;
+      color: #1f2937;
+      background: #e5e7eb;
+    }
+
+    .rich-toolbar button:focus-visible {
+      outline: 2px solid #1264a3;
+      outline-offset: 1px;
     }
 
     .rich-toolbar button.is-active {
+      color: #1264a3;
+      background: #dff3fa;
+      box-shadow: inset 0 0 0 1px rgba(18, 100, 163, .2);
+    }
+
+    /* Tooltip 使用 fixed 定位，避免被弹窗和编辑器边界裁切 */
+    .rich-toolbar-tooltip {
+      position: fixed;
+      z-index: 10000;
+      max-width: 180px;
+      padding: 6px 9px;
       color: white;
-      background: #4f46e5;
-      border-color: #4f46e5;
-      box-shadow: 0 0 0 2px rgba(99, 102, 241, .18);
+      background: #1d1c1d;
+      border-radius: 6px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .22);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translate(-50%, 0);
+    }
+
+    .rich-toolbar-tooltip[hidden] {
+      display: none;
+    }
+
+    @media (max-width: 560px) {
+      .rich-toolbar {
+        gap: 2px;
+        padding: 6px;
+      }
+
+      .rich-toolbar-divider {
+        margin: 0 2px;
+      }
+
+      .rich-toolbar button {
+        width: 30px;
+        min-width: 30px;
+        height: 30px;
+      }
     }
 
     .rich-editor {
@@ -1200,25 +1295,71 @@
           id="richToolbar"
           class="rich-toolbar"
           aria-label="富文本工具栏">
-          <!-- 段落结构 -->
-          <button type="button" data-rich-command="formatBlock" data-rich-value="p" title="正文">正文</button>
-          <button type="button" data-rich-command="formatBlock" data-rich-value="h3" title="小标题">小标题</button>
-          <button type="button" data-rich-command="formatBlock" data-rich-value="blockquote" title="引用">引用</button>
+          <!-- 段落结构：仅显示图标，名称通过 Tooltip 和 aria-label 提供 -->
+          <div class="rich-toolbar-group" role="group" aria-label="段落结构">
+            <button type="button" data-rich-command="formatBlock" data-rich-value="p" data-block-value="p" data-tooltip="正文" aria-label="正文" aria-pressed="false">
+              <span class="toolbar-letter toolbar-paragraph" aria-hidden="true">¶</span>
+            </button>
+            <button type="button" data-rich-command="formatBlock" data-rich-value="h3" data-block-value="h3" data-tooltip="小标题" aria-label="小标题" aria-pressed="false">
+              <span class="toolbar-heading" aria-hidden="true">H<small>3</small></span>
+            </button>
+            <button type="button" data-rich-command="formatBlock" data-rich-value="blockquote" data-block-value="blockquote" data-tooltip="引用" aria-label="引用" aria-pressed="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 7h5v5H8c0 2 1 3 3 4v2c-4-1-6-3-6-7V7h1Zm9 0h5v5h-3c0 2 1 3 3 4v2c-4-1-6-3-6-7V7h1Z"/></svg>
+            </button>
+          </div>
+          <span class="rich-toolbar-divider" aria-hidden="true"></span>
 
           <!-- 行内文字格式 -->
-          <button type="button" data-rich-command="bold" data-state-command="bold" title="粗体"><strong>B</strong>&nbsp;粗体</button>
-          <button type="button" data-rich-command="italic" data-state-command="italic" title="斜体"><em>I</em>&nbsp;斜体</button>
-          <button type="button" data-rich-command="underline" data-state-command="underline" title="下划线"><u>U</u>&nbsp;下划线</button>
-          <button type="button" data-rich-command="strikeThrough" data-state-command="strikeThrough" title="删除线"><s>S</s>&nbsp;删除线</button>
+          <div class="rich-toolbar-group" role="group" aria-label="文字格式">
+            <button type="button" data-rich-command="bold" data-state-command="bold" data-tooltip="粗体" aria-label="粗体" aria-pressed="false">
+              <strong class="toolbar-letter" aria-hidden="true">B</strong>
+            </button>
+            <button type="button" data-rich-command="italic" data-state-command="italic" data-tooltip="斜体" aria-label="斜体" aria-pressed="false">
+              <em class="toolbar-letter" aria-hidden="true">I</em>
+            </button>
+            <button type="button" data-rich-command="underline" data-state-command="underline" data-tooltip="下划线" aria-label="下划线" aria-pressed="false">
+              <u class="toolbar-letter" aria-hidden="true">U</u>
+            </button>
+            <button type="button" data-rich-command="strikeThrough" data-state-command="strikeThrough" data-tooltip="删除线" aria-label="删除线" aria-pressed="false">
+              <s class="toolbar-letter" aria-hidden="true">S</s>
+            </button>
+          </div>
+          <span class="rich-toolbar-divider" aria-hidden="true"></span>
 
-          <!-- 列表、链接和历史操作 -->
-          <button type="button" data-rich-command="insertUnorderedList" data-state-command="insertUnorderedList" title="项目列表">• 项目列表</button>
-          <button type="button" data-rich-command="insertOrderedList" data-state-command="insertOrderedList" title="编号列表">1. 编号列表</button>
-          <button type="button" data-rich-command="createLink" title="添加链接">添加链接</button>
-          <button type="button" data-rich-command="unlink" title="移除链接">移除链接</button>
-          <button type="button" data-rich-command="undo" title="撤销">撤销</button>
-          <button type="button" data-rich-command="redo" title="重做">重做</button>
-          <button type="button" data-rich-command="removeFormat" title="清除格式">清除格式</button>
+          <!-- 列表格式 -->
+          <div class="rich-toolbar-group" role="group" aria-label="列表格式">
+            <button type="button" data-rich-command="insertOrderedList" data-state-command="insertOrderedList" data-tooltip="编号列表" aria-label="编号列表" aria-pressed="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 5h2v5H4V6H3V5Zm0 8h2.5v1H4v1h1.5v1H3v-3Zm6-7h12v2H9V6Zm0 5h12v2H9v-2Zm0 5h12v2H9v-2Z"/></svg>
+            </button>
+            <button type="button" data-rich-command="insertUnorderedList" data-state-command="insertUnorderedList" data-tooltip="项目列表" aria-label="项目列表" aria-pressed="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm5 1h12v2H9V7ZM4 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm5 1h12v2H9v-2Z"/></svg>
+            </button>
+          </div>
+          <span class="rich-toolbar-divider" aria-hidden="true"></span>
+
+          <!-- 链接操作 -->
+          <div class="rich-toolbar-group" role="group" aria-label="链接操作">
+            <button type="button" data-rich-command="createLink" data-tooltip="添加链接" aria-label="添加链接">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l4.2-4.2a3 3 0 0 1 4.2 4.2l-3 3a3 3 0 0 1-4.2 0l1.4-1.4a1 1 0 0 0 1.4 0l3-3a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Zm2.8-2.8a1 1 0 0 1 0 1.4l-4.2 4.2A3 3 0 1 1 5 12l3-3a3 3 0 0 1 4.2 0l-1.4 1.4a1 1 0 0 0-1.4 0l-3 3a1 1 0 1 0 1.4 1.4l4.2-4.2a1 1 0 0 1 1.4 0Z"/></svg>
+            </button>
+            <button type="button" data-rich-command="unlink" data-tooltip="移除链接" aria-label="移除链接">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4.3 2.9 16.8 16.8-1.4 1.4-3.2-3.2-.5.5a3 3 0 0 1-4.2 0l-2.1-2.1 1.4-1.4 2.1 2.1a1 1 0 0 0 1.4 0l.5-.5-2.4-2.4-3.5 3.5A3 3 0 0 1 5 13.4l2.1-2.1 1.4 1.4-2.1 2.1a1 1 0 0 0 1.4 1.4l3.5-3.5-8.4-8.4 1.4-1.4Zm9.9 6.9-1.4-1.4 2-2A3 3 0 1 1 19 10.6l-2.1 2.1-1.4-1.4 2.1-2.1a1 1 0 1 0-1.4-1.4l-2 2Z"/></svg>
+            </button>
+          </div>
+          <span class="rich-toolbar-divider" aria-hidden="true"></span>
+
+          <!-- 历史与清理操作 -->
+          <div class="rich-toolbar-group" role="group" aria-label="历史与清理">
+            <button type="button" data-rich-command="undo" data-tooltip="撤销" aria-label="撤销">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 7V3L2 9l7 6v-4c5 0 8 1 11 6-1-7-5-10-11-10Z"/></svg>
+            </button>
+            <button type="button" data-rich-command="redo" data-tooltip="重做" aria-label="重做">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M15 7V3l7 6-7 6v-4c-5 0-8 1-11 6 1-7 5-10 11-10Z"/></svg>
+            </button>
+            <button type="button" data-rich-command="removeFormat" data-tooltip="清除格式" aria-label="清除格式">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15.1 4.3 4.6 4.6a1 1 0 0 1 0 1.4l-8.4 8.4a1 1 0 0 1-.7.3H6.4a1 1 0 0 1-.7-.3l-2.4-2.4a1 1 0 0 1 0-1.4l10.4-10.6a1 1 0 0 1 1.4 0ZM5.4 15.6 6.8 17h3.4l3-3-3.9-3.9-3.9 4v1.5ZM13 21h8v-2h-8v2Z"/></svg>
+            </button>
+          </div>
         </div>
         <div
           id="evidenceContentEditor"
@@ -1226,6 +1367,13 @@
           contenteditable="true"
           data-placeholder="记录详细观察、分析和结论，内容长度不限"></div>
       </div>
+
+      <!-- 富文本 Tooltip：同时支持鼠标悬停和键盘聚焦 -->
+      <div
+        id="richToolbarTooltip"
+        class="rich-toolbar-tooltip"
+        role="tooltip"
+        hidden></div>
 
       <!-- 证据表单操作按钮 -->
       <div class="actions">
@@ -1378,6 +1526,8 @@
     const evidenceContentEditor =
       document.querySelector('#evidenceContentEditor');
     const richToolbar = document.querySelector('#richToolbar');
+    const richToolbarTooltip =
+      document.querySelector('#richToolbarTooltip');
     const saveEvidenceButton =
       document.querySelector('#saveEvidenceButton');
 
@@ -2233,6 +2383,79 @@
     });
 
     /* ==============================
+       富文本工具栏 Tooltip
+       同时支持鼠标悬停和键盘聚焦
+       ============================== */
+    function showRichToolbarTooltip(button) {
+      const label = button.dataset.tooltip;
+      if (!label) {
+        return;
+      }
+
+      richToolbarTooltip.textContent = label;
+      richToolbarTooltip.hidden = false;
+      button.setAttribute('aria-describedby', 'richToolbarTooltip');
+
+      const buttonRect = button.getBoundingClientRect();
+      const tooltipWidth = richToolbarTooltip.offsetWidth;
+      const tooltipHeight = richToolbarTooltip.offsetHeight;
+      const edgeGap = 8;
+      let left = buttonRect.left + buttonRect.width / 2;
+      let top = buttonRect.bottom + edgeGap;
+
+      left = Math.max(
+        tooltipWidth / 2 + edgeGap,
+        Math.min(window.innerWidth - tooltipWidth / 2 - edgeGap, left)
+      );
+
+      if (top + tooltipHeight > window.innerHeight - edgeGap) {
+        top = buttonRect.top - tooltipHeight - edgeGap;
+      }
+
+      richToolbarTooltip.style.left = `${left}px`;
+      richToolbarTooltip.style.top = `${top}px`;
+    }
+
+    function hideRichToolbarTooltip(button) {
+      richToolbarTooltip.hidden = true;
+      if (button) {
+        button.removeAttribute('aria-describedby');
+      }
+    }
+
+    richToolbar.addEventListener('mouseover', event => {
+      const button = event.target.closest('[data-tooltip]');
+      if (button && !button.contains(event.relatedTarget)) {
+        showRichToolbarTooltip(button);
+      }
+    });
+
+    richToolbar.addEventListener('mouseout', event => {
+      const button = event.target.closest('[data-tooltip]');
+      if (button && !button.contains(event.relatedTarget)) {
+        hideRichToolbarTooltip(button);
+      }
+    });
+
+    richToolbar.addEventListener('focusin', event => {
+      const button = event.target.closest('[data-tooltip]');
+      if (button) {
+        showRichToolbarTooltip(button);
+      }
+    });
+
+    richToolbar.addEventListener('focusout', event => {
+      const button = event.target.closest('[data-tooltip]');
+      if (button) {
+        hideRichToolbarTooltip(button);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      hideRichToolbarTooltip();
+    });
+
+    /* ==============================
        富文本工具栏操作
        保留文字选区，避免点击按钮后格式失效
        ============================== */
@@ -2281,7 +2504,35 @@
             isActive = false;
           }
           button.classList.toggle('is-active', isActive);
+          button.setAttribute(
+            'aria-pressed',
+            isActive ? 'true' : 'false'
+          );
         });
+
+      /* 正文、小标题和引用同样显示当前激活状态 */
+      if (document.queryCommandValue) {
+        let currentBlock = '';
+        try {
+          currentBlock = String(
+            document.queryCommandValue('formatBlock') || ''
+          ).toLowerCase().replace(/[<>]/g, '');
+        } catch (error) {
+          currentBlock = '';
+        }
+
+        richToolbar
+          .querySelectorAll('[data-block-value]')
+          .forEach(button => {
+            const isActive =
+              button.dataset.blockValue === currentBlock;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute(
+              'aria-pressed',
+              isActive ? 'true' : 'false'
+            );
+          });
+      }
     }
 
     ['mouseup', 'keyup', 'input', 'focus'].forEach(eventName => {
@@ -2757,6 +3008,7 @@
       evidenceForm.reset();
       evidenceContentEditor.innerHTML = '';
       savedEditorRange = null;
+      hideRichToolbarTooltip();
       editingEvidenceIndex = null;
       selectedEvidenceCompetitorId = null;
       selectedEvidenceDimensionIds = new Set();
