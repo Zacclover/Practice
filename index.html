@@ -762,6 +762,14 @@
       font-size: 17px;
     }
 
+    .workspace-tabs-tools {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
     .workspace-tabs {
       display: flex;
       width: 100%;
@@ -773,22 +781,26 @@
       border-top: 1px solid #d9d9dc;
       border-bottom: 1px solid #d9d9dc;
       border-radius: 0;
+      overscroll-behavior-x: contain;
+      scroll-snap-type: x proximity;
       scrollbar-width: thin;
     }
 
     .workspace-tab-item {
       position: relative;
       display: flex;
-      flex: 1 0 180px;
+      flex: 0 0 200px;
+      width: 200px;
       align-items: center;
       justify-content: center;
-      min-width: 160px;
-      max-width: none;
+      min-width: 200px;
+      max-width: 200px;
       background: transparent;
       border: 1px solid transparent;
       border-right-color: #dddddf;
       border-radius: 0;
       cursor: grab;
+      scroll-snap-align: start;
       user-select: none;
       transition:
         opacity .15s,
@@ -818,7 +830,7 @@
     .workspace-tab-select {
       width: 100%;
       min-width: 0;
-      padding: 13px 70px;
+      padding: 13px 64px 13px 16px;
       overflow: hidden;
       color: #8a8a8f;
       background: transparent;
@@ -941,14 +953,22 @@
 
     @media (max-width: 640px) {
       .workspace-tab-item {
-        flex-basis: 150px;
-        min-width: 150px;
+        flex-basis: 160px;
+        width: 160px;
+        min-width: 160px;
+        max-width: 160px;
       }
 
       .workspace-tabs-header {
-        align-items: center;
+        align-items: flex-start;
+        flex-wrap: wrap;
         padding-right: 16px;
         padding-left: 16px;
+      }
+
+      .workspace-tabs-tools {
+        width: 100%;
+        justify-content: flex-start;
       }
     }
 
@@ -1271,12 +1291,31 @@
   <section class="workspace-tabs-section">
     <div class="workspace-tabs-header">
       <h2>洞察空间</h2>
-      <button
-        id="addWorkspaceTabButton"
-        class="workspace-tab-add"
-        type="button">
-        添加 Tab
-      </button>
+      <div class="workspace-tabs-tools">
+        <button
+          class="backup-button"
+          id="exportDataButton"
+          type="button">
+          导出数据
+        </button>
+        <button
+          class="backup-button"
+          id="importDataButton"
+          type="button">
+          导入数据
+        </button>
+        <input
+          class="hidden-file-input"
+          id="importDataInput"
+          type="file"
+          accept="application/json,.json">
+        <button
+          id="addWorkspaceTabButton"
+          class="workspace-tab-add"
+          type="button">
+          添加 Tab
+        </button>
+      </div>
     </div>
     <nav
       id="workspaceTabs"
@@ -1304,23 +1343,6 @@
         <button id="addButton">
           添加竞品
         </button>
-        <button
-          class="backup-button"
-          id="exportDataButton"
-          type="button">
-          导出数据
-        </button>
-        <button
-          class="backup-button"
-          id="importDataButton"
-          type="button">
-          导入数据
-        </button>
-        <input
-          class="hidden-file-input"
-          id="importDataInput"
-          type="file"
-          accept="application/json,.json">
       </div>
     </section>
 
