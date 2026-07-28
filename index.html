@@ -153,6 +153,87 @@
     }
 
     /* ==============================
+       调研证据区域
+       展示证据操作栏和图片证据卡片
+       ============================== */
+    .section-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin: 36px 0 16px;
+    }
+
+    .section-toolbar h2 {
+      margin: 0;
+    }
+
+    .evidence-card {
+      overflow: hidden;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+    }
+
+    .evidence-card img {
+      display: block;
+      width: 100%;
+      height: 190px;
+      object-fit: cover;
+      background: #e5e7eb;
+    }
+
+    .evidence-content {
+      padding: 18px;
+    }
+
+    .evidence-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .evidence-comment {
+      margin: 0;
+      color: #374151;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    /* ==============================
+       图片上传预览
+       用户选择图片后在保存前预览
+       ============================== */
+    .image-preview {
+      display: none;
+      width: 100%;
+      max-height: 240px;
+      object-fit: contain;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .form-help {
+      margin: -6px 0 0;
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      font: inherit;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: white;
+    }
+
+    /* ==============================
        空状态
        没有竞品数据时显示提示信息
        ============================== */
@@ -263,6 +344,23 @@
       id="competitorList"
       class="grid">
     </section>
+
+    <!-- ==============================
+         调研证据区域
+         展示与竞品关联的图片和评论
+         ============================== -->
+    <div class="section-toolbar">
+      <h2>调研证据</h2>
+      <button id="addEvidenceButton">
+        添加证据
+      </button>
+    </div>
+
+    <!-- JavaScript 会把调研证据卡片显示在这里 -->
+    <section
+      id="evidenceList"
+      class="grid">
+    </section>
   </main>
 
   <!-- ==============================
@@ -297,8 +395,7 @@
         产品定位
         <textarea
           id="positioning"
-          placeholder="用一句话描述产品定位">
-        </textarea>
+          placeholder="用一句话描述产品定位"></textarea>
       </label>
 
       <!-- 表单操作按钮 -->
@@ -317,12 +414,73 @@
     </form>
   </dialog>
 
+  <!-- ==============================
+       添加调研证据弹窗
+       上传图片并填写对应评论
+       ============================== -->
+  <dialog id="evidenceDialog">
+    <form id="evidenceForm">
+      <h2>添加调研证据</h2>
+
+      <!-- 选择这条证据对应的竞品 -->
+      <label>
+        对应竞品
+        <select id="evidenceCompetitor" required>
+        </select>
+      </label>
+
+      <!-- 从本地设备选择一张图片 -->
+      <label>
+        证据图片
+        <input
+          id="evidenceImage"
+          type="file"
+          accept="image/*"
+          required>
+      </label>
+
+      <p class="form-help">
+        图片会自动压缩后保存在当前浏览器中。建议单张原图不超过 10MB。
+      </p>
+
+      <!-- 选择图片后显示压缩前的预览 -->
+      <img
+        id="evidencePreview"
+        class="image-preview"
+        alt="待上传证据图片预览">
+
+      <!-- 填写对图片内容的观察或评论 -->
+      <label>
+        证据评论
+        <textarea
+          id="evidenceComment"
+          required
+          placeholder="描述图片展示了什么，以及你从中发现了什么"></textarea>
+      </label>
+
+      <!-- 证据表单操作按钮 -->
+      <div class="actions">
+        <button
+          class="secondary"
+          id="cancelEvidenceButton"
+          type="button">
+          取消
+        </button>
+
+        <button id="saveEvidenceButton" type="submit">
+          保存证据
+        </button>
+      </div>
+    </form>
+  </dialog>
+
   <script>
     /* ==============================
        数据存储设置
        定义浏览器 localStorage 使用的名称
        ============================== */
     const storageKey = 'competitor-insights-items';
+    const evidenceStorageKey = 'competitor-insights-evidence';
 
     /* ==============================
        获取页面元素
@@ -343,12 +501,49 @@
     const saveButton =
       document.querySelector('#saveButton');
 
+    const evidenceList =
+      document.querySelector('#evidenceList');
+
+    const evidenceDialog =
+      document.querySelector('#evidenceDialog');
+
+    const evidenceForm =
+      document.querySelector('#evidenceForm');
+
+    const evidenceCompetitor =
+      document.querySelector('#evidenceCompetitor');
+
+    const evidenceImage =
+      document.querySelector('#evidenceImage');
+
+    const evidencePreview =
+      document.querySelector('#evidencePreview');
+
+    const saveEvidenceButton =
+      document.querySelector('#saveEvidenceButton');
+
     /* ==============================
        读取已经保存的竞品
        如果没有数据，则使用空数组
        ============================== */
     let competitors = JSON.parse(
       localStorage.getItem(storageKey) || '[]'
+    );
+
+    /* 为旧版竞品数据补充唯一编号
+       证据通过编号与竞品建立稳定关联 */
+    competitors = competitors.map(item => ({
+      ...item,
+      id: item.id || createId()
+    }));
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify(competitors)
+    );
+
+    /* 读取浏览器中已经保存的调研证据 */
+    let evidenceItems = JSON.parse(
+      localStorage.getItem(evidenceStorageKey) || '[]'
     );
 
     /* 当前正在编辑的竞品序号
@@ -360,6 +555,10 @@
        根据数据生成空状态或竞品卡片
        ============================== */
     function render() {
+      /* 每次竞品变化后同步更新证据表单和证据卡片 */
+      populateEvidenceCompetitors();
+      renderEvidence();
+
       /* 没有竞品时显示空状态 */
       if (competitors.length === 0) {
         list.innerHTML = `
@@ -415,6 +614,167 @@
           </article>
         `)
         .join('');
+    }
+
+    /* ==============================
+       生成唯一编号
+       用于稳定关联竞品和调研证据
+       ============================== */
+    function createId() {
+      if (
+        window.crypto &&
+        typeof window.crypto.randomUUID === 'function'
+      ) {
+        return window.crypto.randomUUID();
+      }
+
+      return `${Date.now()}-${Math.random()}`;
+    }
+
+    /* ==============================
+       更新证据表单中的竞品选项
+       竞品新增、编辑或删除后自动同步
+       ============================== */
+    function populateEvidenceCompetitors() {
+      const selectedValue = evidenceCompetitor.value;
+
+      if (competitors.length === 0) {
+        evidenceCompetitor.innerHTML = `
+          <option value="">请先添加竞品</option>
+        `;
+        return;
+      }
+
+      evidenceCompetitor.innerHTML = competitors
+        .map(item => `
+          <option value="${escapeHtml(item.id)}">
+            ${escapeHtml(item.name)}
+          </option>
+        `)
+        .join('');
+
+      /* 如果原选项仍然存在，则保持原来的选择 */
+      if (
+        competitors.some(item => item.id === selectedValue)
+      ) {
+        evidenceCompetitor.value = selectedValue;
+      }
+    }
+
+    /* ==============================
+       渲染调研证据列表
+       展示证据图片、对应竞品、日期和评论
+       ============================== */
+    function renderEvidence() {
+      if (evidenceItems.length === 0) {
+        evidenceList.innerHTML = `
+          <div class="empty">
+            还没有调研证据，点击“添加证据”上传第一张图片。
+          </div>
+        `;
+        return;
+      }
+
+      evidenceList.innerHTML = evidenceItems
+        .map((item, index) => {
+          const competitor = competitors.find(
+            entry => entry.id === item.competitorId
+          );
+          const competitorName = competitor
+            ? competitor.name
+            : '已删除的竞品';
+          const createdDate = new Date(
+            item.createdAt
+          ).toLocaleDateString('zh-CN');
+
+          return `
+            <article class="evidence-card">
+              <img
+                src="${escapeHtml(item.image)}"
+                alt="${escapeHtml(competitorName)}的调研证据">
+
+              <div class="evidence-content">
+                <div class="evidence-meta">
+                  <strong>${escapeHtml(competitorName)}</strong>
+                  <span>${escapeHtml(createdDate)}</span>
+                </div>
+
+                <p class="evidence-comment">
+                  ${escapeHtml(item.comment)}
+                </p>
+
+                <div class="card-actions">
+                  <button
+                    class="delete-button"
+                    data-evidence-action="delete"
+                    data-index="${index}">
+                    删除证据
+                  </button>
+                </div>
+              </div>
+            </article>
+          `;
+        })
+        .join('');
+    }
+
+    /* ==============================
+       重置证据表单
+       清空图片、评论和图片预览
+       ============================== */
+    function resetEvidenceForm() {
+      evidenceForm.reset();
+      evidencePreview.removeAttribute('src');
+      evidencePreview.style.display = 'none';
+      saveEvidenceButton.disabled = false;
+      saveEvidenceButton.textContent = '保存证据';
+      populateEvidenceCompetitors();
+    }
+
+    /* ==============================
+       压缩证据图片
+       限制最长边为 1600 像素并输出 JPEG
+       ============================== */
+    function compressImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          const image = new Image();
+
+          image.onload = () => {
+            const maxSize = 1600;
+            const scale = Math.min(
+              1,
+              maxSize / Math.max(image.width, image.height)
+            );
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(image.width * scale);
+            canvas.height = Math.round(image.height * scale);
+            const context = canvas.getContext('2d');
+            context.drawImage(
+              image,
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
+            resolve(canvas.toDataURL('image/jpeg', 0.78));
+          };
+
+          image.onerror = () => {
+            reject(new Error('无法读取所选图片'));
+          };
+
+          image.src = reader.result;
+        };
+
+        reader.onerror = () => {
+          reject(new Error('无法读取所选文件'));
+        };
+
+        reader.readAsDataURL(file);
+      });
     }
 
     /* ==============================
@@ -510,6 +870,11 @@
 
       /* 从表单中读取最新竞品信息 */
       const competitor = {
+        id:
+          editingIndex === null
+            ? createId()
+            : competitors[editingIndex].id,
+
         name:
           document.querySelector('#name')
             .value
@@ -548,6 +913,146 @@
 
       /* 重新显示最新竞品列表 */
       render();
+    });
+
+    /* ==============================
+       打开添加证据弹窗
+       没有竞品时先提醒用户创建竞品
+       ============================== */
+    document
+      .querySelector('#addEvidenceButton')
+      .addEventListener('click', () => {
+        if (competitors.length === 0) {
+          window.alert('请先添加至少一个竞品。');
+          return;
+        }
+
+        resetEvidenceForm();
+        evidenceDialog.showModal();
+      });
+
+    /* ==============================
+       预览待上传图片
+       同时检查原始文件是否超过 10MB
+       ============================== */
+    evidenceImage.addEventListener('change', () => {
+      const file = evidenceImage.files[0];
+
+      if (!file) {
+        evidencePreview.removeAttribute('src');
+        evidencePreview.style.display = 'none';
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        window.alert('图片不能超过 10MB，请选择较小的图片。');
+        evidenceImage.value = '';
+        evidencePreview.removeAttribute('src');
+        evidencePreview.style.display = 'none';
+        return;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      evidencePreview.onload = () => {
+        URL.revokeObjectURL(previewUrl);
+      };
+      evidencePreview.src = previewUrl;
+      evidencePreview.style.display = 'block';
+    });
+
+    /* ==============================
+       取消添加证据
+       关闭弹窗并清空临时内容
+       ============================== */
+    document
+      .querySelector('#cancelEvidenceButton')
+      .addEventListener('click', () => {
+        resetEvidenceForm();
+        evidenceDialog.close();
+      });
+
+    /* ==============================
+       保存调研证据
+       压缩图片后与评论一起保存到浏览器
+       ============================== */
+    evidenceForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const file = evidenceImage.files[0];
+
+      if (!file) {
+        window.alert('请选择一张证据图片。');
+        return;
+      }
+
+      saveEvidenceButton.disabled = true;
+      saveEvidenceButton.textContent = '正在保存…';
+
+      try {
+        const compressedImage = await compressImage(file);
+        const evidence = {
+          id: createId(),
+          competitorId: evidenceCompetitor.value,
+          image: compressedImage,
+          comment:
+            document.querySelector('#evidenceComment')
+              .value
+              .trim(),
+          createdAt: new Date().toISOString()
+        };
+
+        evidenceItems.push(evidence);
+
+        try {
+          localStorage.setItem(
+            evidenceStorageKey,
+            JSON.stringify(evidenceItems)
+          );
+        } catch (storageError) {
+          /* 保存失败时撤销刚才加入数组的数据 */
+          evidenceItems.pop();
+          throw new Error(
+            '浏览器存储空间不足，请删除部分证据或选择更小的图片。'
+          );
+        }
+
+        resetEvidenceForm();
+        evidenceDialog.close();
+        renderEvidence();
+      } catch (error) {
+        window.alert(error.message);
+        saveEvidenceButton.disabled = false;
+        saveEvidenceButton.textContent = '保存证据';
+      }
+    });
+
+    /* ==============================
+       删除调研证据
+       确认后从浏览器中永久移除
+       ============================== */
+    evidenceList.addEventListener('click', event => {
+      const button = event.target.closest(
+        'button[data-evidence-action]'
+      );
+
+      if (!button) {
+        return;
+      }
+
+      const index = Number(button.dataset.index);
+      const confirmed = window.confirm(
+        '确定删除这条调研证据吗？'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      evidenceItems.splice(index, 1);
+      localStorage.setItem(
+        evidenceStorageKey,
+        JSON.stringify(evidenceItems)
+      );
+      renderEvidence();
     });
 
     /* ==============================
