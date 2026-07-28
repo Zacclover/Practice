@@ -413,6 +413,117 @@
     }
 
     /* ==============================
+       竞品横向对比矩阵
+       竞品作为列、对比维度作为行
+       ============================== */
+    .comparison-section {
+      margin-top: 40px;
+    }
+
+    .comparison-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .comparison-header h2 {
+      margin: 0;
+    }
+
+    .comparison-scroll {
+      overflow-x: auto;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+    }
+
+    .comparison-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      min-width: 220px;
+      padding: 14px;
+      text-align: left;
+      vertical-align: top;
+      border-right: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .comparison-table th {
+      background: #eef2ff;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .comparison-table th:last-child,
+    .comparison-table td:last-child {
+      border-right: 0;
+    }
+
+    /* 第一列固定，横向滚动时始终显示对比维度 */
+    .dimension-column {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      min-width: 190px !important;
+      max-width: 190px;
+      background: white;
+      box-shadow: 1px 0 #e5e7eb;
+    }
+
+    .comparison-table th.dimension-column {
+      z-index: 3;
+      background: #e0e7ff;
+    }
+
+    .dimension-name {
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .dimension-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .matrix-button {
+      padding: 5px 8px;
+      font-size: 12px;
+    }
+
+    .matrix-delete-button {
+      background: #dc2626;
+    }
+
+    .matrix-input {
+      width: 100%;
+      min-height: 92px;
+      padding: 10px;
+      border: 1px solid transparent;
+      resize: vertical;
+    }
+
+    .matrix-input:focus {
+      background: #f8fafc;
+      border-color: #818cf8;
+      outline: none;
+    }
+
+    .comparison-empty {
+      padding: 30px;
+      color: #6b7280;
+      text-align: center;
+    }
+
+    /* ==============================
        空状态
        没有竞品数据时显示提示信息
        ============================== */
@@ -523,6 +634,25 @@
       id="competitorList"
       class="grid">
     </section>
+
+    <!-- ==============================
+         竞品横向对比矩阵
+         竞品为列，对比维度为行
+         ============================== -->
+    <section class="comparison-section">
+      <div class="comparison-header">
+        <h2>竞品横向对比</h2>
+        <button id="addDimensionButton">
+          添加对比维度
+        </button>
+      </div>
+
+      <!-- JavaScript 会在这里生成可编辑矩阵 -->
+      <div
+        id="comparisonContainer"
+        class="comparison-scroll">
+      </div>
+    </section>
   </main>
 
   <!-- ==============================
@@ -571,6 +701,36 @@
 
         <button id="saveButton" type="submit">
           保存竞品
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ==============================
+       添加或编辑对比维度弹窗
+       ============================== -->
+  <dialog id="dimensionDialog">
+    <form id="dimensionForm">
+      <h2 id="dimensionDialogTitle">添加对比维度</h2>
+
+      <label>
+        维度名称
+        <input
+          id="dimensionName"
+          required
+          placeholder="例如：移动端体验">
+      </label>
+
+      <div class="actions">
+        <button
+          class="secondary"
+          id="cancelDimensionButton"
+          type="button">
+          取消
+        </button>
+
+        <button id="saveDimensionButton" type="submit">
+          保存维度
         </button>
       </div>
     </form>
@@ -675,6 +835,7 @@
        ============================== */
     const storageKey = 'competitor-insights-items';
     const evidenceStorageKey = 'competitor-insights-evidence';
+    const comparisonStorageKey = 'competitor-insights-comparison';
 
     /* ==============================
        获取竞品管理相关页面元素
@@ -684,6 +845,22 @@
     const form = document.querySelector('#competitorForm');
     const dialogTitle = document.querySelector('#dialogTitle');
     const saveButton = document.querySelector('#saveButton');
+
+    /* ==============================
+       获取横向对比矩阵相关页面元素
+       ============================== */
+    const comparisonContainer =
+      document.querySelector('#comparisonContainer');
+    const dimensionDialog =
+      document.querySelector('#dimensionDialog');
+    const dimensionForm =
+      document.querySelector('#dimensionForm');
+    const dimensionDialogTitle =
+      document.querySelector('#dimensionDialogTitle');
+    const dimensionName =
+      document.querySelector('#dimensionName');
+    const saveDimensionButton =
+      document.querySelector('#saveDimensionButton');
 
     /* ==============================
        获取证据上传相关页面元素
@@ -730,11 +907,47 @@
       }))
       .filter(item => item.images.length > 0);
 
+    /* 首次使用矩阵时创建推荐的默认对比维度 */
+    const defaultDimensionNames = [
+      '产品定位',
+      '目标用户',
+      '核心能力',
+      'AI 能力',
+      '定价方式',
+      '主要优势',
+      '明显短板'
+    ];
+    const storedComparison = readStoredObject(
+      comparisonStorageKey
+    );
+    let comparisonData = storedComparison || {
+      dimensions: defaultDimensionNames.map(name => ({
+        id: createId(),
+        name
+      })),
+      values: {}
+    };
+
+    comparisonData.dimensions = Array.isArray(
+      comparisonData.dimensions
+    )
+      ? comparisonData.dimensions
+      : [];
+    comparisonData.values =
+      comparisonData.values &&
+      typeof comparisonData.values === 'object'
+        ? comparisonData.values
+        : {};
+
     persistCompetitors();
     persistEvidence();
+    persistComparison();
 
     /* 当前正在编辑的竞品序号，null 表示新增 */
     let editingIndex = null;
+
+    /* 当前正在编辑的对比维度编号 */
+    let editingDimensionId = null;
 
     /* 当前正在添加证据的竞品编号 */
     let selectedEvidenceCompetitorId = null;
@@ -748,6 +961,9 @@
        每张竞品卡片内包含自己的证据横向列表
        ============================== */
     function render() {
+      /* 竞品名称或数量变化时同步更新矩阵 */
+      renderComparison();
+
       if (competitors.length === 0) {
         list.innerHTML = `
           <div class="empty">
@@ -845,6 +1061,209 @@
         })
         .join('');
     }
+
+    /* ==============================
+       渲染竞品横向对比矩阵
+       对比维度为行、竞品档案为列
+       ============================== */
+    function renderComparison() {
+      if (competitors.length === 0) {
+        comparisonContainer.innerHTML = `
+          <div class="comparison-empty">
+            添加竞品后即可开始横向对比。
+          </div>
+        `;
+        return;
+      }
+
+      if (comparisonData.dimensions.length === 0) {
+        comparisonContainer.innerHTML = `
+          <div class="comparison-empty">
+            还没有对比维度，点击“添加对比维度”创建。
+          </div>
+        `;
+        return;
+      }
+
+      const competitorHeaders = competitors
+        .map(competitor => `
+          <th>${escapeHtml(competitor.name)}</th>
+        `)
+        .join('');
+
+      const rows = comparisonData.dimensions
+        .map(dimension => {
+          const cells = competitors
+            .map(competitor => {
+              const value =
+                comparisonData.values[dimension.id]?.[
+                  competitor.id
+                ] || '';
+
+              return `
+                <td>
+                  <textarea
+                    class="matrix-input"
+                    data-dimension-id="${escapeHtml(dimension.id)}"
+                    data-competitor-id="${escapeHtml(competitor.id)}"
+                    placeholder="填写对比信息">${escapeHtml(value)}</textarea>
+                </td>
+              `;
+            })
+            .join('');
+
+          return `
+            <tr>
+              <td class="dimension-column">
+                <strong class="dimension-name">
+                  ${escapeHtml(dimension.name)}
+                </strong>
+
+                <div class="dimension-actions">
+                  <button
+                    class="matrix-button"
+                    data-dimension-action="edit"
+                    data-dimension-id="${escapeHtml(dimension.id)}"
+                    type="button">
+                    编辑
+                  </button>
+
+                  <button
+                    class="matrix-button matrix-delete-button"
+                    data-dimension-action="delete"
+                    data-dimension-id="${escapeHtml(dimension.id)}"
+                    type="button">
+                    删除
+                  </button>
+                </div>
+              </td>
+              ${cells}
+            </tr>
+          `;
+        })
+        .join('');
+
+      comparisonContainer.innerHTML = `
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th class="dimension-column">对比维度</th>
+              ${competitorHeaders}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    /* ==============================
+       自动保存矩阵单元格内容
+       用户输入时同步写入浏览器存储
+       ============================== */
+    comparisonContainer.addEventListener('input', event => {
+      const input = event.target.closest('.matrix-input');
+      if (!input) {
+        return;
+      }
+
+      const dimensionId = input.dataset.dimensionId;
+      const competitorId = input.dataset.competitorId;
+      comparisonData.values[dimensionId] =
+        comparisonData.values[dimensionId] || {};
+      comparisonData.values[dimensionId][competitorId] =
+        input.value;
+      persistComparison();
+    });
+
+    /* ==============================
+       编辑或删除对比维度
+       ============================== */
+    comparisonContainer.addEventListener('click', event => {
+      const button = event.target.closest(
+        'button[data-dimension-action]'
+      );
+      if (!button) {
+        return;
+      }
+
+      const dimensionId = button.dataset.dimensionId;
+      const dimension = comparisonData.dimensions.find(
+        item => item.id === dimensionId
+      );
+      if (!dimension) {
+        return;
+      }
+
+      if (button.dataset.dimensionAction === 'edit') {
+        editingDimensionId = dimensionId;
+        dimensionName.value = dimension.name;
+        dimensionDialogTitle.textContent = '编辑对比维度';
+        saveDimensionButton.textContent = '保存修改';
+        dimensionDialog.showModal();
+      }
+
+      if (button.dataset.dimensionAction === 'delete') {
+        if (!window.confirm(
+          `确定删除对比维度“${dimension.name}”及其内容吗？`
+        )) {
+          return;
+        }
+
+        comparisonData.dimensions =
+          comparisonData.dimensions.filter(
+            item => item.id !== dimensionId
+          );
+        delete comparisonData.values[dimensionId];
+        persistComparison();
+        renderComparison();
+      }
+    });
+
+    /* 打开添加对比维度弹窗 */
+    document
+      .querySelector('#addDimensionButton')
+      .addEventListener('click', () => {
+        editingDimensionId = null;
+        dimensionForm.reset();
+        dimensionDialogTitle.textContent = '添加对比维度';
+        saveDimensionButton.textContent = '保存维度';
+        dimensionDialog.showModal();
+      });
+
+    /* 取消添加或编辑对比维度 */
+    document
+      .querySelector('#cancelDimensionButton')
+      .addEventListener('click', () => {
+        editingDimensionId = null;
+        dimensionForm.reset();
+        dimensionDialog.close();
+      });
+
+    /* 保存新增或编辑后的对比维度 */
+    dimensionForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const name = dimensionName.value.trim();
+
+      if (editingDimensionId === null) {
+        comparisonData.dimensions.push({
+          id: createId(),
+          name
+        });
+      } else {
+        const dimension = comparisonData.dimensions.find(
+          item => item.id === editingDimensionId
+        );
+        if (dimension) {
+          dimension.name = name;
+        }
+      }
+
+      persistComparison();
+      editingDimensionId = null;
+      dimensionForm.reset();
+      dimensionDialog.close();
+      renderComparison();
+    });
 
     /* ==============================
        生成单个正方形证据卡片
@@ -960,8 +1379,24 @@
         const evidenceCount = evidenceItems.filter(
           item => item.competitorId === competitor.id
         ).length;
-        const message = evidenceCount > 0
-          ? `确定删除“${competitor.name}”及其 ${evidenceCount} 条证据吗？`
+        const matrixValueCount =
+          comparisonData.dimensions.filter(dimension =>
+            comparisonData.values[dimension.id]?.[
+              competitor.id
+            ]?.trim()
+          ).length;
+        const relatedData = [];
+
+        if (evidenceCount > 0) {
+          relatedData.push(`${evidenceCount} 条证据`);
+        }
+
+        if (matrixValueCount > 0) {
+          relatedData.push(`${matrixValueCount} 项矩阵内容`);
+        }
+
+        const message = relatedData.length > 0
+          ? `确定删除“${competitor.name}”吗？将同时删除${relatedData.join('和')}。`
           : `确定删除“${competitor.name}”吗？`;
 
         if (!window.confirm(message)) {
@@ -972,8 +1407,19 @@
         evidenceItems = evidenceItems.filter(
           item => item.competitorId !== competitor.id
         );
+
+        /* 同步删除该竞品在所有矩阵维度中的内容 */
+        comparisonData.dimensions.forEach(dimension => {
+          if (comparisonData.values[dimension.id]) {
+            delete comparisonData.values[dimension.id][
+              competitor.id
+            ];
+          }
+        });
+
         persistCompetitors();
         persistEvidence();
+        persistComparison();
         render();
       }
     });
@@ -1361,6 +1807,24 @@
       }
     }
 
+    function readStoredObject(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) {
+          return null;
+        }
+
+        const value = JSON.parse(raw);
+        return value &&
+          typeof value === 'object' &&
+          !Array.isArray(value)
+            ? value
+            : null;
+      } catch (error) {
+        return null;
+      }
+    }
+
     function persistCompetitors() {
       localStorage.setItem(
         storageKey,
@@ -1372,6 +1836,13 @@
       localStorage.setItem(
         evidenceStorageKey,
         JSON.stringify(evidenceItems)
+      );
+    }
+
+    function persistComparison() {
+      localStorage.setItem(
+        comparisonStorageKey,
+        JSON.stringify(comparisonData)
       );
     }
 
