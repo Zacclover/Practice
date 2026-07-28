@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">竞品洞察台操作路径</title>
+  <desc id="desc">从竞品档案、调研证据、横向对比到洞察结论的四步工作流，以及事实信号到行动建议的洞察推导链。</desc>
+  <defs>
+    <pattern id="crossGrid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M22 19v6M19 22h6" fill="none" stroke="#C9C8C3" stroke-width="0.6"/>
+    </pattern>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10Z" fill="#FF5A1F"/>
+    </marker>
+    <marker id="arrowBlack" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10Z" fill="#111111"/>
+    </marker>
+    <style>
+      .display{font-family:"Noto Sans CJK SC","Arial Black",Arial,sans-serif;font-weight:900;letter-spacing:-2px}
+      .heading{font-family:"Noto Sans CJK SC",Arial,sans-serif;font-weight:900}
+      .body{font-family:"Noto Sans CJK SC",Arial,sans-serif;font-weight:500}
+      .mono{font-family:"IBM Plex Mono","Courier New",monospace;font-weight:700;letter-spacing:1.2px}
+      .ink{fill:#191919}.white{fill:#FFFFFF}.orange{fill:#FF5A1F}.muted{fill:#595959}
+      .strong{stroke:#111111;stroke-width:2;fill:none}.medium{stroke:#595959;stroke-width:1.2;fill:none}.subtle{stroke:#C9C8C3;stroke-width:1;fill:none}
+      .line{stroke-linecap:square;stroke-linejoin:miter}
+    </style>
+  </defs>
+
+  <!-- 画布与品牌标题 -->
+  <rect width="1600" height="900" fill="#F7F6F1"/>
+  <rect width="1600" height="900" fill="url(#crossGrid)"/>
+  <rect width="1600" height="92" fill="#111111"/>
+  <g transform="translate(52 25)" aria-hidden="true">
+    <path d="M0 0H42V42H0Z" fill="#FFFFFF"/>
+    <path d="M8 8H34V34H8Z" fill="#111111"/>
+    <path d="M0 0H16V16H0ZM26 26H42V42H26Z" fill="#FF5A1F"/>
+  </g>
+  <text x="112" y="50" class="heading white" font-size="24">竞品洞察台</text>
+  <text x="112" y="72" class="mono" fill="#C9C8C3" font-size="10">COMPETITIVE INTELLIGENCE SYSTEM</text>
+  <text x="1518" y="40" text-anchor="end" class="mono white" font-size="11">HOW IT WORKS / 00—04</text>
+  <text x="1518" y="62" text-anchor="end" class="mono" fill="#8B8B88" font-size="9">SPATIAL INSIGHT · ORANGE INDUSTRIAL</text>
+
+  <!-- 主标题 -->
+  <text x="64" y="160" class="display ink" font-size="58">从资料到决策</text>
+  <text x="66" y="195" class="mono orange" font-size="13">RESEARCH INPUT → EVIDENCE → COMPARISON → DECISION</text>
+  <text x="1532" y="171" text-anchor="end" class="body muted" font-size="16">竞品提供范围，证据提供事实，矩阵提供比较，洞察提供行动。</text>
+  <path d="M64 218H1536" stroke="#111111" stroke-width="2"/>
+  <path d="M64 218H366" stroke="#FF5A1F" stroke-width="5"/>
+
+  <!-- 主流程连线，先绘制以置于卡片后方 -->
+  <path d="M356 450H434M738 450H816M1120 450H1198" stroke="#FF5A1F" stroke-width="5" fill="none" marker-end="url(#arrowOrange)"/>
+  <g class="mono orange" font-size="9" aria-hidden="true">
+    <text x="395" y="434" text-anchor="middle">CAPTURE</text>
+    <text x="777" y="434" text-anchor="middle">COMPARE</text>
+    <text x="1159" y="434" text-anchor="middle">INTERPRET</text>
+  </g>
+
+  <!-- 01 竞品档案 -->
+  <g transform="translate(64 256)">
+    <rect width="292" height="396" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+    <path d="M0 0H76L64 52H0Z" fill="#FF5A1F"/>
+    <text x="19" y="35" class="display ink" font-size="28">01</text>
+    <text x="270" y="30" text-anchor="end" class="mono muted" font-size="9">OBJECT / WHO</text>
+
+    <!-- 风格化竞品扫描插画 -->
+    <g transform="translate(28 67)" aria-hidden="true">
+      <rect x="28" y="18" width="170" height="126" fill="#EFEEE9" stroke="#595959" stroke-width="1.2"/>
+      <rect x="10" y="37" width="170" height="126" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+      <rect x="10" y="37" width="170" height="24" fill="#111111"/>
+      <circle cx="24" cy="49" r="3" fill="#FF5A1F"/>
+      <path d="M34 49H82" stroke="#FFFFFF" stroke-width="2"/>
+      <rect x="28" y="78" width="48" height="48" fill="#111111"/>
+      <path d="M40 90H64V114H40Z" fill="#FFFFFF"/>
+      <path d="M87 82H156M87 96H145M87 110H160M28 139H158" stroke="#595959" stroke-width="3"/>
+      <circle cx="176" cy="70" r="36" fill="none" stroke="#FF5A1F" stroke-width="3"/>
+      <circle cx="176" cy="70" r="8" fill="#FF5A1F"/>
+      <path d="M176 22V118M128 70H224" stroke="#111111" stroke-width="1"/>
+      <path d="M197 96L225 124" stroke="#111111" stroke-width="7"/>
+      <path d="M210 112L226 128" stroke="#FF5A1F" stroke-width="3"/>
+      <text x="6" y="13" class="mono" fill="#595959" font-size="8">SCAN / PRODUCT PROFILE</text>
+      <text x="202" y="24" class="mono" fill="#595959" font-size="7">X·042</text>
+    </g>
+
+    <text x="24" y="275" class="heading ink" font-size="26">竞品档案</text>
+    <text x="24" y="301" class="mono orange" font-size="10">COMPETITOR PROFILE</text>
+    <text x="24" y="338" class="body muted" font-size="15">建立研究对象与基本定位</text>
+    <rect x="24" y="358" width="96" height="2" fill="#111111"/>
+    <text x="24" y="381" class="mono ink" font-size="10">回答：研究谁？</text>
+  </g>
+
+  <!-- 02 调研证据 -->
+  <g transform="translate(446 256)">
+    <rect width="292" height="396" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+    <path d="M0 0H76L64 52H0Z" fill="#FF5A1F"/>
+    <text x="19" y="35" class="display ink" font-size="28">02</text>
+    <text x="270" y="30" text-anchor="end" class="mono muted" font-size="9">SOURCE / WHAT</text>
+
+    <!-- 风格化证据捕获插画 -->
+    <g transform="translate(28 66)" aria-hidden="true">
+      <path d="M18 16H196V154H18Z" fill="#EFEEE9" stroke="#595959" stroke-width="1.2"/>
+      <path d="M0 32H178V170H0Z" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+      <path d="M0 32H178V58H0Z" fill="#111111"/>
+      <path d="M14 45H66" stroke="#FFFFFF" stroke-width="2"/>
+      <path d="M20 75H92V134H20Z" fill="#191919"/>
+      <path d="M30 121L48 99L61 110L78 88L88 100V124H30Z" fill="#FFFFFF"/>
+      <circle cx="72" cy="87" r="7" fill="#FF5A1F"/>
+      <path d="M104 76H158M104 91H148M104 106H160M104 121H142M20 148H160" stroke="#595959" stroke-width="3"/>
+      <path d="M-10 20V4H6M172 20V4H156M-10 164V180H6M172 164V180H156" fill="none" stroke="#FF5A1F" stroke-width="3"/>
+      <circle cx="184" cy="129" r="31" fill="#FFFFFF" stroke="#111111" stroke-width="5"/>
+      <path d="M205 152L229 176" stroke="#111111" stroke-width="8"/>
+      <path d="M173 129H195M184 118V140" stroke="#FF5A1F" stroke-width="3"/>
+      <text x="0" y="12" class="mono" fill="#595959" font-size="8">CAPTURE / TRACEABLE EVIDENCE</text>
+      <text x="203" y="84" class="mono" fill="#595959" font-size="7">ZOOM·2.4</text>
+    </g>
+
+    <text x="24" y="275" class="heading ink" font-size="26">调研证据</text>
+    <text x="24" y="301" class="mono orange" font-size="10">RESEARCH EVIDENCE</text>
+    <text x="24" y="338" class="body muted" font-size="15">保存截图、原文与调研记录</text>
+    <rect x="24" y="358" width="96" height="2" fill="#111111"/>
+    <text x="24" y="381" class="mono ink" font-size="10">回答：看到了什么？</text>
+  </g>
+
+  <!-- 03 横向对比 -->
+  <g transform="translate(828 256)">
+    <rect width="292" height="396" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+    <path d="M0 0H76L64 52H0Z" fill="#FF5A1F"/>
+    <text x="19" y="35" class="display ink" font-size="28">03</text>
+    <text x="270" y="30" text-anchor="end" class="mono muted" font-size="9">MATRIX / WHERE</text>
+
+    <!-- 风格化矩阵插画 -->
+    <g transform="translate(26 70)" aria-hidden="true">
+      <path d="M12 22H224V158H12Z" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+      <path d="M12 22H224V52H12Z" fill="#111111"/>
+      <path d="M12 22H68V158H12Z" fill="#EFEEE9" stroke="#111111" stroke-width="2"/>
+      <path d="M68 22V158M120 22V158M172 22V158M12 52H224M12 87H224M12 122H224" stroke="#C9C8C3" stroke-width="1.2"/>
+      <path d="M24 68H54M24 103H48M24 138H57" stroke="#595959" stroke-width="3"/>
+      <rect x="121" y="88" width="50" height="33" fill="#FF5A1F"/>
+      <path d="M132 104H160" stroke="#111111" stroke-width="3"/>
+      <rect x="173" y="53" width="50" height="33" fill="#191919"/>
+      <path d="M184 69H212" stroke="#FFFFFF" stroke-width="3"/>
+      <path d="M0 172H236" stroke="#111111" stroke-width="2" marker-end="url(#arrowBlack)"/>
+      <path d="M0 172V2" stroke="#111111" stroke-width="2" marker-end="url(#arrowBlack)"/>
+      <circle cx="146" cy="105" r="24" fill="none" stroke="#FF5A1F" stroke-width="3"/>
+      <path d="M146 75V135M116 105H176" stroke="#FF5A1F" stroke-width="1"/>
+      <text x="4" y="192" class="mono" fill="#595959" font-size="8">X / COMPETITORS</text>
+      <text x="-2" y="10" class="mono" fill="#595959" font-size="8">Y / DIMENSIONS</text>
+    </g>
+
+    <text x="24" y="275" class="heading ink" font-size="26">横向对比</text>
+    <text x="24" y="301" class="mono orange" font-size="10">COMPARISON MATRIX</text>
+    <text x="24" y="338" class="body muted" font-size="15">按维度识别共性与关键差异</text>
+    <rect x="24" y="358" width="96" height="2" fill="#111111"/>
+    <text x="24" y="381" class="mono ink" font-size="10">回答：哪里不同？</text>
+  </g>
+
+  <!-- 04 洞察结论 -->
+  <g transform="translate(1210 256)">
+    <rect width="326" height="396" fill="#111111" stroke="#111111" stroke-width="2"/>
+    <path d="M0 0H82L68 54H0Z" fill="#FF5A1F"/>
+    <text x="19" y="36" class="display ink" font-size="28">04</text>
+    <text x="304" y="30" text-anchor="end" class="mono" fill="#C9C8C3" font-size="9">INSIGHT / SO WHAT</text>
+
+    <!-- 风格化洞察处理器插画 -->
+    <g transform="translate(24 65)" aria-hidden="true">
+      <path d="M8 28H90M8 70H90M8 112H90" stroke="#FFFFFF" stroke-width="2"/>
+      <circle cx="10" cy="28" r="8" fill="#FFFFFF"/>
+      <circle cx="10" cy="70" r="8" fill="#C9C8C3"/>
+      <circle cx="10" cy="112" r="8" fill="#FF5A1F"/>
+      <path d="M90 28L142 70M90 70H142M90 112L142 70" stroke="#FF5A1F" stroke-width="3"/>
+      <path d="M142 70L184 70" stroke="#FF5A1F" stroke-width="5" marker-end="url(#arrowOrange)"/>
+      <path d="M190 28L240 70L190 112L140 70Z" fill="#FFFFFF" stroke="#FF5A1F" stroke-width="4"/>
+      <circle cx="190" cy="70" r="17" fill="#FF5A1F"/>
+      <path d="M190 53V87M173 70H207" stroke="#111111" stroke-width="3"/>
+      <path d="M240 70H276" stroke="#FF5A1F" stroke-width="5" marker-end="url(#arrowOrange)"/>
+      <path d="M268 30V10H248M268 110V130H248" fill="none" stroke="#C9C8C3" stroke-width="1"/>
+      <text x="0" y="150" class="mono" fill="#C9C8C3" font-size="8">SIGNAL PROCESSOR / DECISION OUTPUT</text>
+      <text x="275" y="20" text-anchor="end" class="mono" fill="#8B8B88" font-size="7">OUT·01</text>
+    </g>
+
+    <text x="24" y="275" class="heading white" font-size="26">洞察结论</text>
+    <text x="24" y="301" class="mono orange" font-size="10">INSIGHT FINDINGS</text>
+    <text x="24" y="338" class="body" fill="#C9C8C3" font-size="15">把证据与差异转化为产品行动</text>
+    <rect x="24" y="358" width="96" height="2" fill="#FF5A1F"/>
+    <text x="24" y="381" class="mono white" font-size="10">回答：意味着什么？怎么做？</text>
+  </g>
+
+  <!-- 洞察推导链 -->
+  <g transform="translate(64 692)">
+    <rect width="1472" height="154" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+    <rect width="244" height="154" fill="#111111"/>
+    <text x="24" y="37" class="mono orange" font-size="10">INSIGHT PIPELINE / 05</text>
+    <text x="24" y="75" class="heading white" font-size="24">洞察如何形成</text>
+    <text x="24" y="106" class="body" fill="#C9C8C3" font-size="13">从客观事实到明确行动</text>
+    <path d="M24 127H196" stroke="#FF5A1F" stroke-width="4"/>
+
+    <g transform="translate(282 26)">
+      <path d="M0 52H1144" stroke="#C9C8C3" stroke-width="2"/>
+      <path d="M110 52H245M337 52H472M564 52H699M791 52H926" stroke="#FF5A1F" stroke-width="4" marker-end="url(#arrowOrange)"/>
+      <g>
+        <rect x="0" y="12" width="110" height="80" fill="#EFEEE9" stroke="#111111" stroke-width="1.5"/>
+        <text x="16" y="37" class="mono orange" font-size="10">01 / SIGNAL</text>
+        <text x="16" y="66" class="heading ink" font-size="17">事实信号</text>
+      </g>
+      <g>
+        <rect x="227" y="12" width="110" height="80" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+        <text x="243" y="37" class="mono orange" font-size="10">02 / PATTERN</text>
+        <text x="243" y="66" class="heading ink" font-size="17">共性模式</text>
+      </g>
+      <g>
+        <rect x="454" y="12" width="110" height="80" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+        <text x="470" y="37" class="mono orange" font-size="10">03 / DIFF</text>
+        <text x="470" y="66" class="heading ink" font-size="17">关键差异</text>
+      </g>
+      <g>
+        <rect x="681" y="12" width="110" height="80" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+        <text x="697" y="37" class="mono orange" font-size="10">04 / CHANCE</text>
+        <text x="697" y="66" class="heading ink" font-size="17">机会假设</text>
+      </g>
+      <g>
+        <path d="M908 12H1042V78L1028 92H908Z" fill="#FF5A1F" stroke="#111111" stroke-width="1.5"/>
+        <text x="924" y="37" class="mono ink" font-size="10">05 / ACTION</text>
+        <text x="924" y="66" class="heading ink" font-size="17">行动建议</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- 页脚坐标与版本信息 -->
+  <text x="64" y="878" class="mono muted" font-size="9">GUIDE / V1 · SINGLE-SOURCE RESEARCH FLOW</text>
+  <text x="1536" y="878" text-anchor="end" class="mono muted" font-size="9">1600×900 · GRID 44 · ORANGE #FF5A1F</text>
+</svg>

@@ -1957,6 +1957,176 @@
       letter-spacing: -.035em;
     }
 
+    /* ================================================================
+       系统介绍弹窗：首次欢迎、工业几何撒花与完整流程引导图
+       ================================================================ */
+    .system-introduction-dialog {
+      width: min(1120px, calc(100% - 32px));
+      max-height: calc(100vh - 32px);
+      padding: 0;
+      overflow-y: auto;
+    }
+
+    .introduction-dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 18px 20px;
+      color: var(--white);
+      background: var(--black);
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    .introduction-dialog-header h2 {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      color: var(--white);
+    }
+
+    .introduction-dialog-header .system-kicker {
+      margin: 0 0 5px;
+      color: var(--orange);
+      font: 600 9px/1 var(--font-mono);
+      letter-spacing: .08em;
+    }
+
+    .introduction-dialog-close {
+      min-width: 40px;
+      min-height: 40px;
+      padding: 8px;
+      color: var(--white);
+      background: transparent;
+      border: 1px solid var(--line-medium);
+      border-radius: 0;
+      clip-path: none;
+    }
+
+    .introduction-dialog-close:hover {
+      color: var(--black);
+      background: var(--orange);
+      border-color: var(--orange);
+      transform: none;
+    }
+
+    .introduction-dialog-close svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: square;
+    }
+
+    .introduction-welcome {
+      position: relative;
+      min-height: 112px;
+      padding: 24px 300px 24px 24px;
+      overflow: hidden;
+      background: var(--gray-100);
+      border-bottom: 1px solid var(--line-medium);
+    }
+
+    .introduction-welcome[hidden] {
+      display: none;
+    }
+
+    .introduction-welcome h3 {
+      position: relative;
+      z-index: 2;
+      margin: 0 0 8px;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+    }
+
+    .introduction-welcome p {
+      position: relative;
+      z-index: 2;
+      margin: 0;
+      color: var(--line-medium);
+      font-size: 13px;
+    }
+
+    .introduction-confetti {
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      right: 0;
+      width: 300px;
+      height: 112px;
+      pointer-events: none;
+    }
+
+    .introduction-confetti svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .introduction-confetti-piece {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: introduction-confetti-burst 620ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .introduction-confetti-piece:nth-child(2n) {
+      animation-delay: 55ms;
+    }
+
+    .introduction-confetti-piece:nth-child(3n) {
+      animation-delay: 100ms;
+    }
+
+    @keyframes introduction-confetti-burst {
+      from {
+        opacity: 0;
+        transform: translate(0, 30px) rotate(0deg) scale(.5);
+      }
+      to {
+        opacity: 1;
+        transform: translate(0, 0) rotate(90deg) scale(1);
+      }
+    }
+
+    .introduction-summary {
+      margin: 0;
+      padding: 16px 20px;
+      color: var(--line-medium);
+      background: var(--white);
+      border-bottom: 1px solid var(--line-subtle);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .introduction-image-scroll {
+      padding: 20px;
+      overflow-x: auto;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line-medium);
+    }
+
+    .introduction-image-scroll img {
+      display: block;
+      width: 100%;
+      min-width: 760px;
+      height: auto;
+      border: 2px solid var(--line-strong);
+    }
+
+    .introduction-dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      padding: 16px 20px 20px;
+      background: var(--white);
+    }
+
+    .introduction-dialog-actions button {
+      min-width: 128px;
+    }
+
     label {
       font-size: 13px;
       font-weight: 700;
@@ -2108,6 +2278,82 @@
 
     .brand-lockup h1 {
       margin: 0;
+    }
+
+    /* ================================================================
+       系统介绍入口：主标题旁的问号 Icon 与键盘可访问 Tooltip
+       ================================================================ */
+    .brand-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .system-introduction-button {
+      position: relative;
+      display: grid;
+      width: 40px;
+      height: 40px;
+      min-height: 40px;
+      padding: 9px;
+      place-items: center;
+      color: var(--white);
+      background: transparent;
+      border: 1px solid var(--line-medium);
+      border-radius: 0;
+      clip-path: none;
+    }
+
+    .system-introduction-button svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
+    }
+
+    .system-introduction-button:hover {
+      color: var(--black);
+      background: var(--orange);
+      border-color: var(--orange);
+      transform: none;
+    }
+
+    .system-introduction-button:focus-visible {
+      color: var(--black);
+      background: var(--orange);
+      border-color: var(--orange);
+      outline: 2px solid var(--white);
+      outline-offset: 2px;
+    }
+
+    .system-introduction-button::after {
+      position: absolute;
+      z-index: 50;
+      top: calc(100% + 8px);
+      left: 50%;
+      width: max-content;
+      padding: 7px 9px;
+      color: var(--white);
+      background: var(--black);
+      border: 1px solid var(--white);
+      border-radius: 0;
+      content: attr(data-tooltip);
+      font: 600 10px/1 var(--font-mono);
+      letter-spacing: .04em;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -2px);
+      transition: opacity 140ms ease, transform 140ms ease;
+      white-space: nowrap;
+    }
+
+    .system-introduction-button:hover::after,
+    .system-introduction-button:focus-visible::after {
+      opacity: 1;
+      transform: translate(-50%, 0);
     }
 
     .brand-lockup p,
@@ -2560,6 +2806,25 @@
       .comparison-empty {
         font-size: 14px;
       }
+
+      /* 窄屏介绍弹窗保留欢迎层级，并让高密度流程图在自身容器内滚动 */
+      .introduction-dialog-header {
+        padding: 14px 16px;
+      }
+
+      .introduction-welcome {
+        min-height: 160px;
+        padding: 22px 150px 22px 18px;
+      }
+
+      .introduction-confetti {
+        width: 170px;
+        height: 160px;
+      }
+
+      .introduction-image-scroll {
+        padding: 12px;
+      }
     }
 
     /* 减少动态：保留状态变化，但移除所有非必要位移与过渡 */
@@ -2583,6 +2848,10 @@
       .evidence-tile:focus-within .evidence-collage img {
         transform: none;
       }
+
+      .introduction-confetti-piece {
+        animation: none;
+      }
     }
   </style>
 </head>
@@ -2596,7 +2865,19 @@
     <div class="brand-lockup">
       <span class="brand-mark" aria-hidden="true"></span>
       <div>
-        <h1>竞品洞察台</h1>
+        <div class="brand-title-row">
+          <h1>竞品洞察台</h1>
+          <button
+            id="systemIntroductionButton"
+            class="system-introduction-button"
+            type="button"
+            aria-label="系统介绍"
+            data-tooltip="系统介绍">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M8.5 9a3.5 3.5 0 1 1 5.8 2.6c-1.5 1.2-2.3 1.8-2.3 3.4M12 19h.01"></path>
+            </svg>
+          </button>
+        </div>
         <p>COMPETITIVE INTELLIGENCE SYSTEM</p>
       </div>
     </div>
@@ -2736,6 +3017,68 @@
       </div>
     </section>
   </main>
+
+  <!-- ================================================================
+       系统介绍弹窗
+       首次访问显示欢迎语与工业几何撒花，手动查看只显示操作引导
+       ================================================================ -->
+  <dialog
+    id="systemIntroductionDialog"
+    class="system-introduction-dialog"
+    aria-labelledby="systemIntroductionTitle"
+    aria-describedby="systemIntroductionSummary">
+    <div class="introduction-dialog-header">
+      <div>
+        <p class="system-kicker">SYSTEM GUIDE / 00—04</p>
+        <h2 id="systemIntroductionTitle">系统介绍</h2>
+      </div>
+      <button
+        id="closeSystemIntroductionIconButton"
+        class="introduction-dialog-close"
+        type="button"
+        aria-label="关闭系统介绍">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5 5l14 14M19 5L5 19"></path>
+        </svg>
+      </button>
+    </div>
+
+    <section class="introduction-welcome" hidden>
+      <h3>初次见面，自我介绍一下</h3>
+      <p>用一分钟认识从竞品档案、证据采集到洞察行动的完整研究路径。</p>
+      <div class="introduction-confetti" aria-hidden="true">
+        <svg viewBox="0 0 300 112" focusable="false">
+          <rect class="introduction-confetti-piece" x="38" y="18" width="8" height="28" fill="#FF5A1F"></rect>
+          <rect class="introduction-confetti-piece" x="76" y="50" width="22" height="7" fill="#111111"></rect>
+          <path class="introduction-confetti-piece" d="M116 14h22v22h-22z" fill="none" stroke="#595959" stroke-width="3"></path>
+          <path class="introduction-confetti-piece" d="M154 62l14-24 14 24z" fill="#FF5A1F"></path>
+          <rect class="introduction-confetti-piece" x="206" y="16" width="7" height="34" fill="#111111"></rect>
+          <path class="introduction-confetti-piece" d="M244 48h30M259 33v30" fill="none" stroke="#FF5A1F" stroke-width="4"></path>
+          <rect class="introduction-confetti-piece" x="52" y="82" width="18" height="8" fill="#595959"></rect>
+          <path class="introduction-confetti-piece" d="M112 76l10 10-10 10-10-10z" fill="#111111"></path>
+          <rect class="introduction-confetti-piece" x="190" y="78" width="24" height="9" fill="#FF5A1F"></rect>
+          <path class="introduction-confetti-piece" d="M264 82h18v18h-18z" fill="none" stroke="#111111" stroke-width="3"></path>
+        </svg>
+      </div>
+    </section>
+
+    <p id="systemIntroductionSummary" class="introduction-summary">
+      竞品提供研究范围，证据提供事实基础，矩阵提供比较结构，洞察把差异转化为机会与行动。
+    </p>
+
+    <div class="introduction-image-scroll" tabindex="0" aria-label="系统操作引导图，可横向滚动查看">
+      <img
+        id="systemIntroductionImage"
+        src="assets/insight-workflow-guide.svg"
+        alt="从竞品档案、调研证据、横向对比到洞察结论的四步操作路径，以及事实信号、共性模式、关键差异、机会假设和行动建议的洞察推导链">
+    </div>
+
+    <div class="introduction-dialog-actions">
+      <button id="closeSystemIntroductionButton" type="button">
+        开始使用
+      </button>
+    </div>
+  </dialog>
 
   <!-- ==============================
        Tab 新增与重命名弹窗
@@ -3168,6 +3511,8 @@
     const comparisonStorageKey = 'competitor-insights-comparison';
     const workspaceStorageKey =
       'competitor-insights-workspaces-v2';
+    const systemIntroductionSeenKey =
+      'competitor-insights-system-introduction-seen-v1';
 
     /* 没有证据截图时使用内置四叶草 SVG 兜底图 */
     const fallbackImage =
@@ -3198,6 +3543,18 @@
     const tabName = document.querySelector('#tabName');
     const saveTabButton = document.querySelector('#saveTabButton');
     const cancelTabButton = document.querySelector('#cancelTabButton');
+
+    /* 获取系统介绍入口、首次欢迎区域与关闭操作 */
+    const systemIntroductionButton =
+      document.querySelector('#systemIntroductionButton');
+    const systemIntroductionDialog =
+      document.querySelector('#systemIntroductionDialog');
+    const systemIntroductionWelcome =
+      document.querySelector('.introduction-welcome');
+    const closeSystemIntroductionButton =
+      document.querySelector('#closeSystemIntroductionButton');
+    const closeSystemIntroductionIconButton =
+      document.querySelector('#closeSystemIntroductionIconButton');
 
     /* ==============================
        获取竞品管理相关页面元素
@@ -3515,6 +3872,45 @@
       return true;
     }
 
+    /* ================================================================
+       系统介绍：首次欢迎只展示一次，主标题入口可随时重新打开
+       ================================================================ */
+    function openSystemIntroduction(firstVisit = false) {
+      systemIntroductionWelcome.hidden = !firstVisit;
+      systemIntroductionDialog.dataset.mode =
+        firstVisit ? 'first-visit' : 'reference';
+
+      if (!systemIntroductionDialog.open) {
+        systemIntroductionDialog.showModal();
+      }
+
+      if (firstVisit) {
+        try {
+          localStorage.setItem(systemIntroductionSeenKey, '1');
+        } catch (error) {
+          /* 隐私模式禁用存储时仍允许本次正常查看引导 */
+        }
+      }
+    }
+
+    function closeSystemIntroduction() {
+      if (systemIntroductionDialog.open) {
+        systemIntroductionDialog.close();
+      }
+    }
+
+    systemIntroductionButton.addEventListener('click', () => {
+      openSystemIntroduction(false);
+    });
+
+    closeSystemIntroductionButton.addEventListener(
+      'click',
+      closeSystemIntroduction
+    );
+    closeSystemIntroductionIconButton.addEventListener(
+      'click',
+      closeSystemIntroduction
+    );
 
     function openWorkspaceTabDialog(tabId = null) {
       editingWorkspaceTabId = tabId;
@@ -5822,6 +6218,15 @@
 
     /* 页面初始化 */
     render();
+
+    /* 首次访问自动展示欢迎版系统介绍；后续只能从主标题问号入口打开 */
+    try {
+      if (localStorage.getItem(systemIntroductionSeenKey) !== '1') {
+        openSystemIntroduction(true);
+      }
+    } catch (error) {
+      openSystemIntroduction(true);
+    }
   </script>
 </body>
 </html>
