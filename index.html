@@ -262,7 +262,7 @@
       color: white;
       background: linear-gradient(
         transparent,
-        rgba(15, 23, 42, .92)
+        rgba(46, 16, 101, .96)
       );
     }
 
@@ -274,7 +274,11 @@
     }
 
     .evidence-tile-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       max-width: 72px;
+      min-height: 16px;
       padding: 2px 5px;
       overflow: hidden;
       color: #312e81;
@@ -283,12 +287,14 @@
       background: rgba(224, 231, 255, .95);
       border-radius: 999px;
       font-size: 9px;
+      line-height: 1;
     }
 
     .evidence-overlay p {
       display: -webkit-box;
       margin: 0;
       overflow: hidden;
+      color: #fff;
       font-size: 12px;
       line-height: 1.4;
       -webkit-box-orient: vertical;
@@ -517,14 +523,62 @@
       font-size: 12px;
     }
 
-    /* 从矩阵单元格查看当前竞品的关联证据 */
+    /* ==============================
+       矩阵中的自动证据文字与人工补充内容
+       每条证据文字固定显示为一行
+       ============================== */
+    .matrix-auto-evidence {
+      margin-bottom: 12px;
+    }
+
+    .matrix-auto-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+
+    .matrix-auto-title,
+    .matrix-manual-label {
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
     .matrix-evidence-link {
-      width: 100%;
-      margin-top: 8px;
-      padding: 7px 10px;
+      width: auto;
+      padding: 5px 8px;
       color: #4338ca;
       background: #eef2ff;
+      font-size: 11px;
+    }
+
+    .matrix-evidence-lines {
+      display: grid;
+      gap: 5px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .matrix-evidence-line {
+      display: block;
+      width: 100%;
+      padding: 7px 9px;
+      overflow: hidden;
+      color: #312e81;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: #f5f3ff;
+      border-left: 3px solid #7c3aed;
+      border-radius: 6px;
       font-size: 12px;
+    }
+
+    .matrix-manual-label {
+      display: block;
+      margin-bottom: 5px;
     }
 
     .linked-evidence-list {
@@ -1352,33 +1406,61 @@
                 comparisonData.values[dimension.id]?.[
                   competitor.id
                 ] || '';
-              const linkedCount = evidenceItems.filter(
-                evidence =>
-                  evidence.competitorId === competitor.id &&
-                  evidence.dimensionIds.includes(dimension.id)
-              ).length;
+              const linkedEvidence = evidenceItems
+                .map((evidence, evidenceIndex) => ({
+                  evidence,
+                  evidenceIndex
+                }))
+                .filter(entry =>
+                  entry.evidence.competitorId === competitor.id &&
+                  entry.evidence.dimensionIds.includes(dimension.id)
+                );
+              const evidenceLines = linkedEvidence
+                .map(entry => `
+                  <button
+                    class="matrix-evidence-line"
+                    data-matrix-evidence-index="${entry.evidenceIndex}"
+                    type="button"
+                    title="${escapeHtml(entry.evidence.comment)}">
+                    ${escapeHtml(entry.evidence.comment)}
+                  </button>
+                `)
+                .join('');
 
               return `
                 <td>
+                  ${
+                    linkedEvidence.length > 0
+                      ? `
+                        <section class="matrix-auto-evidence">
+                          <div class="matrix-auto-header">
+                            <span class="matrix-auto-title">
+                              证据内容（${linkedEvidence.length}）
+                            </span>
+                            <button
+                              class="matrix-evidence-link"
+                              data-linked-dimension-id="${escapeHtml(dimension.id)}"
+                              data-linked-competitor-id="${escapeHtml(competitor.id)}"
+                              type="button">
+                              查看全部
+                            </button>
+                          </div>
+                          <div class="matrix-evidence-lines">
+                            ${evidenceLines}
+                          </div>
+                        </section>
+                      `
+                      : ''
+                  }
+
+                  <label class="matrix-manual-label">
+                    自主补充内容
+                  </label>
                   <textarea
                     class="matrix-input"
                     data-dimension-id="${escapeHtml(dimension.id)}"
                     data-competitor-id="${escapeHtml(competitor.id)}"
-                    placeholder="填写对比信息">${escapeHtml(value)}</textarea>
-
-                  ${
-                    linkedCount > 0
-                      ? `
-                        <button
-                          class="matrix-evidence-link"
-                          data-linked-dimension-id="${escapeHtml(dimension.id)}"
-                          data-linked-competitor-id="${escapeHtml(competitor.id)}"
-                          type="button">
-                          查看相关证据（${linkedCount}）
-                        </button>
-                      `
-                      : ''
-                  }
+                    placeholder="填写补充对比信息">${escapeHtml(value)}</textarea>
                 </td>
               `;
             })
@@ -1451,7 +1533,19 @@
        编辑或删除对比维度
        ============================== */
     comparisonContainer.addEventListener('click', event => {
-      /* 点击矩阵单元格中的证据入口 */
+      /* 点击自动生成的单行证据文字，直接打开详情 */
+      const evidenceLine = event.target.closest(
+        'button[data-matrix-evidence-index]'
+      );
+
+      if (evidenceLine) {
+        openEvidenceDetail(
+          Number(evidenceLine.dataset.matrixEvidenceIndex)
+        );
+        return;
+      }
+
+      /* 点击矩阵单元格中的“查看全部”入口 */
       const linkedButton = event.target.closest(
         'button[data-linked-dimension-id]'
       );
