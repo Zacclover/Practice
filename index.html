@@ -738,6 +738,172 @@
     }
 
     /* ==============================
+       多 Tab 洞察空间导航
+       每个 Tab 独立保存竞品、证据和横向对比
+       ============================== */
+    .workspace-tabs-section {
+      margin: 28px 0 18px;
+    }
+
+    .workspace-tabs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .workspace-tabs-header h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .workspace-tabs {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+      padding: 6px;
+      overflow-x: auto;
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 12px;
+      scrollbar-width: thin;
+    }
+
+    .workspace-tab-item {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      min-width: 120px;
+      max-width: 260px;
+      background: rgba(255, 255, 255, .72);
+      border: 1px solid transparent;
+      border-radius: 9px;
+      transition: opacity .15s, border-color .15s, box-shadow .15s;
+    }
+
+    .workspace-tab-item.is-active {
+      background: white;
+      border-color: #818cf8;
+      box-shadow: 0 2px 8px rgba(79, 70, 229, .12);
+    }
+
+    .workspace-tab-item.is-dragging {
+      opacity: .42;
+    }
+
+    .workspace-tab-item.is-drop-target {
+      border-color: #4f46e5;
+      box-shadow: inset 3px 0 0 #4f46e5;
+    }
+
+    .workspace-tab-select {
+      flex: 1;
+      min-width: 0;
+      padding: 9px 10px;
+      overflow: hidden;
+      color: #374151;
+      background: transparent;
+      border: 0;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-select {
+      color: #3730a3;
+      font-weight: 700;
+    }
+
+    .workspace-tab-action {
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
+      padding: 0;
+      color: #6b7280;
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+    }
+
+    .workspace-tab-action:hover {
+      color: #3730a3;
+      background: #eef2ff;
+    }
+
+    .workspace-tab-action.delete:hover {
+      color: #b91c1c;
+      background: #fee2e2;
+    }
+
+    .workspace-tab-add {
+      flex: 0 0 auto;
+    }
+
+    .tab-options-list {
+      display: grid;
+      gap: 8px;
+      max-height: 320px;
+      padding: 4px;
+      overflow-y: auto;
+    }
+
+    .tab-option {
+      display: flex;
+      grid-template-columns: none;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 10px;
+      font-weight: 500;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+    }
+
+    .tab-option input {
+      width: auto;
+      margin: 0;
+    }
+
+    .import-mode-card {
+      display: flex;
+      grid-template-columns: none;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+      font-weight: 500;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+    }
+
+    .import-mode-card input {
+      width: auto;
+      margin-top: 3px;
+    }
+
+    .import-mode-card strong,
+    .import-mode-card small {
+      display: block;
+    }
+
+    .import-mode-card small {
+      margin-top: 4px;
+      color: #6b7280;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 640px) {
+      .workspace-tab-item {
+        min-width: 108px;
+      }
+
+      .workspace-tabs-header {
+        align-items: flex-start;
+      }
+    }
+
+    /* ==============================
        数据备份与导入操作
        ============================== */
     .hero-actions {
@@ -1087,6 +1253,28 @@
       </div>
     </section>
 
+    <!-- ==============================
+         多 Tab 洞察空间
+         位于竞品档案上方，每个 Tab 拥有独立完整数据
+         ============================== -->
+    <section class="workspace-tabs-section">
+      <div class="workspace-tabs-header">
+        <h2>洞察空间</h2>
+        <button
+          id="addWorkspaceTabButton"
+          class="workspace-tab-add"
+          type="button">
+          添加 Tab
+        </button>
+      </div>
+      <nav
+        id="workspaceTabs"
+        class="workspace-tabs"
+        role="tablist"
+        aria-label="洞察空间 Tab">
+      </nav>
+    </section>
+
     <!-- 竞品档案列表区域 -->
     <h2 class="section-title">竞品档案</h2>
 
@@ -1115,6 +1303,99 @@
       </div>
     </section>
   </main>
+
+  <!-- ==============================
+       Tab 新增与重命名弹窗
+       ============================== -->
+  <dialog id="tabDialog">
+    <form id="tabForm">
+      <h2 id="tabDialogTitle">添加 Tab</h2>
+      <label>
+        Tab 名称
+        <input
+          id="tabName"
+          maxlength="20"
+          required
+          placeholder="例如：协同办公">
+      </label>
+      <div class="actions">
+        <button
+          id="cancelTabButton"
+          class="secondary"
+          type="button">
+          取消
+        </button>
+        <button id="saveTabButton" type="submit">
+          保存 Tab
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ==============================
+       导出 Tab 选择弹窗
+       支持选择部分 Tab 或一次导出全部
+       ============================== -->
+  <dialog id="exportTabsDialog">
+    <h2>选择要导出的 Tab</h2>
+    <label class="tab-option">
+      <input id="exportAllTabsCheckbox" type="checkbox" checked>
+      全部选择
+    </label>
+    <div id="exportTabOptions" class="tab-options-list"></div>
+    <div class="actions">
+      <button
+        id="cancelExportTabsButton"
+        class="secondary"
+        type="button">
+        取消
+      </button>
+      <button id="confirmExportTabsButton" type="button">
+        导出所选 Tab
+      </button>
+    </div>
+  </dialog>
+
+  <!-- ==============================
+       导入模式选择弹窗
+       可追加为新 Tab，或覆盖当前全部数据
+       ============================== -->
+  <dialog id="importModeDialog">
+    <h2>选择导入方式</h2>
+    <p id="importTabsSummary" class="form-help"></p>
+    <label class="import-mode-card">
+      <input
+        name="importMode"
+        type="radio"
+        value="append"
+        checked>
+      <span>
+        <strong>全部新增为 Tab</strong>
+        <small>保留当前数据，把备份中的所有 Tab 追加到页面。</small>
+      </span>
+    </label>
+    <label class="import-mode-card">
+      <input
+        name="importMode"
+        type="radio"
+        value="replace">
+      <span>
+        <strong>覆盖现有数据</strong>
+        <small>删除当前全部 Tab，以备份中的 Tab 完整替换。</small>
+      </span>
+    </label>
+    <div class="actions">
+      <button
+        id="cancelImportModeButton"
+        class="secondary"
+        type="button">
+        取消
+      </button>
+      <button id="confirmImportModeButton" type="button">
+        确认导入
+      </button>
+    </div>
+  </dialog>
 
   <!-- ==============================
        添加竞品弹窗
@@ -1452,6 +1733,8 @@
     const storageKey = 'competitor-insights-items';
     const evidenceStorageKey = 'competitor-insights-evidence';
     const comparisonStorageKey = 'competitor-insights-comparison';
+    const workspaceStorageKey =
+      'competitor-insights-workspaces-v2';
 
     /* 没有证据截图时使用内置四叶草 SVG 兜底图 */
     const fallbackImage =
@@ -1469,6 +1752,19 @@
           <text x="100" y="166" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#166534">暂无截图</text>
         </svg>
       `)}`;
+
+    /* ==============================
+       获取多 Tab 洞察空间相关页面元素
+       ============================== */
+    const workspaceTabs = document.querySelector('#workspaceTabs');
+    const addWorkspaceTabButton =
+      document.querySelector('#addWorkspaceTabButton');
+    const tabDialog = document.querySelector('#tabDialog');
+    const tabForm = document.querySelector('#tabForm');
+    const tabDialogTitle = document.querySelector('#tabDialogTitle');
+    const tabName = document.querySelector('#tabName');
+    const saveTabButton = document.querySelector('#saveTabButton');
+    const cancelTabButton = document.querySelector('#cancelTabButton');
 
     /* ==============================
        获取竞品管理相关页面元素
@@ -1502,6 +1798,24 @@
       document.querySelector('#importDataButton');
     const importDataInput =
       document.querySelector('#importDataInput');
+    const exportTabsDialog =
+      document.querySelector('#exportTabsDialog');
+    const exportAllTabsCheckbox =
+      document.querySelector('#exportAllTabsCheckbox');
+    const exportTabOptions =
+      document.querySelector('#exportTabOptions');
+    const confirmExportTabsButton =
+      document.querySelector('#confirmExportTabsButton');
+    const cancelExportTabsButton =
+      document.querySelector('#cancelExportTabsButton');
+    const importModeDialog =
+      document.querySelector('#importModeDialog');
+    const importTabsSummary =
+      document.querySelector('#importTabsSummary');
+    const confirmImportModeButton =
+      document.querySelector('#confirmImportModeButton');
+    const cancelImportModeButton =
+      document.querySelector('#cancelImportModeButton');
 
     /* ==============================
        获取证据上传相关页面元素
@@ -1556,18 +1870,9 @@
       document.querySelector('#linkedEvidenceList');
 
     /* ==============================
-       读取并迁移已有数据
-       兼容旧版单图证据和无编号竞品
+       读取并迁移多 Tab 数据
+       旧版三个存储键会自动合并到默认 Tab
        ============================== */
-    let competitors = readStoredArray(storageKey).map(item => ({
-      ...item,
-      id: item.id || createId()
-    }));
-
-    let evidenceItems = readStoredArray(evidenceStorageKey)
-      .map(normalizeEvidenceItem);
-
-    /* 首次使用矩阵时创建推荐的默认对比维度 */
     const defaultDimensionNames = [
       '产品定位',
       '目标用户',
@@ -1577,31 +1882,29 @@
       '主要优势',
       '明显短板'
     ];
-    const storedComparison = readStoredObject(
-      comparisonStorageKey
-    );
-    let comparisonData = storedComparison || {
-      dimensions: defaultDimensionNames.map(name => ({
-        id: createId(),
-        name
-      })),
-      values: {}
-    };
 
-    comparisonData.dimensions = Array.isArray(
-      comparisonData.dimensions
-    )
-      ? comparisonData.dimensions
-      : [];
-    comparisonData.values =
-      comparisonData.values &&
-      typeof comparisonData.values === 'object'
-        ? comparisonData.values
-        : {};
+    let workspaceState = loadWorkspaceState();
+    let activeWorkspaceTab = workspaceState.tabs.find(
+      tab => tab.id === workspaceState.activeTabId
+    ) || workspaceState.tabs[0];
+    workspaceState.activeTabId = activeWorkspaceTab.id;
 
-    persistCompetitors();
-    persistEvidence();
-    persistComparison();
+    /* 以下三个变量始终指向当前激活 Tab 的完整数据 */
+    let competitors = activeWorkspaceTab.competitors;
+    let evidenceItems = activeWorkspaceTab.evidenceItems;
+    let comparisonData = activeWorkspaceTab.comparisonData;
+
+    /* 首次迁移成功后使用统一存储，避免图片数据重复占用空间 */
+    initializeWorkspaceStorage();
+
+    /* 当前正在重命名的 Tab；null 表示新增 Tab */
+    let editingWorkspaceTabId = null;
+
+    /* 拖动排序中的 Tab 编号 */
+    let draggedWorkspaceTabId = null;
+
+    /* 已读取并等待用户选择导入模式的 Tab */
+    let pendingImportedTabs = [];
 
     /* 当前正在编辑的竞品序号，null 表示新增 */
     let editingIndex = null;
@@ -1626,10 +1929,325 @@
     let previewObjectUrls = [];
 
     /* ==============================
+       多 Tab 洞察空间管理
+       支持新增、重命名、删除、切换和拖动排序
+       ============================== */
+    function renderWorkspaceTabs() {
+      workspaceTabs.innerHTML = workspaceState.tabs
+        .map(tab => {
+          const isActive = tab.id === workspaceState.activeTabId;
+          return `
+            <div
+              class="workspace-tab-item${isActive ? ' is-active' : ''}"
+              data-workspace-tab-id="${escapeHtml(tab.id)}"
+              draggable="true">
+              <button
+                class="workspace-tab-select"
+                data-tab-action="activate"
+                data-tab-id="${escapeHtml(tab.id)}"
+                type="button"
+                role="tab"
+                aria-selected="${isActive ? 'true' : 'false'}"
+                title="${escapeHtml(tab.name)}">
+                ${escapeHtml(tab.name)}
+              </button>
+              <button
+                class="workspace-tab-action"
+                data-tab-action="move-left"
+                data-tab-id="${escapeHtml(tab.id)}"
+                type="button"
+                aria-label="向左移动 ${escapeHtml(tab.name)}"
+                title="向左移动 Tab">
+                ‹
+              </button>
+              <button
+                class="workspace-tab-action"
+                data-tab-action="move-right"
+                data-tab-id="${escapeHtml(tab.id)}"
+                type="button"
+                aria-label="向右移动 ${escapeHtml(tab.name)}"
+                title="向右移动 Tab">
+                ›
+              </button>
+              <button
+                class="workspace-tab-action"
+                data-tab-action="edit"
+                data-tab-id="${escapeHtml(tab.id)}"
+                type="button"
+                aria-label="重命名 ${escapeHtml(tab.name)}"
+                title="重命名 Tab">
+                ✎
+              </button>
+              <button
+                class="workspace-tab-action delete"
+                data-tab-action="delete"
+                data-tab-id="${escapeHtml(tab.id)}"
+                type="button"
+                aria-label="删除 ${escapeHtml(tab.name)}"
+                title="删除 Tab">
+                ×
+              </button>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    function activateWorkspaceTab(tabId) {
+      const targetTab = workspaceState.tabs.find(
+        tab => tab.id === tabId
+      );
+      if (!targetTab || targetTab.id === workspaceState.activeTabId) {
+        return;
+      }
+
+      workspaceState.activeTabId = targetTab.id;
+      activeWorkspaceTab = targetTab;
+      competitors = targetTab.competitors;
+      evidenceItems = targetTab.evidenceItems;
+      comparisonData = targetTab.comparisonData;
+      editingIndex = null;
+      editingDimensionId = null;
+      resetEvidenceForm();
+      persistWorkspaceState();
+      render();
+    }
+
+    function createWorkspaceTab(name) {
+      const newTab = createEmptyWorkspaceTab(name);
+      workspaceState.tabs.push(newTab);
+      workspaceState.activeTabId = newTab.id;
+      activeWorkspaceTab = newTab;
+      competitors = newTab.competitors;
+      evidenceItems = newTab.evidenceItems;
+      comparisonData = newTab.comparisonData;
+      persistWorkspaceState();
+      render();
+      return newTab;
+    }
+
+    function deleteWorkspaceTab(tabId) {
+      if (workspaceState.tabs.length === 1) {
+        window.alert('至少需要保留一个 Tab。');
+        return false;
+      }
+
+      const tabIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === tabId
+      );
+      if (tabIndex < 0) {
+        return false;
+      }
+
+      const tab = workspaceState.tabs[tabIndex];
+      const confirmed = window.confirm(
+        `确定删除 Tab“${tab.name}”吗？其中的竞品、证据和横向对比数据都会被删除。`
+      );
+      if (!confirmed) {
+        return false;
+      }
+
+      workspaceState.tabs.splice(tabIndex, 1);
+      if (workspaceState.activeTabId === tabId) {
+        const nextTab = workspaceState.tabs[
+          Math.min(tabIndex, workspaceState.tabs.length - 1)
+        ];
+        workspaceState.activeTabId = nextTab.id;
+        activeWorkspaceTab = nextTab;
+        competitors = nextTab.competitors;
+        evidenceItems = nextTab.evidenceItems;
+        comparisonData = nextTab.comparisonData;
+      }
+      persistWorkspaceState();
+      render();
+      return true;
+    }
+
+    function moveWorkspaceTab(
+      draggedId,
+      targetId,
+      placeAfterTarget = false
+    ) {
+      if (!draggedId || !targetId || draggedId === targetId) {
+        return false;
+      }
+
+      const sourceIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === draggedId
+      );
+      const targetIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === targetId
+      );
+      if (sourceIndex < 0 || targetIndex < 0) {
+        return false;
+      }
+
+      const [movedTab] = workspaceState.tabs.splice(sourceIndex, 1);
+      const adjustedTarget = workspaceState.tabs.findIndex(
+        tab => tab.id === targetId
+      );
+      workspaceState.tabs.splice(
+        adjustedTarget + (placeAfterTarget ? 1 : 0),
+        0,
+        movedTab
+      );
+      persistWorkspaceState();
+      renderWorkspaceTabs();
+      return true;
+    }
+
+    function moveWorkspaceTabByOffset(tabId, offset) {
+      const currentIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === tabId
+      );
+      const targetIndex = currentIndex + offset;
+      if (
+        currentIndex < 0 ||
+        targetIndex < 0 ||
+        targetIndex >= workspaceState.tabs.length
+      ) {
+        return false;
+      }
+
+      const [movedTab] = workspaceState.tabs.splice(currentIndex, 1);
+      workspaceState.tabs.splice(targetIndex, 0, movedTab);
+      persistWorkspaceState();
+      renderWorkspaceTabs();
+      return true;
+    }
+
+    function openWorkspaceTabDialog(tabId = null) {
+      editingWorkspaceTabId = tabId;
+      const tab = workspaceState.tabs.find(item => item.id === tabId);
+      tabDialogTitle.textContent = tab ? '重命名 Tab' : '添加 Tab';
+      saveTabButton.textContent = tab ? '保存名称' : '添加 Tab';
+      tabName.value = tab?.name || '';
+      tabDialog.showModal();
+      tabName.focus();
+    }
+
+    addWorkspaceTabButton.addEventListener('click', () => {
+      openWorkspaceTabDialog();
+    });
+
+    cancelTabButton.addEventListener('click', () => {
+      tabDialog.close();
+      tabForm.reset();
+      editingWorkspaceTabId = null;
+    });
+
+    tabForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const name = tabName.value.trim();
+      if (!name) {
+        return;
+      }
+
+      const duplicate = workspaceState.tabs.some(tab =>
+        tab.id !== editingWorkspaceTabId &&
+        tab.name.toLowerCase() === name.toLowerCase()
+      );
+      if (duplicate) {
+        window.alert('已经存在同名 Tab，请使用其他名称。');
+        return;
+      }
+
+      if (editingWorkspaceTabId) {
+        const tab = workspaceState.tabs.find(
+          item => item.id === editingWorkspaceTabId
+        );
+        if (tab) {
+          tab.name = Array.from(name).slice(0, 20).join('');
+          persistWorkspaceState();
+          renderWorkspaceTabs();
+        }
+      } else {
+        createWorkspaceTab(
+          Array.from(name).slice(0, 20).join('')
+        );
+      }
+
+      tabDialog.close();
+      tabForm.reset();
+      editingWorkspaceTabId = null;
+    });
+
+    workspaceTabs.addEventListener('click', event => {
+      const button = event.target.closest('[data-tab-action]');
+      if (!button) {
+        return;
+      }
+
+      const tabId = button.dataset.tabId;
+      if (button.dataset.tabAction === 'activate') {
+        activateWorkspaceTab(tabId);
+      } else if (button.dataset.tabAction === 'edit') {
+        openWorkspaceTabDialog(tabId);
+      } else if (button.dataset.tabAction === 'delete') {
+        deleteWorkspaceTab(tabId);
+      } else if (button.dataset.tabAction === 'move-left') {
+        moveWorkspaceTabByOffset(tabId, -1);
+      } else if (button.dataset.tabAction === 'move-right') {
+        moveWorkspaceTabByOffset(tabId, 1);
+      }
+    });
+
+    workspaceTabs.addEventListener('dragstart', event => {
+      const tabItem = event.target.closest('[data-workspace-tab-id]');
+      if (!tabItem) {
+        return;
+      }
+      draggedWorkspaceTabId = tabItem.dataset.workspaceTabId;
+      tabItem.classList.add('is-dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', draggedWorkspaceTabId);
+    });
+
+    workspaceTabs.addEventListener('dragover', event => {
+      const tabItem = event.target.closest('[data-workspace-tab-id]');
+      if (!tabItem || tabItem.dataset.workspaceTabId === draggedWorkspaceTabId) {
+        return;
+      }
+      event.preventDefault();
+      workspaceTabs
+        .querySelectorAll('.is-drop-target')
+        .forEach(item => item.classList.remove('is-drop-target'));
+      tabItem.classList.add('is-drop-target');
+    });
+
+    workspaceTabs.addEventListener('drop', event => {
+      const tabItem = event.target.closest('[data-workspace-tab-id]');
+      if (!tabItem) {
+        return;
+      }
+      event.preventDefault();
+      const rect = tabItem.getBoundingClientRect();
+      const placeAfterTarget =
+        event.clientX > rect.left + rect.width / 2;
+      moveWorkspaceTab(
+        draggedWorkspaceTabId,
+        tabItem.dataset.workspaceTabId,
+        placeAfterTarget
+      );
+    });
+
+    workspaceTabs.addEventListener('dragend', () => {
+      draggedWorkspaceTabId = null;
+      workspaceTabs
+        .querySelectorAll('.is-dragging, .is-drop-target')
+        .forEach(item => {
+          item.classList.remove('is-dragging');
+          item.classList.remove('is-drop-target');
+        });
+    });
+
+    /* ==============================
        渲染竞品档案
        每张竞品卡片内包含自己的证据横向列表
        ============================== */
     function render() {
+      renderWorkspaceTabs();
+
       /* 竞品名称或数量变化时同步更新矩阵 */
       renderComparison();
 
@@ -3077,18 +3695,76 @@
     }
 
     /* ==============================
-       导出完整数据备份
-       包含竞品、图片证据、维度和矩阵内容
+       按 Tab 选择导出数据
+       可导出部分 Tab，也可一次导出全部
        ============================== */
+    function renderExportTabOptions() {
+      exportAllTabsCheckbox.checked = true;
+      exportTabOptions.innerHTML = workspaceState.tabs
+        .map(tab => `
+          <label class="tab-option">
+            <input
+              data-export-tab-id="${escapeHtml(tab.id)}"
+              type="checkbox"
+              checked>
+            ${escapeHtml(tab.name)}
+          </label>
+        `)
+        .join('');
+    }
+
     exportDataButton.addEventListener('click', () => {
+      renderExportTabOptions();
+      exportTabsDialog.showModal();
+    });
+
+    exportAllTabsCheckbox.addEventListener('change', () => {
+      exportTabOptions
+        .querySelectorAll('[data-export-tab-id]')
+        .forEach(checkbox => {
+          checkbox.checked = exportAllTabsCheckbox.checked;
+        });
+    });
+
+    exportTabOptions.addEventListener('change', () => {
+      const checkboxes = Array.from(
+        exportTabOptions.querySelectorAll('[data-export-tab-id]')
+      );
+      exportAllTabsCheckbox.checked =
+        checkboxes.length > 0 &&
+        checkboxes.every(checkbox => checkbox.checked);
+    });
+
+    cancelExportTabsButton.addEventListener('click', () => {
+      exportTabsDialog.close();
+    });
+
+    confirmExportTabsButton.addEventListener('click', () => {
+      const selectedIds = Array.from(
+        exportTabOptions.querySelectorAll(
+          '[data-export-tab-id]:checked'
+        )
+      ).map(checkbox => checkbox.dataset.exportTabId);
+
+      if (selectedIds.length === 0) {
+        window.alert('请至少选择一个要导出的 Tab。');
+        return;
+      }
+
+      const selectedTabs = workspaceState.tabs.filter(tab =>
+        selectedIds.includes(tab.id)
+      );
+      downloadWorkspaceBackup(selectedTabs);
+      exportTabsDialog.close();
+    });
+
+    function downloadWorkspaceBackup(selectedTabs) {
       const backup = {
         format: 'competitor-insights-backup',
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         data: {
-          competitors,
-          evidenceItems,
-          comparisonData
+          tabs: selectedTabs
         }
       };
       const blob = new Blob(
@@ -3099,13 +3775,17 @@
       const link = document.createElement('a');
       const date = new Date().toISOString().slice(0, 10);
       link.href = url;
-      link.download = `竞品洞察台备份-${date}.json`;
+      link.download = `竞品洞察台Tab备份-${date}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-    });
+    }
 
+    /* ==============================
+       导入数据并选择新增或覆盖模式
+       同时兼容旧版单空间备份
+       ============================== */
     importDataButton.addEventListener('click', () => {
       importDataInput.click();
     });
@@ -3118,23 +3798,56 @@
 
       try {
         const backup = JSON.parse(await readFileAsText(file));
-        const imported = validateBackupData(backup);
-        const confirmed = window.confirm(
-          '导入将覆盖当前浏览器中的全部竞品、证据和矩阵数据。建议先导出当前数据备份。是否继续？'
+        pendingImportedTabs = validateBackupData(backup);
+        importTabsSummary.textContent =
+          `备份中包含 ${pendingImportedTabs.length} 个 Tab。`;
+        const appendMode = document.querySelector(
+          'input[name="importMode"][value="append"]'
         );
-        if (!confirmed) {
-          return;
-        }
-
-        applyImportedData(imported);
-        render();
-        window.alert(
-          `导入成功：${competitors.length} 个竞品，${evidenceItems.length} 条证据。`
-        );
+        appendMode.checked = true;
+        importModeDialog.showModal();
       } catch (error) {
+        pendingImportedTabs = [];
         window.alert(`导入失败：${error.message}`);
       } finally {
         importDataInput.value = '';
+      }
+    });
+
+    cancelImportModeButton.addEventListener('click', () => {
+      pendingImportedTabs = [];
+      importModeDialog.close();
+    });
+
+    confirmImportModeButton.addEventListener('click', () => {
+      if (pendingImportedTabs.length === 0) {
+        return;
+      }
+
+      const selectedMode = document.querySelector(
+        'input[name="importMode"]:checked'
+      )?.value || 'append';
+
+      if (
+        selectedMode === 'replace' &&
+        !window.confirm(
+          '覆盖模式会删除当前全部 Tab 和其中的数据。建议先导出备份。是否继续？'
+        )
+      ) {
+        return;
+      }
+
+      try {
+        const importedCount = pendingImportedTabs.length;
+        applyImportedTabs(pendingImportedTabs, selectedMode);
+        pendingImportedTabs = [];
+        importModeDialog.close();
+        render();
+        window.alert(
+          `导入成功：已${selectedMode === 'replace' ? '覆盖' : '新增'} ${importedCount} 个 Tab。`
+        );
+      } catch (error) {
+        window.alert(`导入失败：${error.message}`);
       }
     });
 
@@ -3158,104 +3871,90 @@
         throw new Error('这不是竞品洞察台的有效备份文件。');
       }
 
-      const data = backup.data;
-      if (
-        !Array.isArray(data.competitors) ||
-        !Array.isArray(data.evidenceItems) ||
-        !data.comparisonData ||
-        !Array.isArray(data.comparisonData.dimensions)
-      ) {
-        throw new Error('备份文件结构不完整。');
+      if (Array.isArray(backup.data.tabs)) {
+        if (backup.data.tabs.length === 0) {
+          throw new Error('备份文件中没有可导入的 Tab。');
+        }
+        return backup.data.tabs.map((tab, index) =>
+          normalizeWorkspaceTab(tab, index)
+        );
       }
 
-      const importedCompetitors = data.competitors.map(item => ({
-        ...item,
-        id: item.id || createId()
-      }));
-      const competitorIds = new Set(
-        importedCompetitors.map(item => item.id)
-      );
-      const importedDimensions = data.comparisonData.dimensions
-        .filter(item => item && String(item.name || '').trim())
-        .map(item => ({
-          id: item.id || createId(),
-          name: String(item.name).trim()
-        }));
-      const dimensionIds = new Set(
-        importedDimensions.map(item => item.id)
-      );
-      const importedEvidence = data.evidenceItems
-        .map(normalizeEvidenceItem)
-        .filter(item => competitorIds.has(item.competitorId))
-        .map(item => ({
-          ...item,
-          dimensionIds: item.dimensionIds.filter(id =>
-            dimensionIds.has(id)
-          )
-        }));
+      /* 兼容 v1：竞品、证据和矩阵会组成一个新 Tab */
+      if (
+        Array.isArray(backup.data.competitors) &&
+        Array.isArray(backup.data.evidenceItems) &&
+        backup.data.comparisonData
+      ) {
+        return [normalizeWorkspaceTab({
+          id: createId(),
+          name: '导入数据',
+          competitors: backup.data.competitors,
+          evidenceItems: backup.data.evidenceItems,
+          comparisonData: backup.data.comparisonData
+        }, 0)];
+      }
 
-      const importedValues = {};
-      importedDimensions.forEach(dimension => {
-        const sourceValues =
-          data.comparisonData.values?.[dimension.id];
-        if (!sourceValues || typeof sourceValues !== 'object') {
-          return;
-        }
-
-        importedValues[dimension.id] = {};
-        importedCompetitors.forEach(competitor => {
-          if (typeof sourceValues[competitor.id] === 'string') {
-            importedValues[dimension.id][competitor.id] =
-              sourceValues[competitor.id];
-          }
-        });
-      });
-
-      return {
-        competitors: importedCompetitors,
-        evidenceItems: importedEvidence,
-        comparisonData: {
-          dimensions: importedDimensions,
-          values: importedValues
-        }
-      };
+      throw new Error('备份文件结构不完整。');
     }
 
-    /* 导入失败时同时恢复内存状态和三个本地存储键 */
-    function applyImportedData(imported) {
-      const previous = {
-        competitors,
-        evidenceItems,
-        comparisonData,
-        storedCompetitors: localStorage.getItem(storageKey),
-        storedEvidence: localStorage.getItem(evidenceStorageKey),
-        storedComparison: localStorage.getItem(comparisonStorageKey)
-      };
+    function applyImportedTabs(importedTabs, mode) {
+      const previousState = workspaceState;
+      const previousStored = localStorage.getItem(workspaceStorageKey);
+      const usedNames = new Set(
+        (mode === 'append' ? workspaceState.tabs : [])
+          .map(tab => tab.name.toLowerCase())
+      );
+      const preparedTabs = importedTabs.map(tab => ({
+        ...tab,
+        id: createId(),
+        name: createUniqueTabName(tab.name, usedNames)
+      }));
 
       try {
-        competitors = imported.competitors;
-        evidenceItems = imported.evidenceItems;
-        comparisonData = imported.comparisonData;
-        persistCompetitors();
-        persistEvidence();
-        persistComparison();
+        const nextTabs = mode === 'replace'
+          ? preparedTabs
+          : [...workspaceState.tabs, ...preparedTabs];
+        workspaceState = {
+          version: 2,
+          activeTabId: preparedTabs[0].id,
+          tabs: nextTabs
+        };
+        activeWorkspaceTab = preparedTabs[0];
+        competitors = activeWorkspaceTab.competitors;
+        evidenceItems = activeWorkspaceTab.evidenceItems;
+        comparisonData = activeWorkspaceTab.comparisonData;
+        persistWorkspaceState();
       } catch (error) {
-        competitors = previous.competitors;
-        evidenceItems = previous.evidenceItems;
-        comparisonData = previous.comparisonData;
-        restoreStorageValue(storageKey, previous.storedCompetitors);
-        restoreStorageValue(
-          evidenceStorageKey,
-          previous.storedEvidence
-        );
-        restoreStorageValue(
-          comparisonStorageKey,
-          previous.storedComparison
-        );
+        workspaceState = previousState;
+        activeWorkspaceTab = workspaceState.tabs.find(
+          tab => tab.id === workspaceState.activeTabId
+        ) || workspaceState.tabs[0];
+        competitors = activeWorkspaceTab.competitors;
+        evidenceItems = activeWorkspaceTab.evidenceItems;
+        comparisonData = activeWorkspaceTab.comparisonData;
+        restoreStorageValue(workspaceStorageKey, previousStored);
         throw new Error(
-          '浏览器存储空间不足，当前数据已自动恢复。'
+          '浏览器存储空间不足，当前全部 Tab 已自动恢复。'
         );
       }
+    }
+
+    function createUniqueTabName(sourceName, usedNames) {
+      const base = Array.from(
+        String(sourceName || '导入 Tab').trim() || '导入 Tab'
+      ).slice(0, 20).join('');
+      let candidate = base;
+      let number = 2;
+      while (usedNames.has(candidate.toLowerCase())) {
+        const suffix = `（${number}）`;
+        candidate = Array.from(base)
+          .slice(0, Math.max(1, 20 - Array.from(suffix).length))
+          .join('') + suffix;
+        number += 1;
+      }
+      usedNames.add(candidate.toLowerCase());
+      return candidate;
     }
 
     function restoreStorageValue(key, value) {
@@ -3264,6 +3963,196 @@
       } else {
         localStorage.setItem(key, value);
       }
+    }
+
+
+    /* ==============================
+       多 Tab 数据模型、旧数据迁移与统一存储
+       ============================== */
+    function createDefaultComparisonData() {
+      return {
+        dimensions: defaultDimensionNames.map(name => ({
+          id: createId(),
+          name
+        })),
+        values: {}
+      };
+    }
+
+    function createEmptyWorkspaceTab(name = '默认空间') {
+      return {
+        id: createId(),
+        name: Array.from(String(name).trim() || '默认空间')
+          .slice(0, 20)
+          .join(''),
+        competitors: [],
+        evidenceItems: [],
+        comparisonData: createDefaultComparisonData()
+      };
+    }
+
+    function normalizeWorkspaceTab(tab = {}, index = 0) {
+      const competitors = Array.isArray(tab.competitors)
+        ? tab.competitors.map(item => ({
+            ...item,
+            id: item.id || createId()
+          }))
+        : [];
+      const competitorIds = new Set(
+        competitors.map(item => item.id)
+      );
+
+      const sourceComparison =
+        tab.comparisonData &&
+        typeof tab.comparisonData === 'object'
+          ? tab.comparisonData
+          : createDefaultComparisonData();
+      const dimensions = Array.isArray(sourceComparison.dimensions)
+        ? sourceComparison.dimensions
+            .filter(item => item && String(item.name || '').trim())
+            .map(item => ({
+              id: item.id || createId(),
+              name: String(item.name).trim()
+            }))
+        : [];
+      const dimensionIds = new Set(
+        dimensions.map(item => item.id)
+      );
+      const values = {};
+
+      dimensions.forEach(dimension => {
+        const sourceValues = sourceComparison.values?.[dimension.id];
+        if (!sourceValues || typeof sourceValues !== 'object') {
+          return;
+        }
+        values[dimension.id] = {};
+        competitors.forEach(competitor => {
+          if (typeof sourceValues[competitor.id] === 'string') {
+            values[dimension.id][competitor.id] =
+              sourceValues[competitor.id];
+          }
+        });
+      });
+
+      const evidenceItems = Array.isArray(tab.evidenceItems)
+        ? tab.evidenceItems
+            .map(normalizeEvidenceItem)
+            .filter(item => competitorIds.has(item.competitorId))
+            .map(item => ({
+              ...item,
+              dimensionIds: item.dimensionIds.filter(id =>
+                dimensionIds.has(id)
+              )
+            }))
+        : [];
+
+      return {
+        id: tab.id || createId(),
+        name: Array.from(
+          String(tab.name || `洞察空间 ${index + 1}`).trim()
+        ).slice(0, 20).join('') || `洞察空间 ${index + 1}`,
+        competitors,
+        evidenceItems,
+        comparisonData: {
+          dimensions,
+          values
+        }
+      };
+    }
+
+    function migrateLegacyWorkspaceData() {
+      return {
+        version: 2,
+        activeTabId: null,
+        tabs: [normalizeWorkspaceTab({
+          id: createId(),
+          name: '默认空间',
+          competitors: readStoredArray(storageKey),
+          evidenceItems: readStoredArray(evidenceStorageKey),
+          comparisonData:
+            readStoredObject(comparisonStorageKey) ||
+            createDefaultComparisonData()
+        }, 0)]
+      };
+    }
+
+    function loadWorkspaceState() {
+      const stored = readStoredObject(workspaceStorageKey);
+      const source =
+        stored && Array.isArray(stored.tabs) && stored.tabs.length > 0
+          ? stored
+          : migrateLegacyWorkspaceData();
+      const tabs = source.tabs.map((tab, index) =>
+        normalizeWorkspaceTab(tab, index)
+      );
+      const activeTabId = tabs.some(
+        tab => tab.id === source.activeTabId
+      )
+        ? source.activeTabId
+        : tabs[0].id;
+
+      return {
+        version: 2,
+        activeTabId,
+        tabs
+      };
+    }
+
+    function initializeWorkspaceStorage() {
+      if (localStorage.getItem(workspaceStorageKey)) {
+        persistWorkspaceState();
+        removeLegacyStorageKeys();
+        return;
+      }
+
+      const legacySnapshot = {
+        competitors: localStorage.getItem(storageKey),
+        evidence: localStorage.getItem(evidenceStorageKey),
+        comparison: localStorage.getItem(comparisonStorageKey)
+      };
+
+      try {
+        /* 空间足够时先写新键，验证成功后再清理旧键 */
+        persistWorkspaceState();
+      } catch (firstError) {
+        /* 接近容量上限时先在内存保留旧值，再释放重复空间 */
+        removeLegacyStorageKeys();
+        try {
+          persistWorkspaceState();
+        } catch (secondError) {
+          localStorage.removeItem(workspaceStorageKey);
+          restoreStorageValue(storageKey, legacySnapshot.competitors);
+          restoreStorageValue(
+            evidenceStorageKey,
+            legacySnapshot.evidence
+          );
+          restoreStorageValue(
+            comparisonStorageKey,
+            legacySnapshot.comparison
+          );
+          throw new Error(
+            '旧数据迁移失败，原有数据已自动恢复。'
+          );
+        }
+      }
+
+      removeLegacyStorageKeys();
+    }
+
+    function persistWorkspaceState() {
+      activeWorkspaceTab.competitors = competitors;
+      activeWorkspaceTab.evidenceItems = evidenceItems;
+      activeWorkspaceTab.comparisonData = comparisonData;
+      localStorage.setItem(
+        workspaceStorageKey,
+        JSON.stringify(workspaceState)
+      );
+    }
+
+    function removeLegacyStorageKeys() {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(evidenceStorageKey);
+      localStorage.removeItem(comparisonStorageKey);
     }
 
     /* ==============================
@@ -3395,24 +4284,18 @@
     }
 
     function persistCompetitors() {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify(competitors)
-      );
+      activeWorkspaceTab.competitors = competitors;
+      persistWorkspaceState();
     }
 
     function persistEvidence() {
-      localStorage.setItem(
-        evidenceStorageKey,
-        JSON.stringify(evidenceItems)
-      );
+      activeWorkspaceTab.evidenceItems = evidenceItems;
+      persistWorkspaceState();
     }
 
     function persistComparison() {
-      localStorage.setItem(
-        comparisonStorageKey,
-        JSON.stringify(comparisonData)
-      );
+      activeWorkspaceTab.comparisonData = comparisonData;
+      persistWorkspaceState();
     }
 
     function createId() {
