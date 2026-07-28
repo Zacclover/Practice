@@ -1,0 +1,5170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <!-- 基础页面设置：定义中文语言、字符编码和移动端显示方式 -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- 浏览器标签页显示的页面名称 -->
+  <title>竞品洞察台</title>
+
+  <!-- 正式视觉字体：展示标题、中文正文与技术标签分别使用统一字体角色 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==============================
+       全局样式
+       统一元素尺寸计算方式
+       ============================== */
+    * {
+      box-sizing: border-box;
+    }
+
+    /* ==============================
+       页面主体
+       设置整体字体、文字颜色和背景色
+       ============================== */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: #1f2937;
+      background: #f5f7fb;
+    }
+
+    /* ==============================
+       顶部导航栏
+       展示产品名称和英文名称
+       ============================== */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 22px 40px;
+      color: white;
+      background: #4f46e5;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    /* ==============================
+       页面主要内容区域
+       限制最大宽度并保持居中
+       ============================== */
+    main {
+      max-width: 1050px;
+      margin: 36px auto;
+      padding: 0 24px;
+    }
+
+    /* ==============================
+       产品介绍区域
+       展示产品价值和添加竞品按钮
+       ============================== */
+    .hero {
+      padding: 32px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: none;
+    }
+
+    .hero h2 {
+      margin-top: 0;
+    }
+
+    .hero p {
+      color: #6b7280;
+      line-height: 1.7;
+    }
+
+    /* ==============================
+       通用按钮
+       用于添加和保存等主要操作
+       ============================== */
+    button {
+      padding: 11px 18px;
+      color: white;
+      background: #4f46e5;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* ==============================
+       竞品档案区域标题
+       ============================== */
+    .section-title {
+      margin: 32px 0 16px;
+    }
+
+    /* ==============================
+       竞品卡片网格
+       根据屏幕宽度自动调整列数
+       ============================== */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(250px, 1fr)
+      );
+      gap: 16px;
+    }
+
+    /* ==============================
+       单个竞品卡片
+       展示产品名称、定位和官网
+       ============================== */
+    .card {
+      padding: 20px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+    }
+
+    .card p {
+      min-height: 48px;
+      color: #6b7280;
+    }
+
+    .card a {
+      color: #4f46e5;
+      text-decoration: none;
+    }
+
+    /* ==============================
+       竞品卡片操作区
+       提供编辑和删除当前竞品的操作
+       ============================== */
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .edit-button {
+      background: #4f46e5;
+    }
+
+    .delete-button {
+      background: #dc2626;
+    }
+
+    /* ==============================
+       竞品卡片内的调研证据区域
+       证据横向排列，超出宽度后可以左右滚动
+       ============================== */
+    .competitor-evidence {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .evidence-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .evidence-header h4 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .small-button {
+      padding: 7px 11px;
+      font-size: 13px;
+    }
+
+    .evidence-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 2px 2px 12px;
+      scroll-snap-type: x proximity;
+      scrollbar-width: thin;
+    }
+
+    .evidence-empty {
+      min-width: 100%;
+      padding: 18px;
+      color: #6b7280;
+      text-align: center;
+      font-size: 14px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 10px;
+    }
+
+    /* 单条证据使用固定正方形卡片 */
+    .evidence-tile {
+      position: relative;
+      flex: 0 0 160px;
+      width: 160px;
+      height: 160px;
+      overflow: hidden;
+      background: #e5e7eb;
+      border-radius: 12px;
+      cursor: pointer;
+      scroll-snap-align: start;
+    }
+
+    /* 多图证据在方块内使用最多四格拼图 */
+    .evidence-collage {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 2px;
+    }
+
+    .evidence-collage.image-count-1 {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+    }
+
+    .evidence-collage.image-count-2 {
+      grid-template-rows: 1fr;
+    }
+
+    .evidence-collage img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      object-fit: cover;
+    }
+
+    .evidence-count {
+      position: absolute;
+      top: 42px;
+      right: 8px;
+      padding: 4px 7px;
+      color: white;
+      background: rgba(15, 23, 42, .72);
+      border-radius: 6px;
+      font-size: 11px;
+    }
+
+    /* 评论和关联维度显示在卡片底部遮罩上 */
+    .evidence-overlay {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding: 28px 10px 10px;
+      color: white;
+      background: rgba(17, 17, 17, .88);
+    }
+
+    .evidence-tile-tags {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 5px;
+      overflow: hidden;
+    }
+
+    .evidence-tile-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 72px;
+      min-height: 16px;
+      padding: 2px 5px;
+      overflow: hidden;
+      color: #312e81;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: rgba(224, 231, 255, .95);
+      border-radius: 999px;
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .evidence-overlay p {
+      display: -webkit-box;
+      margin: 0;
+      overflow: hidden;
+      color: #fff;
+      font-size: 12px;
+      line-height: 1.4;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .evidence-date {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 4px 7px;
+      color: white;
+      background: rgba(15, 23, 42, .72);
+      border-radius: 6px;
+      font-size: 11px;
+    }
+
+    .evidence-tile-actions {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 5px;
+    }
+
+    .evidence-edit-button,
+    .evidence-delete-button {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 15px;
+      line-height: 28px;
+    }
+
+    .evidence-edit-button {
+      background: rgba(79, 70, 229, .92);
+    }
+
+    .evidence-delete-button {
+      background: rgba(220, 38, 38, .92);
+    }
+
+    /* ==============================
+       多图上传和截图粘贴区域
+       展示选择方式、缩略图和单图移除按钮
+       ============================== */
+    .evidence-target {
+      padding: 12px;
+      color: #374151;
+      background: #eef2ff;
+      border-radius: 8px;
+    }
+
+    .paste-area {
+      padding: 18px;
+      color: #4f46e5;
+      text-align: center;
+      background: #f8fafc;
+      border: 2px dashed #a5b4fc;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    .paste-area:focus {
+      background: #eef2ff;
+      border-color: #4f46e5;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fill,
+        minmax(90px, 1fr)
+      );
+      gap: 10px;
+    }
+
+    .preview-item {
+      position: relative;
+      aspect-ratio: 1;
+      overflow: hidden;
+      background: #e5e7eb;
+      border-radius: 8px;
+    }
+
+    .preview-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .preview-remove-button {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      background: rgba(220, 38, 38, .9);
+      border-radius: 50%;
+    }
+
+    .form-help {
+      margin: -6px 0 0;
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* ==============================
+       证据详情弹窗
+       完整展示所有图片和文字记录
+       ============================== */
+    .detail-dialog {
+      width: min(900px, calc(100% - 32px));
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+    }
+
+    .detail-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      color: #6b7280;
+    }
+
+    .detail-images {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(240px, 1fr)
+      );
+      gap: 14px;
+      margin: 18px 0;
+    }
+
+    .detail-images img {
+      width: 100%;
+      max-height: 520px;
+      object-fit: contain;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+    }
+
+    .detail-comment {
+      padding: 16px;
+      color: #374151;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      background: #f8fafc;
+      border-radius: 10px;
+    }
+
+    /* ==============================
+       证据与对比维度关联
+       支持多选维度和弹窗内新增维度
+       ============================== */
+    .dimension-picker {
+      padding: 12px;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+    }
+
+    .dimension-picker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .dimension-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .dimension-option {
+      display: flex;
+      grid-template-columns: none;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 500;
+      background: white;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+    }
+
+    .dimension-option input {
+      width: auto;
+      margin: 0;
+    }
+
+    .inline-dimension-creator {
+      display: none;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .inline-dimension-creator.visible {
+      display: grid;
+    }
+
+    .inline-dimension-creator button {
+      padding: 8px 10px;
+    }
+
+    .detail-dimensions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .dimension-tag {
+      padding: 5px 9px;
+      color: #4338ca;
+      background: #eef2ff;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    /* ==============================
+       矩阵中的自动证据文字与人工补充内容
+       每条证据文字固定显示为一行
+       ============================== */
+    .matrix-auto-evidence {
+      margin-bottom: 12px;
+    }
+
+    .matrix-auto-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+
+    .matrix-auto-title,
+    .matrix-manual-label {
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .matrix-evidence-link {
+      width: auto;
+      padding: 5px 8px;
+      color: #4338ca;
+      background: #eef2ff;
+      font-size: 11px;
+    }
+
+    .matrix-evidence-lines {
+      display: grid;
+      gap: 5px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .matrix-evidence-line {
+      display: block;
+      width: 100%;
+      padding: 7px 9px;
+      overflow: hidden;
+      color: #312e81;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: #f5f3ff;
+      border-left: 3px solid #7c3aed;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .matrix-manual-label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .linked-evidence-list {
+      display: grid;
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .linked-evidence-item {
+      display: grid;
+      grid-template-columns: 86px 1fr;
+      gap: 12px;
+      padding: 10px;
+      color: #111827;
+      text-align: left;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .linked-evidence-item img {
+      width: 86px;
+      height: 86px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+
+    .linked-evidence-item p {
+      margin: 6px 0 0;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+
+    /* ==============================
+       竞品横向对比矩阵
+       竞品作为列、对比维度作为行
+       ============================== */
+    .comparison-section {
+      margin-top: 40px;
+    }
+
+    .comparison-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .comparison-header h2 {
+      margin: 0;
+    }
+
+    .comparison-scroll {
+      overflow-x: auto;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+    }
+
+    .comparison-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      min-width: 220px;
+      padding: 14px;
+      text-align: left;
+      vertical-align: top;
+      border-right: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .comparison-table th {
+      background: #eef2ff;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .comparison-table th:last-child,
+    .comparison-table td:last-child {
+      border-right: 0;
+    }
+
+    /* 第一列固定，横向滚动时始终显示对比维度 */
+    .dimension-column {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      min-width: 190px !important;
+      max-width: 190px;
+      background: white;
+      box-shadow: none;
+    }
+
+    .comparison-table th.dimension-column {
+      z-index: 3;
+      background: #e0e7ff;
+    }
+
+    .dimension-name {
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .dimension-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .matrix-button {
+      padding: 5px 8px;
+      font-size: 12px;
+    }
+
+    .matrix-delete-button {
+      background: #dc2626;
+    }
+
+    .matrix-input {
+      width: 100%;
+      min-height: 92px;
+      padding: 10px;
+      border: 1px solid transparent;
+      resize: vertical;
+    }
+
+    .matrix-input:focus {
+      background: #f8fafc;
+      border-color: #818cf8;
+      outline: none;
+    }
+
+    .comparison-empty {
+      padding: 30px;
+      color: #6b7280;
+      text-align: center;
+    }
+
+    /* ==============================
+       空状态
+       没有竞品数据时显示提示信息
+       ============================== */
+    .empty {
+      padding: 28px;
+      color: #6b7280;
+      text-align: center;
+      background: white;
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+    }
+
+    /* ==============================
+       顶部等宽 Tab 洞察空间导航
+       整体铺满页面，悬停时显示编辑和关闭操作
+       ============================== */
+    .workspace-tabs-section {
+      width: 100%;
+      margin: 0;
+      padding: 14px 0 16px;
+      background: #f3f4f6;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .workspace-tabs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 40px 10px;
+    }
+
+    .workspace-tabs-header h2 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    .workspace-tabs-tools {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .workspace-tabs {
+      display: flex;
+      width: 100%;
+      align-items: stretch;
+      gap: 0;
+      padding: 0;
+      overflow-x: auto;
+      background: #eeeeef;
+      border-top: 1px solid #d9d9dc;
+      border-bottom: 1px solid #d9d9dc;
+      border-radius: 0;
+      overscroll-behavior-x: contain;
+      scroll-snap-type: x proximity;
+      scrollbar-width: thin;
+    }
+
+    .workspace-tab-item {
+      position: relative;
+      display: flex;
+      flex: 0 0 200px;
+      width: 200px;
+      align-items: center;
+      justify-content: center;
+      min-width: 200px;
+      max-width: 200px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-right-color: #dddddf;
+      border-radius: 0;
+      cursor: grab;
+      scroll-snap-align: start;
+      user-select: none;
+      transition:
+        opacity .15s,
+        color .15s,
+        background .15s,
+        border-color .15s;
+    }
+
+    .workspace-tab-item.is-active {
+      z-index: 1;
+      background: white;
+      border-color: #d4d4d8;
+      border-radius: 6px;
+      box-shadow: none;
+    }
+
+    .workspace-tab-item.is-dragging {
+      opacity: .42;
+      cursor: grabbing;
+    }
+
+    .workspace-tab-item.is-drop-target {
+      border-color: #4f46e5;
+      box-shadow: none;
+    }
+
+    .workspace-tab-select {
+      width: 100%;
+      min-width: 0;
+      padding: 13px 64px 13px 16px;
+      overflow: hidden;
+      color: #8a8a8f;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-select {
+      color: #27272a;
+      font-weight: 500;
+    }
+
+    /* 编辑和关闭使用绝对定位，不占用等宽 Tab 的排列空间 */
+    .workspace-tab-action {
+      position: absolute;
+      top: 50%;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      min-width: 26px;
+      height: 26px;
+      padding: 0;
+      color: #71717a;
+      background: transparent;
+      border: 0;
+      border-radius: 5px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%);
+      transition: opacity .12s, color .12s, background .12s;
+    }
+
+    .workspace-tab-action[data-tab-action="edit"] {
+      right: 34px;
+    }
+
+    .workspace-tab-action[data-tab-action="delete"] {
+      right: 6px;
+    }
+
+    .workspace-tab-item:hover .workspace-tab-action,
+    .workspace-tab-item:focus-within .workspace-tab-action,
+    .workspace-tab-action:focus-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .workspace-tab-action:hover {
+      color: #3730a3;
+      background: #eef2ff;
+    }
+
+    .workspace-tab-action.delete:hover {
+      color: #b91c1c;
+      background: #fee2e2;
+    }
+
+    .workspace-tab-add {
+      flex: 0 0 auto;
+      padding: 9px 16px;
+    }
+
+    .tab-options-list {
+      display: grid;
+      gap: 8px;
+      max-height: 320px;
+      padding: 4px;
+      overflow-y: auto;
+    }
+
+    .tab-option {
+      display: flex;
+      grid-template-columns: none;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 10px;
+      font-weight: 500;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+    }
+
+    .tab-option input {
+      width: auto;
+      margin: 0;
+    }
+
+    .import-mode-card {
+      display: flex;
+      grid-template-columns: none;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+      font-weight: 500;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+    }
+
+    .import-mode-card input {
+      width: auto;
+      margin-top: 3px;
+    }
+
+    .import-mode-card strong,
+    .import-mode-card small {
+      display: block;
+    }
+
+    .import-mode-card small {
+      margin-top: 4px;
+      color: #6b7280;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 640px) {
+      .workspace-tab-item {
+        flex-basis: 160px;
+        width: 160px;
+        min-width: 160px;
+        max-width: 160px;
+      }
+
+      .workspace-tabs-header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        padding-right: 16px;
+        padding-left: 16px;
+      }
+
+      .workspace-tabs-tools {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+
+    /* ==============================
+       数据备份与导入操作
+       ============================== */
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .backup-button {
+      color: #4338ca;
+      background: #eef2ff;
+    }
+
+    .hidden-file-input {
+      display: none;
+    }
+
+    /* ==============================
+       调研证据富文本编辑器
+       支持常用文字格式、列表和链接
+       ============================== */
+    .rich-editor-shell {
+      overflow: hidden;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+    }
+
+    .rich-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 8px;
+      background: #f8f8f8;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .rich-toolbar-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .rich-toolbar-divider {
+      flex: 0 0 1px;
+      width: 1px;
+      height: 22px;
+      margin: 0 4px;
+      background: #d1d5db;
+    }
+
+    .rich-toolbar button {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      min-width: 32px;
+      height: 32px;
+      padding: 0;
+      color: #4b5563;
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      font-size: 17px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .rich-toolbar button svg {
+      width: 19px;
+      height: 19px;
+      fill: currentColor;
+    }
+
+    .toolbar-letter {
+      color: inherit;
+      font-family: Arial, sans-serif;
+      font-size: 19px;
+      line-height: 1;
+    }
+
+    .toolbar-paragraph {
+      font-family: Georgia, serif;
+      font-weight: 700;
+    }
+
+    .toolbar-heading {
+      display: inline-flex;
+      align-items: flex-start;
+      font-weight: 700;
+      font-size: 17px;
+    }
+
+    .toolbar-heading small {
+      margin-top: 7px;
+      font-size: 9px;
+    }
+
+    .rich-toolbar button:hover {
+      color: #1f2937;
+      background: #e5e7eb;
+    }
+
+    .rich-toolbar button:focus-visible {
+      outline: 2px solid #1264a3;
+      outline-offset: 1px;
+    }
+
+    .rich-toolbar button.is-active {
+      color: #1264a3;
+      background: #dff3fa;
+      box-shadow: none;
+    }
+
+    /* Tooltip 使用 fixed 定位，避免被弹窗和编辑器边界裁切 */
+    .rich-toolbar-tooltip {
+      position: fixed;
+      z-index: 10000;
+      max-width: 180px;
+      padding: 6px 9px;
+      color: white;
+      background: #1d1c1d;
+      border-radius: 6px;
+      box-shadow: none;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translate(-50%, 0);
+    }
+
+    .rich-toolbar-tooltip[hidden] {
+      display: none;
+    }
+
+    @media (max-width: 560px) {
+      .rich-toolbar {
+        gap: 2px;
+        padding: 6px;
+      }
+
+      .rich-toolbar-divider {
+        margin: 0 2px;
+      }
+
+      .rich-toolbar button {
+        width: 30px;
+        min-width: 30px;
+        height: 30px;
+      }
+    }
+
+    .rich-editor {
+      min-height: 150px;
+      max-height: 360px;
+      padding: 12px;
+      overflow-y: auto;
+      color: #111827;
+      line-height: 1.65;
+      outline: none;
+    }
+
+    .rich-editor:empty::before {
+      color: #9ca3af;
+      content: attr(data-placeholder);
+      pointer-events: none;
+    }
+
+    .rich-content {
+      color: #374151;
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+
+    .rich-editor a,
+    .rich-content a {
+      color: #4f46e5;
+      text-decoration: underline;
+    }
+
+    /* 编辑器和详情共用相同的富文本显示规则 */
+    .rich-editor strong,
+    .rich-editor b,
+    .rich-content strong,
+    .rich-content b {
+      font-weight: 700;
+    }
+
+    .rich-editor em,
+    .rich-editor i,
+    .rich-content em,
+    .rich-content i {
+      font-style: italic;
+    }
+
+    .rich-editor u,
+    .rich-content u {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 2px;
+    }
+
+    .rich-editor s,
+    .rich-editor strike,
+    .rich-content s,
+    .rich-content strike {
+      text-decoration: line-through;
+    }
+
+    .rich-editor ul,
+    .rich-editor ol,
+    .rich-content ul,
+    .rich-content ol {
+      margin: 10px 0;
+      padding-left: 28px;
+    }
+
+    .rich-editor blockquote,
+    .rich-content blockquote {
+      margin: 12px 0;
+      padding: 8px 12px;
+      color: #4c1d95;
+      background: #f5f3ff;
+      border-left: 4px solid #7c3aed;
+    }
+
+    .rich-editor h3,
+    .rich-content h3 {
+      margin: 16px 0 8px;
+      color: #312e81;
+      font-size: 18px;
+    }
+
+    /* ==============================
+       添加竞品弹窗
+       用于填写竞品基本信息
+       ============================== */
+    dialog {
+      width: min(460px, calc(100% - 32px));
+      padding: 24px;
+      border: 0;
+      border-radius: 14px;
+      box-shadow: none;
+    }
+
+    /* 弹窗打开时的页面半透明遮罩 */
+    dialog::backdrop {
+      background: rgba(15, 23, 42, .5);
+    }
+
+    /* ==============================
+       添加竞品表单
+       设置输入项之间的间距
+       ============================== */
+    form {
+      display: grid;
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      font: inherit;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }/* ==============================
+       弹窗底部操作按钮区域
+       ============================== */
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* 次要按钮：用于取消操作 */
+    .secondary {
+      color: #374151;
+      background: #e5e7eb;
+    }
+
+    /* ================================================================
+       ORANGE INDUSTRIAL V1.0：正式视觉系统覆盖层
+       统一颜色、字体、线条、底纹、几何与交互，不改动业务数据逻辑
+       ================================================================ */
+    :root {
+      --black: #111111;
+      --ink: #191919;
+      --graphite: #343434;
+      --line-strong: #111111;
+      --line-medium: #595959;
+      --line-subtle: #c9c8c3;
+      --gray-500: #8b8b88;
+      --gray-100: #efeee9;
+      --paper: #f7f6f1;
+      --white: #ffffff;
+      --orange: #ff5a1f;
+      --danger: #b42318;
+      --cross-grid-size: 44px;
+      --font-display: "Archivo Black", "Noto Sans SC", "Arial Black", sans-serif;
+      --font-body: "Noto Sans SC", Arial, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+
+    /* 页面底色：仅保留一层 44px 浅灰小十字，不穿透实色数据面板 */
+    html {
+      background: var(--paper);
+    }
+
+    body {
+      min-height: 100vh;
+      color: var(--ink);
+      background-color: var(--paper);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'%3E%3Cpath d='M22 19v6M19 22h6' fill='none' stroke='%23c9c8c3' stroke-width='0.6'/%3E%3C/svg%3E");
+      background-size: var(--cross-grid-size) var(--cross-grid-size);
+      font-family: var(--font-body);
+      line-height: 1.55;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    /* 黑色产品 Header：用纯黑结构面建立最高层页面边界 */
+    header {
+      min-height: 88px;
+      padding: 22px 40px;
+      color: var(--white);
+      background: var(--black);
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    header h1 {
+      font-family: var(--font-display);
+      font-size: clamp(22px, 3vw, 32px);
+      font-weight: 900;
+      letter-spacing: -.055em;
+      line-height: 1;
+    }
+
+    header span {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 30px auto 56px;
+      padding: 0 24px;
+    }
+
+    /* 通用按钮：默认深色；最高优先级与次级动作在下方明确分层 */
+    button {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 15px;
+      color: var(--white);
+      background: var(--black);
+      border: 1px solid var(--line-strong);
+      border-radius: 0;
+      font-weight: 700;
+      line-height: 1.2;
+      transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+    }
+
+    button:focus-visible,
+    a:focus-visible,
+    [contenteditable="true"]:focus-visible {
+      outline: 2px solid var(--orange);
+      outline-offset: 3px;
+    }
+
+    button svg {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
+    }
+
+    /* Primary Button：橙底黑字、无黑边、左上和右下 9px 斜切 */
+    #addWorkspaceTabButton,
+    #addButton,
+    #addDimensionButton,
+    #saveTabButton,
+    #confirmExportTabsButton,
+    #confirmImportModeButton,
+    #saveButton,
+    #saveDimensionButton,
+    #saveInlineDimensionButton,
+    #saveEvidenceButton {
+      color: var(--black);
+      background: var(--orange);
+      border-color: transparent;
+      clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    }
+
+    #addWorkspaceTabButton:hover,
+    #addWorkspaceTabButton:focus-visible,
+    #addButton:hover,
+    #addButton:focus-visible,
+    #addDimensionButton:hover,
+    #addDimensionButton:focus-visible,
+    #saveTabButton:hover,
+    #saveTabButton:focus-visible,
+    #confirmExportTabsButton:hover,
+    #confirmExportTabsButton:focus-visible,
+    #confirmImportModeButton:hover,
+    #confirmImportModeButton:focus-visible,
+    #saveButton:hover,
+    #saveButton:focus-visible,
+    #saveDimensionButton:hover,
+    #saveDimensionButton:focus-visible,
+    #saveInlineDimensionButton:hover,
+    #saveInlineDimensionButton:focus-visible,
+    #saveEvidenceButton:hover,
+    #saveEvidenceButton:focus-visible {
+      color: var(--white);
+      background: var(--black);
+    }
+
+    /* Secondary Button：完整矩形、白底黑框，不与橙色主操作竞争 */
+    .secondary,
+    .backup-button,
+    .small-button,
+    .matrix-button,
+    #closeDetailButton,
+    #closeLinkedEvidenceButton {
+      color: var(--black);
+      background: var(--white);
+      border: 1px solid var(--line-strong);
+      border-radius: 0;
+      clip-path: none;
+    }
+
+    .secondary:hover,
+    .backup-button:hover,
+    .small-button:hover,
+    .matrix-button:hover,
+    #closeDetailButton:hover,
+    #closeLinkedEvidenceButton:hover {
+      color: var(--white);
+      background: var(--black);
+    }
+
+    .delete-button,
+    .matrix-delete-button,
+    .evidence-delete-button,
+    .preview-remove-button {
+      color: var(--white);
+      background: var(--danger);
+      border-color: var(--danger);
+      clip-path: none;
+    }
+
+    /* 洞察空间：全宽实色结构面和等宽工业 Tab */
+    .workspace-tabs-section {
+      padding: 0;
+      background: var(--white);
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    .workspace-tabs-header {
+      min-height: 64px;
+      padding: 11px 40px;
+      border-bottom: 1px solid var(--line-medium);
+    }
+
+    .workspace-tabs-header h2 {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .workspace-tabs-header h2::before {
+      color: var(--orange);
+      content: "SYS / 00  ";
+    }
+
+    .workspace-tabs-tools {
+      gap: 8px;
+    }
+
+    .workspace-tabs {
+      background: var(--gray-100);
+      border-top: 1px solid var(--line-medium);
+      border-bottom: 0;
+      border-radius: 0;
+    }
+
+    .workspace-tab-item {
+      min-height: 48px;
+      background: transparent;
+      border: 0;
+      border-right: 1px solid var(--line-medium);
+      border-radius: 0;
+    }
+
+    .workspace-tab-item.is-active {
+      background: var(--black);
+      border-color: var(--line-medium);
+      border-bottom: 3px solid var(--orange);
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .workspace-tab-select {
+      min-height: 46px;
+      color: var(--line-medium);
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-select {
+      color: var(--white);
+      font-weight: 700;
+    }
+
+    .workspace-tab-action {
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
+      min-height: 28px;
+      color: var(--gray-500);
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-action {
+      color: var(--line-subtle);
+    }
+
+    .workspace-tab-action:hover,
+    .workspace-tab-action.delete:hover {
+      color: var(--black);
+      background: var(--orange);
+      transform: translateY(-50%);
+    }
+
+    .workspace-tab-item.is-drop-target {
+      border-left: 3px solid var(--orange);
+      box-shadow: none;
+    }
+
+    /* Hero：实底、强边界和轻量几何线框构成沉浸层级 */
+    .hero {
+      position: relative;
+      min-height: 244px;
+      overflow: hidden;
+      padding: clamp(28px, 5vw, 58px);
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
+      box-shadow: none;
+      isolation: isolate;
+    }
+
+    .hero::before {
+      position: absolute;
+      z-index: -1;
+      top: 30px;
+      right: clamp(28px, 8vw, 96px);
+      width: 132px;
+      height: 132px;
+      border: 1px solid var(--line-subtle);
+      content: "";
+      transform: rotate(-8deg);
+    }
+
+    .hero::after {
+      position: absolute;
+      right: 20px;
+      bottom: 18px;
+      padding: 5px 8px;
+      color: var(--black);
+      background: var(--orange);
+      content: "AXIS / 00";
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    .hero h2 {
+      max-width: 720px;
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(38px, 6vw, 66px);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: .98;
+    }
+
+    .hero p {
+      max-width: 620px;
+      margin: 22px 0 0;
+      color: var(--line-medium);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      margin-top: 28px;
+    }
+
+    /* 区块标题：工业编号、粗体排版和一级黑线 */
+    .section-title,
+    .comparison-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 34px 0 16px;
+    }
+
+    .section-title {
+      font-family: var(--font-body);
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+    }
+
+    .section-title::before {
+      color: var(--orange);
+      content: "01 /";
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+
+    .section-title::after {
+      height: 2px;
+      flex: 1;
+      background: var(--line-strong);
+      content: "";
+    }
+
+    .comparison-section {
+      margin-top: 40px;
+    }
+
+    .comparison-header {
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    .comparison-header h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+    }
+
+    .comparison-header h2::before {
+      margin-right: 10px;
+      color: var(--orange);
+      content: "02 /";
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+
+    /* 竞品卡片：无圆角、无阴影，以 Medium 边界和黑白反转表达层级 */
+    .grid {
+      gap: 0;
+    }
+
+    .card {
+      padding: 22px;
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--line-medium);
+      border-radius: 0;
+      transition: color .16s ease, background .16s ease, transform .16s ease;
+    }
+
+    .card:hover,
+    .card:focus-within {
+      color: var(--white);
+      background: var(--graphite);
+      transform: translateY(-2px);
+    }
+
+    .card h3 {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -.04em;
+    }
+
+    .card p,
+    .card:hover p,
+    .card:focus-within p {
+      color: inherit;
+    }
+
+    .card a,
+    .rich-editor a,
+    .rich-content a {
+      color: var(--orange);
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .card-actions {
+      padding-top: 14px;
+      border-top: 1px solid var(--line-medium);
+    }
+
+    .edit-button {
+      color: var(--white);
+      background: var(--black);
+      border-color: var(--black);
+    }
+
+    .competitor-evidence {
+      border-top: 1px solid var(--line-medium);
+    }
+
+    .evidence-header h4,
+    .evidence-date,
+    .matrix-auto-title,
+    .matrix-manual-label {
+      font-family: var(--font-mono);
+      letter-spacing: .02em;
+    }
+
+    .evidence-empty,
+    .empty,
+    .comparison-empty {
+      color: var(--line-medium);
+      background: var(--white);
+      border: 1px dashed var(--line-medium);
+      border-radius: 0;
+    }
+
+    .evidence-tile,
+    .evidence-collage,
+    .evidence-count,
+    .evidence-date,
+    .evidence-tile-tag,
+    .evidence-preview-item,
+    .detail-image,
+    .detail-body,
+    .detail-dimensions,
+    .detail-dimension-tag,
+    .linked-evidence-item {
+      border-radius: 0;
+    }
+
+    .evidence-tile {
+      background: var(--gray-100);
+      border: 1px solid var(--line-medium);
+    }
+
+    .evidence-overlay,
+    .evidence-date,
+    .evidence-count {
+      color: var(--white);
+      background: rgba(17, 17, 17, .88);
+    }
+
+    .evidence-tile-tag,
+    .detail-dimension-tag {
+      color: var(--black);
+      background: var(--orange);
+    }
+
+    .evidence-edit-button,
+    .evidence-delete-button,
+    .preview-remove-button {
+      border-radius: 0;
+    }
+
+    .evidence-edit-button {
+      color: var(--white);
+      background: var(--black);
+    }
+
+    .evidence-target,
+    .paste-area,
+    .detail-body,
+    .detail-dimensions {
+      color: var(--ink);
+      background: var(--gray-100);
+      border-radius: 0;
+    }
+
+    .paste-area {
+      border: 1px dashed var(--line-medium);
+    }
+
+    .paste-area:focus {
+      background: var(--white);
+      border-color: var(--line-strong);
+      outline: 2px solid var(--orange);
+      outline-offset: 2px;
+    }
+
+    /* 对比矩阵：Strong 外框、Subtle 单元格，不使用 Sticky 阴影 */
+    .comparison-scroll {
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
+    }
+
+    .comparison-table {
+      color: var(--ink);
+      background: var(--white);
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      border-right: 1px solid var(--line-subtle);
+      border-bottom: 1px solid var(--line-subtle);
+    }
+
+    .comparison-table th {
+      color: var(--white);
+      background: var(--black);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .comparison-table td {
+      background: var(--white);
+    }
+
+    .comparison-table th.dimension-column,
+    .comparison-table td.dimension-column {
+      border-right: 1px solid var(--line-medium);
+      box-shadow: none;
+    }
+
+    .comparison-table th.dimension-column {
+      background: var(--graphite);
+    }
+
+    .matrix-input {
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid transparent;
+      border-radius: 0;
+    }
+
+    .matrix-input:focus {
+      background: var(--white);
+      border-color: var(--line-strong);
+      outline: 2px solid var(--orange);
+      outline-offset: -2px;
+    }
+
+    .matrix-evidence-line {
+      color: var(--ink);
+      background: var(--gray-100);
+      border-left: 3px solid var(--orange);
+      border-radius: 0;
+    }
+
+    .matrix-evidence-link {
+      color: var(--black);
+      background: var(--white);
+      border: 1px solid var(--line-medium);
+      border-radius: 0;
+    }
+
+    /* 弹窗与表单：实色白面、Strong 外框和橙色键盘焦点 */
+    dialog {
+      color: var(--ink);
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    dialog::backdrop {
+      background: rgba(17, 17, 17, .68);
+    }
+
+    dialog h2 {
+      margin-top: 0;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--line-strong);
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input,
+    textarea {
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--line-subtle);
+      border-radius: 0;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--line-strong);
+      outline: 2px solid var(--orange);
+      outline-offset: 2px;
+    }
+
+    .tab-option,
+    .import-mode-card {
+      background: var(--gray-100);
+      border: 1px solid var(--line-subtle);
+      border-radius: 0;
+    }
+
+    .import-mode-card small {
+      color: var(--line-medium);
+    }
+
+    /* 富文本：线性 Icon、实色工具栏、黑色 Tooltip */
+    .rich-editor-shell {
+      background: var(--white);
+      border: 1px solid var(--line-strong);
+      border-radius: 0;
+    }
+
+    .rich-toolbar {
+      background: var(--gray-100);
+      border-bottom: 1px solid var(--line-medium);
+    }
+
+    .rich-toolbar-divider {
+      background: var(--line-subtle);
+    }
+
+    .rich-toolbar button {
+      min-height: 32px;
+      color: var(--line-medium);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 0;
+      clip-path: none;
+    }
+
+    .rich-toolbar button:hover,
+    .rich-toolbar button.is-active {
+      color: var(--white);
+      background: var(--black);
+      border-color: var(--black);
+      transform: none;
+    }
+
+    .rich-toolbar button:focus-visible {
+      outline: 2px solid var(--orange);
+      outline-offset: 1px;
+    }
+
+    .rich-toolbar-tooltip {
+      color: var(--white);
+      background: var(--black);
+      border: 1px solid var(--line-medium);
+      border-radius: 0;
+      box-shadow: none;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .rich-editor,
+    .rich-content {
+      color: var(--ink);
+    }
+
+    .rich-editor blockquote,
+    .rich-content blockquote {
+      color: var(--ink);
+      background: var(--gray-100);
+      border-left: 4px solid var(--orange);
+    }
+
+    .rich-editor h3,
+    .rich-content h3 {
+      color: var(--black);
+    }
+
+    /* 响应式：保留固定 Tab 宽度，同时降低移动端装饰尺度 */
+    @media (max-width: 640px) {
+      header {
+        min-height: 72px;
+        padding: 18px 16px;
+      }
+
+      header span {
+        font-size: 9px;
+      }
+
+      .workspace-tabs-header {
+        padding: 10px 16px;
+      }
+
+      .workspace-tabs-tools button {
+        min-height: 40px;
+      }
+
+      main {
+        margin-top: 20px;
+        padding: 0 16px;
+      }
+
+      .hero {
+        min-height: 220px;
+        padding: 28px 22px;
+      }
+
+      .hero h2 {
+        max-width: 92%;
+        font-size: clamp(34px, 11vw, 48px);
+      }
+
+      .hero::before {
+        right: -36px;
+        width: 104px;
+        height: 104px;
+      }
+
+      .comparison-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+
+    /* 减少动态：保留状态变化，但移除所有非必要位移与过渡 */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+
+      button:hover,
+      .card:hover,
+      .card:focus-within {
+        transform: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ==============================
+       顶部导航栏
+       展示当前产品名称
+       ============================== -->
+  <header>
+    <h1>竞品洞察台</h1>
+    <span>Competitor Insights</span>
+  </header>
+
+  <!-- ==============================
+       顶部多 Tab 洞察空间
+       紧贴导航栏并铺满页面左右边界
+       ============================== -->
+  <section class="workspace-tabs-section">
+    <div class="workspace-tabs-header">
+      <h2>洞察空间</h2>
+      <div class="workspace-tabs-tools">
+        <button
+          class="backup-button"
+          id="exportDataButton"
+          type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 14V3M8 7l4-4 4 4M4 13v7h16v-7"></path>
+          </svg>
+          导出数据
+        </button>
+        <button
+          class="backup-button"
+          id="importDataButton"
+          type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 3v11M8 10l4 4 4-4M4 13v7h16v-7"></path>
+          </svg>
+          导入数据
+        </button>
+        <input
+          class="hidden-file-input"
+          id="importDataInput"
+          type="file"
+          accept="application/json,.json">
+        <button
+          id="addWorkspaceTabButton"
+          class="workspace-tab-add"
+          type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 5h18v14H3zM12 8v8M8 12h8"></path>
+          </svg>
+          添加 Tab
+        </button>
+      </div>
+    </div>
+    <nav
+      id="workspaceTabs"
+      class="workspace-tabs"
+      role="tablist"
+      aria-label="洞察空间 Tab">
+    </nav>
+  </section>
+
+  <!-- ==============================
+       页面主要内容
+       包含产品介绍和竞品档案
+       ============================== -->
+  <main>
+    <!-- 产品介绍和主要操作区域 -->
+    <section class="hero">
+      <h2>让竞品研究更有依据</h2>
+
+      <p>
+        集中管理竞品档案、调研证据、横向对比和关键洞察。
+      </p>
+
+      <!-- 竞品管理和数据备份操作 -->
+      <div class="hero-actions">
+        <button id="addButton">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 4h16v16H4zM12 8v8M8 12h8"></path>
+          </svg>
+          添加竞品
+        </button>
+      </div>
+    </section>
+
+    <!-- 竞品档案列表区域 -->
+    <h2 class="section-title">竞品档案</h2>
+
+    <!-- JavaScript 会把竞品卡片显示在这里 -->
+    <section
+      id="competitorList"
+      class="grid">
+    </section>
+
+    <!-- ==============================
+         竞品横向对比矩阵
+         竞品为列，对比维度为行
+         ============================== -->
+    <section class="comparison-section">
+      <div class="comparison-header">
+        <h2>竞品横向对比</h2>
+        <button id="addDimensionButton">
+          添加对比维度
+        </button>
+      </div>
+
+      <!-- JavaScript 会在这里生成可编辑矩阵 -->
+      <div
+        id="comparisonContainer"
+        class="comparison-scroll">
+      </div>
+    </section>
+  </main>
+
+  <!-- ==============================
+       Tab 新增与重命名弹窗
+       ============================== -->
+  <dialog id="tabDialog">
+    <form id="tabForm">
+      <h2 id="tabDialogTitle">添加 Tab</h2>
+      <label>
+        Tab 名称
+        <input
+          id="tabName"
+          maxlength="20"
+          required
+          placeholder="例如：协同办公">
+      </label>
+      <div class="actions">
+        <button
+          id="cancelTabButton"
+          class="secondary"
+          type="button">
+          取消
+        </button>
+        <button id="saveTabButton" type="submit">
+          保存 Tab
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ==============================
+       导出 Tab 选择弹窗
+       支持选择部分 Tab 或一次导出全部
+       ============================== -->
+  <dialog id="exportTabsDialog">
+    <h2>选择要导出的 Tab</h2>
+    <label class="tab-option">
+      <input id="exportAllTabsCheckbox" type="checkbox" checked>
+      全部选择
+    </label>
+    <div id="exportTabOptions" class="tab-options-list"></div>
+    <div class="actions">
+      <button
+        id="cancelExportTabsButton"
+        class="secondary"
+        type="button">
+        取消
+      </button>
+      <button id="confirmExportTabsButton" type="button">
+        导出所选 Tab
+      </button>
+    </div>
+  </dialog>
+
+  <!-- ==============================
+       导入模式选择弹窗
+       可追加为新 Tab，或覆盖当前全部数据
+       ============================== -->
+  <dialog id="importModeDialog">
+    <h2>选择导入方式</h2>
+    <p id="importTabsSummary" class="form-help"></p>
+    <label class="import-mode-card">
+      <input
+        name="importMode"
+        type="radio"
+        value="append"
+        checked>
+      <span>
+        <strong>全部新增为 Tab</strong>
+        <small>保留当前数据，把备份中的所有 Tab 追加到页面。</small>
+      </span>
+    </label>
+    <label class="import-mode-card">
+      <input
+        name="importMode"
+        type="radio"
+        value="replace">
+      <span>
+        <strong>覆盖现有数据</strong>
+        <small>删除当前全部 Tab，以备份中的 Tab 完整替换。</small>
+      </span>
+    </label>
+    <div class="actions">
+      <button
+        id="cancelImportModeButton"
+        class="secondary"
+        type="button">
+        取消
+      </button>
+      <button id="confirmImportModeButton" type="button">
+        确认导入
+      </button>
+    </div>
+  </dialog>
+
+  <!-- ==============================
+       添加竞品弹窗
+       收集产品名称、官网和产品定位
+       ============================== -->
+  <dialog id="competitorDialog">
+    <form id="competitorForm">
+      <!-- 编辑竞品时，JavaScript 会把标题改为“编辑竞品” -->
+      <h2 id="dialogTitle">添加竞品</h2>
+
+      <!-- 竞品名称：必填 -->
+      <label>
+        产品名称
+        <input
+          id="name"
+          required
+          placeholder="例如：Notion">
+      </label>
+
+      <!-- 竞品官网：选填，需要符合网址格式 -->
+      <label>
+        官网链接
+        <input
+          id="website"
+          type="url"
+          placeholder="https://example.com">
+      </label>
+
+      <!-- 产品定位：选填 -->
+      <label>
+        产品定位
+        <textarea
+          id="positioning"
+          placeholder="用一句话描述产品定位"></textarea>
+      </label>
+
+      <!-- 表单操作按钮 -->
+      <div class="actions">
+        <button
+          class="secondary"
+          id="cancelButton"
+          type="button">
+          取消
+        </button>
+
+        <button id="saveButton" type="submit">
+          保存竞品
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ==============================
+       添加或编辑对比维度弹窗
+       ============================== -->
+  <dialog id="dimensionDialog">
+    <form id="dimensionForm">
+      <h2 id="dimensionDialogTitle">添加对比维度</h2>
+
+      <label>
+        维度名称
+        <input
+          id="dimensionName"
+          required
+          placeholder="例如：移动端体验">
+      </label>
+
+      <div class="actions">
+        <button
+          class="secondary"
+          id="cancelDimensionButton"
+          type="button">
+          取消
+        </button>
+
+        <button id="saveDimensionButton" type="submit">
+          保存维度
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ==============================
+       添加调研证据弹窗
+       上传图片并填写对应评论
+       ============================== -->
+  <dialog id="evidenceDialog">
+    <form id="evidenceForm">
+      <h2 id="evidenceDialogTitle">添加调研证据</h2>
+
+      <!-- 显示从哪张竞品卡片打开了证据弹窗 -->
+      <div class="evidence-target">
+        对应竞品：
+        <strong id="evidenceCompetitorName"></strong>
+      </div>
+
+      <!-- 选择证据支持的一个或多个对比维度 -->
+      <div class="dimension-picker">
+        <div class="dimension-picker-header">
+          <strong>关联对比维度</strong>
+          <button
+            id="showInlineDimensionButton"
+            class="matrix-button"
+            type="button">
+            新增维度
+          </button>
+        </div>
+
+        <div
+          id="evidenceDimensionOptions"
+          class="dimension-options">
+        </div>
+
+        <!-- 在证据弹窗内快速创建新维度 -->
+        <div
+          id="inlineDimensionCreator"
+          class="inline-dimension-creator">
+          <input
+            id="inlineDimensionName"
+            placeholder="输入新维度名称">
+          <button id="saveInlineDimensionButton" type="button">
+            添加
+          </button>
+          <button
+            id="cancelInlineDimensionButton"
+            class="secondary"
+            type="button">
+            取消
+          </button>
+        </div>
+      </div>
+
+      <!-- 可以一次选择多张本地图片 -->
+      <label>
+        证据图片
+        <input
+          id="evidenceImage"
+          type="file"
+          accept="image/*"
+          multiple>
+      </label>
+
+      <p class="form-help">
+        图片为选填；没有截图时会显示四叶草兜底图。建议每张原图不超过 10MB。
+      </p>
+
+      <!-- 点击后可以直接粘贴剪贴板中的截图 -->
+      <div
+        id="pasteArea"
+        class="paste-area"
+        tabindex="0">
+        点击这里，然后按 Ctrl+V 或 Command+V 粘贴截图
+      </div>
+
+      <!-- 显示所有待保存图片的缩略图 -->
+      <div
+        id="evidencePreviewList"
+        class="preview-grid">
+      </div>
+
+      <!-- 证据标题：必填，卡片和对比矩阵只显示标题 -->
+      <label>
+        证据标题
+        <input
+          id="evidenceTitle"
+          maxlength="20"
+          required
+          placeholder="最多 20 个字符">
+      </label>
+      <p class="form-help">
+        标题最多 20 个字符，用于证据卡片和对比矩阵。
+      </p>
+
+      <!-- 证据内容：不限长度并支持常用富文本格式 -->
+      <label>证据内容</label>
+      <div class="rich-editor-shell">
+        <div
+          id="richToolbar"
+          class="rich-toolbar"
+          aria-label="富文本工具栏">
+          <!-- 段落结构：仅显示图标，名称通过 Tooltip 和 aria-label 提供 -->
+          <div class="rich-toolbar-group" role="group" aria-label="段落结构">
+            <button type="button" data-rich-command="formatBlock" data-rich-value="p" data-block-value="p" data-tooltip="正文" aria-label="正文" aria-pressed="false">
+              <span class="toolbar-letter toolbar-paragraph" aria-hidden="true">¶</span>
+            </button>
+            <button type="button" data-rich-command="formatBlock" data-rich-value="h3" data-block-value="h3" data-tooltip="小标题" aria-label="小标题" aria-pressed="false">
+              <span class="toolbar-heading" aria-hidden="true">H<small>3</small></span>
+            </button>
+            <button type="button" data-rich-command="formatBlock" data-rich-value="blockquote" data-block-value="blockquote" data-tooltip="引用" aria-label="引用" aria-pressed="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 7h5v5H8c0 2 1 3 3 4v2c-4-1-6-3-6-7V7h1Zm9 0h5v5h-3c0 2 1 3 3 4v2c-4-1-6-3-6-7V7h1Z"/></svg>
+            </button>
+          </div>
+          <span class="rich-toolbar-divider" aria-hidden="true"></span>
+
+          <!-- 行内文字格式 -->
+          <div class="rich-toolbar-group" role="group" aria-label="文字格式">
+            <button type="button" data-rich-command="bold" data-state-command="bold" data-tooltip="粗体" aria-label="粗体" aria-pressed="false">
+              <strong class="toolbar-letter" aria-hidden="true">B</strong>
+            </button>
+            <button type="button" data-rich-command="italic" data-state-command="italic" data-tooltip="斜体" aria-label="斜体" aria-pressed="false">
+              <em class="toolbar-letter" aria-hidden="true">I</em>
+            </button>
+            <button type="button" data-rich-command="underline" data-state-command="underline" data-tooltip="下划线" aria-label="下划线" aria-pressed="false">
+              <u class="toolbar-letter" aria-hidden="true">U</u>
+            </button>
+            <button type="button" data-rich-command="strikeThrough" data-state-command="strikeThrough" data-tooltip="删除线" aria-label="删除线" aria-pressed="false">
+              <s class="toolbar-letter" aria-hidden="true">S</s>
+            </button>
+          </div>
+          <span class="rich-toolbar-divider" aria-hidden="true"></span>
+
+          <!-- 列表格式 -->
+          <div class="rich-toolbar-group" role="group" aria-label="列表格式">
+            <button type="button" data-rich-command="insertOrderedList" data-state-command="insertOrderedList" data-tooltip="编号列表" aria-label="编号列表" aria-pressed="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 5h2v5H4V6H3V5Zm0 8h2.5v1H4v1h1.5v1H3v-3Zm6-7h12v2H9V6Zm0 5h12v2H9v-2Zm0 5h12v2H9v-2Z"/></svg>
+            </button>
+            <button type="button" data-rich-command="insertUnorderedList" data-state-command="insertUnorderedList" data-tooltip="项目列表" aria-label="项目列表" aria-pressed="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm5 1h12v2H9V7ZM4 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm5 1h12v2H9v-2Z"/></svg>
+            </button>
+          </div>
+          <span class="rich-toolbar-divider" aria-hidden="true"></span>
+
+          <!-- 链接操作 -->
+          <div class="rich-toolbar-group" role="group" aria-label="链接操作">
+            <button type="button" data-rich-command="createLink" data-tooltip="添加链接" aria-label="添加链接">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l4.2-4.2a3 3 0 0 1 4.2 4.2l-3 3a3 3 0 0 1-4.2 0l1.4-1.4a1 1 0 0 0 1.4 0l3-3a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Zm2.8-2.8a1 1 0 0 1 0 1.4l-4.2 4.2A3 3 0 1 1 5 12l3-3a3 3 0 0 1 4.2 0l-1.4 1.4a1 1 0 0 0-1.4 0l-3 3a1 1 0 1 0 1.4 1.4l4.2-4.2a1 1 0 0 1 1.4 0Z"/></svg>
+            </button>
+            <button type="button" data-rich-command="unlink" data-tooltip="移除链接" aria-label="移除链接">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4.3 2.9 16.8 16.8-1.4 1.4-3.2-3.2-.5.5a3 3 0 0 1-4.2 0l-2.1-2.1 1.4-1.4 2.1 2.1a1 1 0 0 0 1.4 0l.5-.5-2.4-2.4-3.5 3.5A3 3 0 0 1 5 13.4l2.1-2.1 1.4 1.4-2.1 2.1a1 1 0 0 0 1.4 1.4l3.5-3.5-8.4-8.4 1.4-1.4Zm9.9 6.9-1.4-1.4 2-2A3 3 0 1 1 19 10.6l-2.1 2.1-1.4-1.4 2.1-2.1a1 1 0 1 0-1.4-1.4l-2 2Z"/></svg>
+            </button>
+          </div>
+          <span class="rich-toolbar-divider" aria-hidden="true"></span>
+
+          <!-- 历史与清理操作 -->
+          <div class="rich-toolbar-group" role="group" aria-label="历史与清理">
+            <button type="button" data-rich-command="undo" data-tooltip="撤销" aria-label="撤销">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 7V3L2 9l7 6v-4c5 0 8 1 11 6-1-7-5-10-11-10Z"/></svg>
+            </button>
+            <button type="button" data-rich-command="redo" data-tooltip="重做" aria-label="重做">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M15 7V3l7 6-7 6v-4c-5 0-8 1-11 6 1-7 5-10 11-10Z"/></svg>
+            </button>
+            <button type="button" data-rich-command="removeFormat" data-tooltip="清除格式" aria-label="清除格式">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15.1 4.3 4.6 4.6a1 1 0 0 1 0 1.4l-8.4 8.4a1 1 0 0 1-.7.3H6.4a1 1 0 0 1-.7-.3l-2.4-2.4a1 1 0 0 1 0-1.4l10.4-10.6a1 1 0 0 1 1.4 0ZM5.4 15.6 6.8 17h3.4l3-3-3.9-3.9-3.9 4v1.5ZM13 21h8v-2h-8v2Z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div
+          id="evidenceContentEditor"
+          class="rich-editor"
+          contenteditable="true"
+          data-placeholder="记录详细观察、分析和结论，内容长度不限"></div>
+      </div>
+
+      <!-- 富文本 Tooltip：同时支持鼠标悬停和键盘聚焦 -->
+      <div
+        id="richToolbarTooltip"
+        class="rich-toolbar-tooltip"
+        role="tooltip"
+        hidden></div>
+
+      <!-- 证据表单操作按钮 -->
+      <div class="actions">
+        <button
+          class="secondary"
+          id="cancelEvidenceButton"
+          type="button">
+          取消
+        </button>
+
+        <button id="saveEvidenceButton" type="submit">
+          保存证据
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ==============================
+       证据详情弹窗
+       显示全部图片和完整文字记录
+       ============================== -->
+  <dialog id="evidenceDetailDialog" class="detail-dialog">
+    <h2>证据详情</h2>
+    <h3 id="detailEvidenceTitle"></h3>
+
+    <div class="detail-meta">
+      <strong id="detailCompetitorName"></strong>
+      <span id="detailCreatedDate"></span>
+    </div>
+
+    <!-- 显示证据关联的全部对比维度 -->
+    <div
+      id="detailDimensions"
+      class="detail-dimensions">
+    </div>
+
+    <!-- JavaScript 会把全部证据图片显示在这里 -->
+    <div id="detailImages" class="detail-images"></div>
+
+    <h3>证据内容</h3>
+    <div
+      id="detailComment"
+      class="detail-comment rich-content">
+    </div>
+
+    <div class="actions">
+      <button id="closeDetailButton" type="button">
+        关闭
+      </button>
+    </div>
+  </dialog>
+
+  <!-- ==============================
+       矩阵关联证据弹窗
+       从竞品与维度交叉单元格查看证据
+       ============================== -->
+  <dialog id="linkedEvidenceDialog" class="detail-dialog">
+    <h2 id="linkedEvidenceTitle">相关证据</h2>
+    <div
+      id="linkedEvidenceList"
+      class="linked-evidence-list">
+    </div>
+
+    <div class="actions">
+      <button id="closeLinkedEvidenceButton" type="button">
+        关闭
+      </button>
+    </div>
+  </dialog>
+
+  <script>
+    /* ==============================
+       浏览器存储名称
+       分别保存竞品档案和调研证据
+       ============================== */
+    const storageKey = 'competitor-insights-items';
+    const evidenceStorageKey = 'competitor-insights-evidence';
+    const comparisonStorageKey = 'competitor-insights-comparison';
+    const workspaceStorageKey =
+      'competitor-insights-workspaces-v2';
+
+    /* 没有证据截图时使用内置四叶草 SVG 兜底图 */
+    const fallbackImage =
+      `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+          <rect width="200" height="200" fill="#ecfdf5"/>
+          <line x1="100" y1="94" x2="78" y2="132" stroke="#15803d" stroke-width="8" stroke-linecap="round"/>
+          <g fill="#22c55e">
+            <circle cx="82" cy="68" r="24"/>
+            <circle cx="118" cy="68" r="24"/>
+            <circle cx="82" cy="102" r="24"/>
+            <circle cx="118" cy="102" r="24"/>
+          </g>
+          <circle cx="100" cy="85" r="8" fill="#16a34a"/>
+          <text x="100" y="166" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#166534">暂无截图</text>
+        </svg>
+      `)}`;
+
+    /* ==============================
+       获取多 Tab 洞察空间相关页面元素
+       ============================== */
+    const workspaceTabs = document.querySelector('#workspaceTabs');
+    const addWorkspaceTabButton =
+      document.querySelector('#addWorkspaceTabButton');
+    const tabDialog = document.querySelector('#tabDialog');
+    const tabForm = document.querySelector('#tabForm');
+    const tabDialogTitle = document.querySelector('#tabDialogTitle');
+    const tabName = document.querySelector('#tabName');
+    const saveTabButton = document.querySelector('#saveTabButton');
+    const cancelTabButton = document.querySelector('#cancelTabButton');
+
+    /* ==============================
+       获取竞品管理相关页面元素
+       ============================== */
+    const list = document.querySelector('#competitorList');
+    const dialog = document.querySelector('#competitorDialog');
+    const form = document.querySelector('#competitorForm');
+    const dialogTitle = document.querySelector('#dialogTitle');
+    const saveButton = document.querySelector('#saveButton');
+
+    /* ==============================
+       获取横向对比矩阵相关页面元素
+       ============================== */
+    const comparisonContainer =
+      document.querySelector('#comparisonContainer');
+    const dimensionDialog =
+      document.querySelector('#dimensionDialog');
+    const dimensionForm =
+      document.querySelector('#dimensionForm');
+    const dimensionDialogTitle =
+      document.querySelector('#dimensionDialogTitle');
+    const dimensionName =
+      document.querySelector('#dimensionName');
+    const saveDimensionButton =
+      document.querySelector('#saveDimensionButton');
+
+    /* 获取数据导入与导出相关页面元素 */
+    const exportDataButton =
+      document.querySelector('#exportDataButton');
+    const importDataButton =
+      document.querySelector('#importDataButton');
+    const importDataInput =
+      document.querySelector('#importDataInput');
+    const exportTabsDialog =
+      document.querySelector('#exportTabsDialog');
+    const exportAllTabsCheckbox =
+      document.querySelector('#exportAllTabsCheckbox');
+    const exportTabOptions =
+      document.querySelector('#exportTabOptions');
+    const confirmExportTabsButton =
+      document.querySelector('#confirmExportTabsButton');
+    const cancelExportTabsButton =
+      document.querySelector('#cancelExportTabsButton');
+    const importModeDialog =
+      document.querySelector('#importModeDialog');
+    const importTabsSummary =
+      document.querySelector('#importTabsSummary');
+    const confirmImportModeButton =
+      document.querySelector('#confirmImportModeButton');
+    const cancelImportModeButton =
+      document.querySelector('#cancelImportModeButton');
+
+    /* ==============================
+       获取证据上传相关页面元素
+       ============================== */
+    const evidenceDialog = document.querySelector('#evidenceDialog');
+    const evidenceDialogTitle =
+      document.querySelector('#evidenceDialogTitle');
+    const evidenceForm = document.querySelector('#evidenceForm');
+    const evidenceCompetitorName =
+      document.querySelector('#evidenceCompetitorName');
+    const evidenceDimensionOptions =
+      document.querySelector('#evidenceDimensionOptions');
+    const inlineDimensionCreator =
+      document.querySelector('#inlineDimensionCreator');
+    const inlineDimensionName =
+      document.querySelector('#inlineDimensionName');
+    const evidenceImage = document.querySelector('#evidenceImage');
+    const evidencePreviewList =
+      document.querySelector('#evidencePreviewList');
+    const pasteArea = document.querySelector('#pasteArea');
+    const evidenceTitle = document.querySelector('#evidenceTitle');
+    const evidenceContentEditor =
+      document.querySelector('#evidenceContentEditor');
+    const richToolbar = document.querySelector('#richToolbar');
+    const richToolbarTooltip =
+      document.querySelector('#richToolbarTooltip');
+    const saveEvidenceButton =
+      document.querySelector('#saveEvidenceButton');
+
+    /* ==============================
+       获取证据详情相关页面元素
+       ============================== */
+    const evidenceDetailDialog =
+      document.querySelector('#evidenceDetailDialog');
+    const detailCompetitorName =
+      document.querySelector('#detailCompetitorName');
+    const detailCreatedDate =
+      document.querySelector('#detailCreatedDate');
+    const detailEvidenceTitle =
+      document.querySelector('#detailEvidenceTitle');
+    const detailDimensions =
+      document.querySelector('#detailDimensions');
+    const detailImages = document.querySelector('#detailImages');
+    const detailComment = document.querySelector('#detailComment');
+
+    /* 获取矩阵关联证据弹窗元素 */
+    const linkedEvidenceDialog =
+      document.querySelector('#linkedEvidenceDialog');
+    const linkedEvidenceTitle =
+      document.querySelector('#linkedEvidenceTitle');
+    const linkedEvidenceList =
+      document.querySelector('#linkedEvidenceList');
+
+    /* ==============================
+       读取并迁移多 Tab 数据
+       旧版三个存储键会自动合并到默认 Tab
+       ============================== */
+    const defaultDimensionNames = [
+      '产品定位',
+      '目标用户',
+      '核心能力',
+      'AI 能力',
+      '定价方式',
+      '主要优势',
+      '明显短板'
+    ];
+
+    let workspaceState = loadWorkspaceState();
+    let activeWorkspaceTab = workspaceState.tabs.find(
+      tab => tab.id === workspaceState.activeTabId
+    ) || workspaceState.tabs[0];
+    workspaceState.activeTabId = activeWorkspaceTab.id;
+
+    /* 以下三个变量始终指向当前激活 Tab 的完整数据 */
+    let competitors = activeWorkspaceTab.competitors;
+    let evidenceItems = activeWorkspaceTab.evidenceItems;
+    let comparisonData = activeWorkspaceTab.comparisonData;
+
+    /* 首次迁移成功后使用统一存储，避免图片数据重复占用空间 */
+    initializeWorkspaceStorage();
+
+    /* 当前正在重命名的 Tab；null 表示新增 Tab */
+    let editingWorkspaceTabId = null;
+
+    /* 拖动排序中的 Tab 编号 */
+    let draggedWorkspaceTabId = null;
+
+    /* 已读取并等待用户选择导入模式的 Tab */
+    let pendingImportedTabs = [];
+
+    /* 当前正在编辑的竞品序号，null 表示新增 */
+    let editingIndex = null;
+
+    /* 当前正在编辑的对比维度编号 */
+    let editingDimensionId = null;
+
+    /* 当前正在添加证据的竞品编号 */
+    let selectedEvidenceCompetitorId = null;
+
+    /* 当前证据关联的一个或多个对比维度 */
+    let selectedEvidenceDimensionIds = new Set();
+
+    /* 当前正在编辑的证据序号，null 表示新增 */
+    let editingEvidenceIndex = null;
+
+    /* 编辑证据时继续保留的旧图片 */
+    let retainedEvidenceImages = [];
+
+    /* 待保存的新图片文件和预览地址 */
+    let pendingEvidenceFiles = [];
+    let previewObjectUrls = [];
+
+    /* ==============================
+       多 Tab 洞察空间管理
+       支持新增、重命名、删除、切换和拖动排序
+       ============================== */
+    function renderWorkspaceTabs() {
+      workspaceTabs.innerHTML = workspaceState.tabs
+        .map(tab => {
+          const isActive = tab.id === workspaceState.activeTabId;
+          return `
+            <div
+              class="workspace-tab-item${isActive ? ' is-active' : ''}"
+              data-workspace-tab-id="${escapeHtml(tab.id)}"
+              draggable="true">
+              <button
+                class="workspace-tab-select"
+                data-tab-action="activate"
+                data-tab-id="${escapeHtml(tab.id)}"
+                type="button"
+                role="tab"
+                aria-selected="${isActive ? 'true' : 'false'}"
+                title="${escapeHtml(tab.name)}">
+                ${escapeHtml(tab.name)}
+              </button>
+
+              <button
+                class="workspace-tab-action"
+                data-tab-action="edit"
+                data-tab-id="${escapeHtml(tab.id)}"
+                type="button"
+                aria-label="重命名 ${escapeHtml(tab.name)}"
+                title="重命名 Tab">
+                ✎
+              </button>
+              <button
+                class="workspace-tab-action delete"
+                data-tab-action="delete"
+                data-tab-id="${escapeHtml(tab.id)}"
+                type="button"
+                aria-label="删除 ${escapeHtml(tab.name)}"
+                title="删除 Tab">
+                ×
+              </button>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    function activateWorkspaceTab(tabId) {
+      const targetTab = workspaceState.tabs.find(
+        tab => tab.id === tabId
+      );
+      if (!targetTab || targetTab.id === workspaceState.activeTabId) {
+        return;
+      }
+
+      workspaceState.activeTabId = targetTab.id;
+      activeWorkspaceTab = targetTab;
+      competitors = targetTab.competitors;
+      evidenceItems = targetTab.evidenceItems;
+      comparisonData = targetTab.comparisonData;
+      editingIndex = null;
+      editingDimensionId = null;
+      resetEvidenceForm();
+      persistWorkspaceState();
+      render();
+    }
+
+    function createWorkspaceTab(name) {
+      const newTab = createEmptyWorkspaceTab(name);
+      workspaceState.tabs.push(newTab);
+      workspaceState.activeTabId = newTab.id;
+      activeWorkspaceTab = newTab;
+      competitors = newTab.competitors;
+      evidenceItems = newTab.evidenceItems;
+      comparisonData = newTab.comparisonData;
+      persistWorkspaceState();
+      render();
+      return newTab;
+    }
+
+    function deleteWorkspaceTab(tabId) {
+      if (workspaceState.tabs.length === 1) {
+        window.alert('至少需要保留一个 Tab。');
+        return false;
+      }
+
+      const tabIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === tabId
+      );
+      if (tabIndex < 0) {
+        return false;
+      }
+
+      const tab = workspaceState.tabs[tabIndex];
+      const confirmed = window.confirm(
+        `确定删除 Tab“${tab.name}”吗？其中的竞品、证据和横向对比数据都会被删除。`
+      );
+      if (!confirmed) {
+        return false;
+      }
+
+      workspaceState.tabs.splice(tabIndex, 1);
+      if (workspaceState.activeTabId === tabId) {
+        const nextTab = workspaceState.tabs[
+          Math.min(tabIndex, workspaceState.tabs.length - 1)
+        ];
+        workspaceState.activeTabId = nextTab.id;
+        activeWorkspaceTab = nextTab;
+        competitors = nextTab.competitors;
+        evidenceItems = nextTab.evidenceItems;
+        comparisonData = nextTab.comparisonData;
+      }
+      persistWorkspaceState();
+      render();
+      return true;
+    }
+
+    function moveWorkspaceTab(
+      draggedId,
+      targetId,
+      placeAfterTarget = false
+    ) {
+      if (!draggedId || !targetId || draggedId === targetId) {
+        return false;
+      }
+
+      const sourceIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === draggedId
+      );
+      const targetIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === targetId
+      );
+      if (sourceIndex < 0 || targetIndex < 0) {
+        return false;
+      }
+
+      const [movedTab] = workspaceState.tabs.splice(sourceIndex, 1);
+      const adjustedTarget = workspaceState.tabs.findIndex(
+        tab => tab.id === targetId
+      );
+      workspaceState.tabs.splice(
+        adjustedTarget + (placeAfterTarget ? 1 : 0),
+        0,
+        movedTab
+      );
+      persistWorkspaceState();
+      renderWorkspaceTabs();
+      return true;
+    }
+
+
+    function openWorkspaceTabDialog(tabId = null) {
+      editingWorkspaceTabId = tabId;
+      const tab = workspaceState.tabs.find(item => item.id === tabId);
+      tabDialogTitle.textContent = tab ? '重命名 Tab' : '添加 Tab';
+      saveTabButton.textContent = tab ? '保存名称' : '添加 Tab';
+      tabName.value = tab?.name || '';
+      tabDialog.showModal();
+      tabName.focus();
+    }
+
+    addWorkspaceTabButton.addEventListener('click', () => {
+      openWorkspaceTabDialog();
+    });
+
+    cancelTabButton.addEventListener('click', () => {
+      tabDialog.close();
+      tabForm.reset();
+      editingWorkspaceTabId = null;
+    });
+
+    tabForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const name = tabName.value.trim();
+      if (!name) {
+        return;
+      }
+
+      const duplicate = workspaceState.tabs.some(tab =>
+        tab.id !== editingWorkspaceTabId &&
+        tab.name.toLowerCase() === name.toLowerCase()
+      );
+      if (duplicate) {
+        window.alert('已经存在同名 Tab，请使用其他名称。');
+        return;
+      }
+
+      if (editingWorkspaceTabId) {
+        const tab = workspaceState.tabs.find(
+          item => item.id === editingWorkspaceTabId
+        );
+        if (tab) {
+          tab.name = Array.from(name).slice(0, 20).join('');
+          persistWorkspaceState();
+          renderWorkspaceTabs();
+        }
+      } else {
+        createWorkspaceTab(
+          Array.from(name).slice(0, 20).join('')
+        );
+      }
+
+      tabDialog.close();
+      tabForm.reset();
+      editingWorkspaceTabId = null;
+    });
+
+    workspaceTabs.addEventListener('click', event => {
+      const button = event.target.closest('[data-tab-action]');
+      if (!button) {
+        return;
+      }
+
+      const tabId = button.dataset.tabId;
+      if (button.dataset.tabAction === 'activate') {
+        activateWorkspaceTab(tabId);
+      } else if (button.dataset.tabAction === 'edit') {
+        openWorkspaceTabDialog(tabId);
+      } else if (button.dataset.tabAction === 'delete') {
+        deleteWorkspaceTab(tabId);
+      }
+    });
+
+    workspaceTabs.addEventListener('dragstart', event => {
+      const tabItem = event.target.closest('[data-workspace-tab-id]');
+      if (!tabItem) {
+        return;
+      }
+      draggedWorkspaceTabId = tabItem.dataset.workspaceTabId;
+      tabItem.classList.add('is-dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', draggedWorkspaceTabId);
+    });
+
+    workspaceTabs.addEventListener('dragover', event => {
+      const tabItem = event.target.closest('[data-workspace-tab-id]');
+      if (!tabItem || tabItem.dataset.workspaceTabId === draggedWorkspaceTabId) {
+        return;
+      }
+      event.preventDefault();
+      workspaceTabs
+        .querySelectorAll('.is-drop-target')
+        .forEach(item => item.classList.remove('is-drop-target'));
+      tabItem.classList.add('is-drop-target');
+    });
+
+    workspaceTabs.addEventListener('drop', event => {
+      const tabItem = event.target.closest('[data-workspace-tab-id]');
+      if (!tabItem) {
+        return;
+      }
+      event.preventDefault();
+      const rect = tabItem.getBoundingClientRect();
+      const placeAfterTarget =
+        event.clientX > rect.left + rect.width / 2;
+      moveWorkspaceTab(
+        draggedWorkspaceTabId,
+        tabItem.dataset.workspaceTabId,
+        placeAfterTarget
+      );
+    });
+
+    workspaceTabs.addEventListener('dragend', () => {
+      draggedWorkspaceTabId = null;
+      workspaceTabs
+        .querySelectorAll('.is-dragging, .is-drop-target')
+        .forEach(item => {
+          item.classList.remove('is-dragging');
+          item.classList.remove('is-drop-target');
+        });
+    });
+
+    /* ==============================
+       渲染竞品档案
+       每张竞品卡片内包含自己的证据横向列表
+       ============================== */
+    function render() {
+      renderWorkspaceTabs();
+
+      /* 竞品名称或数量变化时同步更新矩阵 */
+      renderComparison();
+
+      if (competitors.length === 0) {
+        list.innerHTML = `
+          <div class="empty">
+            还没有竞品，点击上方按钮添加第一个。
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = competitors
+        .map((item, index) => {
+          const relatedEvidence = evidenceItems
+            .map((evidence, evidenceIndex) => ({
+              evidence,
+              evidenceIndex
+            }))
+            .filter(entry =>
+              entry.evidence.competitorId === item.id
+            );
+
+          const evidenceMarkup = relatedEvidence.length
+            ? relatedEvidence
+                .map(entry => renderEvidenceTile(
+                  entry.evidence,
+                  entry.evidenceIndex
+                ))
+                .join('')
+            : `
+                <div class="evidence-empty">
+                  还没有证据，点击“添加证据”上传图片。
+                </div>
+              `;
+
+          return `
+            <article class="card">
+              <h3>${escapeHtml(item.name)}</h3>
+
+              <p>
+                ${escapeHtml(
+                  item.positioning || '暂未填写产品定位'
+                )}
+              </p>
+
+              ${
+                item.website
+                  ? `
+                    <a
+                      href="${escapeHtml(item.website)}"
+                      target="_blank"
+                      rel="noopener">
+                      访问官网 →
+                    </a>
+                  `
+                  : ''
+              }
+
+              <!-- 竞品档案基础操作 -->
+              <div class="card-actions">
+                <button
+                  class="edit-button"
+                  data-action="edit"
+                  data-index="${index}">
+                  编辑
+                </button>
+
+                <button
+                  class="delete-button"
+                  data-action="delete"
+                  data-index="${index}">
+                  删除
+                </button>
+              </div>
+
+              <!-- 当前竞品关联的调研证据 -->
+              <section class="competitor-evidence">
+                <div class="evidence-header">
+                  <h4>
+                    调研证据（${relatedEvidence.length}）
+                  </h4>
+
+                  <button
+                    class="small-button"
+                    data-action="add-evidence"
+                    data-competitor-id="${escapeHtml(item.id)}">
+                    添加证据
+                  </button>
+                </div>
+
+                <div class="evidence-scroll">
+                  ${evidenceMarkup}
+                </div>
+              </section>
+            </article>
+          `;
+        })
+        .join('');
+    }
+
+    /* ==============================
+       渲染竞品横向对比矩阵
+       对比维度为行、竞品档案为列
+       ============================== */
+    function renderComparison() {
+      if (competitors.length === 0) {
+        comparisonContainer.innerHTML = `
+          <div class="comparison-empty">
+            添加竞品后即可开始横向对比。
+          </div>
+        `;
+        return;
+      }
+
+      if (comparisonData.dimensions.length === 0) {
+        comparisonContainer.innerHTML = `
+          <div class="comparison-empty">
+            还没有对比维度，点击“添加对比维度”创建。
+          </div>
+        `;
+        return;
+      }
+
+      const competitorHeaders = competitors
+        .map(competitor => `
+          <th>${escapeHtml(competitor.name)}</th>
+        `)
+        .join('');
+
+      const rows = comparisonData.dimensions
+        .map(dimension => {
+          const cells = competitors
+            .map(competitor => {
+              const value =
+                comparisonData.values[dimension.id]?.[
+                  competitor.id
+                ] || '';
+              const linkedEvidence = evidenceItems
+                .map((evidence, evidenceIndex) => ({
+                  evidence,
+                  evidenceIndex
+                }))
+                .filter(entry =>
+                  entry.evidence.competitorId === competitor.id &&
+                  entry.evidence.dimensionIds.includes(dimension.id)
+                );
+              const evidenceLines = linkedEvidence
+                .map(entry => `
+                  <button
+                    class="matrix-evidence-line"
+                    data-matrix-evidence-index="${entry.evidenceIndex}"
+                    type="button"
+                    title="${escapeHtml(entry.evidence.title)}">
+                    ${escapeHtml(entry.evidence.title)}
+                  </button>
+                `)
+                .join('');
+
+              return `
+                <td>
+                  ${
+                    linkedEvidence.length > 0
+                      ? `
+                        <section class="matrix-auto-evidence">
+                          <div class="matrix-auto-header">
+                            <span class="matrix-auto-title">
+                              证据内容（${linkedEvidence.length}）
+                            </span>
+                            <button
+                              class="matrix-evidence-link"
+                              data-linked-dimension-id="${escapeHtml(dimension.id)}"
+                              data-linked-competitor-id="${escapeHtml(competitor.id)}"
+                              type="button">
+                              查看全部
+                            </button>
+                          </div>
+                          <div class="matrix-evidence-lines">
+                            ${evidenceLines}
+                          </div>
+                        </section>
+                      `
+                      : ''
+                  }
+
+                  <label class="matrix-manual-label">
+                    自主补充内容
+                  </label>
+                  <textarea
+                    class="matrix-input"
+                    data-dimension-id="${escapeHtml(dimension.id)}"
+                    data-competitor-id="${escapeHtml(competitor.id)}"
+                    placeholder="填写补充对比信息">${escapeHtml(value)}</textarea>
+                </td>
+              `;
+            })
+            .join('');
+
+          return `
+            <tr>
+              <td class="dimension-column">
+                <strong class="dimension-name">
+                  ${escapeHtml(dimension.name)}
+                </strong>
+
+                <div class="dimension-actions">
+                  <button
+                    class="matrix-button"
+                    data-dimension-action="edit"
+                    data-dimension-id="${escapeHtml(dimension.id)}"
+                    type="button">
+                    编辑
+                  </button>
+
+                  <button
+                    class="matrix-button matrix-delete-button"
+                    data-dimension-action="delete"
+                    data-dimension-id="${escapeHtml(dimension.id)}"
+                    type="button">
+                    删除
+                  </button>
+                </div>
+              </td>
+              ${cells}
+            </tr>
+          `;
+        })
+        .join('');
+
+      comparisonContainer.innerHTML = `
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th class="dimension-column">对比维度</th>
+              ${competitorHeaders}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    /* ==============================
+       自动保存矩阵单元格内容
+       用户输入时同步写入浏览器存储
+       ============================== */
+    comparisonContainer.addEventListener('input', event => {
+      const input = event.target.closest('.matrix-input');
+      if (!input) {
+        return;
+      }
+
+      const dimensionId = input.dataset.dimensionId;
+      const competitorId = input.dataset.competitorId;
+      comparisonData.values[dimensionId] =
+        comparisonData.values[dimensionId] || {};
+      comparisonData.values[dimensionId][competitorId] =
+        input.value;
+      persistComparison();
+    });
+
+    /* ==============================
+       编辑或删除对比维度
+       ============================== */
+    comparisonContainer.addEventListener('click', event => {
+      /* 点击自动生成的单行证据文字，直接打开详情 */
+      const evidenceLine = event.target.closest(
+        'button[data-matrix-evidence-index]'
+      );
+
+      if (evidenceLine) {
+        openEvidenceDetail(
+          Number(evidenceLine.dataset.matrixEvidenceIndex)
+        );
+        return;
+      }
+
+      /* 点击矩阵单元格中的“查看全部”入口 */
+      const linkedButton = event.target.closest(
+        'button[data-linked-dimension-id]'
+      );
+
+      if (linkedButton) {
+        openLinkedEvidence(
+          linkedButton.dataset.linkedDimensionId,
+          linkedButton.dataset.linkedCompetitorId
+        );
+        return;
+      }
+
+      const button = event.target.closest(
+        'button[data-dimension-action]'
+      );
+      if (!button) {
+        return;
+      }
+
+      const dimensionId = button.dataset.dimensionId;
+      const dimension = comparisonData.dimensions.find(
+        item => item.id === dimensionId
+      );
+      if (!dimension) {
+        return;
+      }
+
+      if (button.dataset.dimensionAction === 'edit') {
+        editingDimensionId = dimensionId;
+        dimensionName.value = dimension.name;
+        dimensionDialogTitle.textContent = '编辑对比维度';
+        saveDimensionButton.textContent = '保存修改';
+        dimensionDialog.showModal();
+      }
+
+      if (button.dataset.dimensionAction === 'delete') {
+        if (!window.confirm(
+          `确定删除对比维度“${dimension.name}”及其内容吗？`
+        )) {
+          return;
+        }
+
+        comparisonData.dimensions =
+          comparisonData.dimensions.filter(
+            item => item.id !== dimensionId
+          );
+        delete comparisonData.values[dimensionId];
+
+        /* 保留证据，只解除它与已删除维度的关联 */
+        evidenceItems = evidenceItems.map(evidence => ({
+          ...evidence,
+          dimensionIds: evidence.dimensionIds.filter(
+            id => id !== dimensionId
+          )
+        }));
+
+        persistComparison();
+        persistEvidence();
+        render();
+      }
+    });
+
+    /* 打开添加对比维度弹窗 */
+    document
+      .querySelector('#addDimensionButton')
+      .addEventListener('click', () => {
+        editingDimensionId = null;
+        dimensionForm.reset();
+        dimensionDialogTitle.textContent = '添加对比维度';
+        saveDimensionButton.textContent = '保存维度';
+        dimensionDialog.showModal();
+      });
+
+    /* 取消添加或编辑对比维度 */
+    document
+      .querySelector('#cancelDimensionButton')
+      .addEventListener('click', () => {
+        editingDimensionId = null;
+        dimensionForm.reset();
+        dimensionDialog.close();
+      });
+
+    /* 保存新增或编辑后的对比维度 */
+    dimensionForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const name = dimensionName.value.trim();
+
+      if (editingDimensionId === null) {
+        comparisonData.dimensions.push({
+          id: createId(),
+          name
+        });
+      } else {
+        const dimension = comparisonData.dimensions.find(
+          item => item.id === editingDimensionId
+        );
+        if (dimension) {
+          dimension.name = name;
+        }
+      }
+
+      persistComparison();
+      editingDimensionId = null;
+      dimensionForm.reset();
+      dimensionDialog.close();
+      renderComparison();
+    });
+
+    /* ==============================
+       渲染证据弹窗中的可选对比维度
+       ============================== */
+    function renderEvidenceDimensionOptions() {
+      if (comparisonData.dimensions.length === 0) {
+        evidenceDimensionOptions.innerHTML = `
+          <span class="form-help">
+            暂无维度，可以点击“新增维度”创建。
+          </span>
+        `;
+        return;
+      }
+
+      evidenceDimensionOptions.innerHTML =
+        comparisonData.dimensions
+          .map(dimension => `
+            <label class="dimension-option">
+              <input
+                type="checkbox"
+                data-evidence-dimension-id="${escapeHtml(dimension.id)}"
+                ${
+                  selectedEvidenceDimensionIds.has(dimension.id)
+                    ? 'checked'
+                    : ''
+                }>
+              ${escapeHtml(dimension.name)}
+            </label>
+          `)
+          .join('');
+    }
+
+    /* 多选框变化时更新当前证据的关联维度 */
+    evidenceDimensionOptions.addEventListener('change', event => {
+      const checkbox = event.target.closest(
+        'input[data-evidence-dimension-id]'
+      );
+      if (!checkbox) {
+        return;
+      }
+
+      const dimensionId =
+        checkbox.dataset.evidenceDimensionId;
+      if (checkbox.checked) {
+        selectedEvidenceDimensionIds.add(dimensionId);
+      } else {
+        selectedEvidenceDimensionIds.delete(dimensionId);
+      }
+    });
+
+    /* 在证据弹窗中展开新增维度输入框 */
+    document
+      .querySelector('#showInlineDimensionButton')
+      .addEventListener('click', () => {
+        inlineDimensionCreator.classList.add('visible');
+        inlineDimensionName.focus();
+      });
+
+    /* 取消在证据弹窗中新增维度 */
+    document
+      .querySelector('#cancelInlineDimensionButton')
+      .addEventListener('click', () => {
+        inlineDimensionName.value = '';
+        inlineDimensionCreator.classList.remove('visible');
+      });
+
+    /* 新建维度后立即勾选，并保留待上传图片和文字 */
+    document
+      .querySelector('#saveInlineDimensionButton')
+      .addEventListener('click', () => {
+        const name = inlineDimensionName.value.trim();
+        if (!name) {
+          window.alert('请输入维度名称。');
+          return;
+        }
+
+        let dimension = comparisonData.dimensions.find(
+          item => item.name.toLowerCase() === name.toLowerCase()
+        );
+
+        if (!dimension) {
+          dimension = {
+            id: createId(),
+            name
+          };
+          comparisonData.dimensions.push(dimension);
+          persistComparison();
+          renderComparison();
+        }
+
+        selectedEvidenceDimensionIds.add(dimension.id);
+        renderEvidenceDimensionOptions();
+        inlineDimensionName.value = '';
+        inlineDimensionCreator.classList.remove('visible');
+      });
+
+    /* ==============================
+       生成单个正方形证据卡片
+       最多用四格拼图展示图片缩略图
+       ============================== */
+    function renderEvidenceTile(evidence, evidenceIndex) {
+      const displayImages = evidence.images.length > 0
+        ? evidence.images
+        : [fallbackImage];
+      const previewImages = displayImages.slice(0, 4);
+      const imageCountClass = `image-count-${
+        Math.min(previewImages.length, 4)
+      }`;
+      const collage = previewImages
+        .map(image => `
+          <img src="${escapeHtml(image)}" alt="证据图片">
+        `)
+        .join('');
+      const linkedDimensions = evidence.dimensionIds
+        .map(dimensionId =>
+          comparisonData.dimensions.find(
+            item => item.id === dimensionId
+          )
+        )
+        .filter(Boolean);
+      const visibleTags = linkedDimensions
+        .slice(0, 2)
+        .map(dimension => `
+          <span class="evidence-tile-tag">
+            ${escapeHtml(dimension.name)}
+          </span>
+        `)
+        .join('');
+      const extraTagCount = Math.max(
+        0,
+        linkedDimensions.length - 2
+      );
+      const date = formatShortDate(evidence.createdAt);
+
+      return `
+        <article
+          class="evidence-tile"
+          data-evidence-action="view"
+          data-index="${evidenceIndex}"
+          title="点击查看证据详情">
+
+          <div class="evidence-collage ${imageCountClass}">
+            ${collage}
+          </div>
+
+          <span class="evidence-date">
+            ${escapeHtml(date)}
+          </span>
+
+          ${
+            evidence.images.length > 1
+              ? `
+                <span class="evidence-count">
+                  ${evidence.images.length} 张
+                </span>
+              `
+              : ''
+          }
+
+          <!-- 编辑和删除证据的独立按钮 -->
+          <div class="evidence-tile-actions">
+            <button
+              class="evidence-edit-button"
+              data-evidence-action="edit"
+              data-index="${evidenceIndex}"
+              type="button"
+              title="编辑证据">
+              ✎
+            </button>
+
+            <button
+              class="evidence-delete-button"
+              data-evidence-action="delete"
+              data-index="${evidenceIndex}"
+              type="button"
+              title="删除证据">
+              ×
+            </button>
+          </div>
+
+          <div class="evidence-overlay">
+            ${
+              linkedDimensions.length > 0
+                ? `
+                  <div class="evidence-tile-tags">
+                    ${visibleTags}
+                    ${
+                      extraTagCount > 0
+                        ? `
+                          <span class="evidence-tile-tag">
+                            +${extraTagCount}
+                          </span>
+                        `
+                        : ''
+                    }
+                  </div>
+                `
+                : ''
+            }
+            <p>${escapeHtml(evidence.title)}</p>
+          </div>
+        </article>
+      `;
+    }
+
+    /* ==============================
+       处理竞品卡片中的所有点击操作
+       包括竞品编辑删除、添加证据和证据详情
+       ============================== */
+    list.addEventListener('click', event => {
+      const evidenceControl = event.target.closest(
+        '[data-evidence-action]'
+      );
+
+      if (evidenceControl) {
+        const evidenceIndex = Number(
+          evidenceControl.dataset.index
+        );
+        const evidenceAction =
+          evidenceControl.dataset.evidenceAction;
+
+        if (evidenceAction === 'view') {
+          openEvidenceDetail(evidenceIndex);
+        }
+
+        if (evidenceAction === 'edit') {
+          openEvidenceEdit(evidenceIndex);
+        }
+
+        if (evidenceAction === 'delete') {
+          deleteEvidence(evidenceIndex);
+        }
+
+        return;
+      }
+
+      const button = event.target.closest('button[data-action]');
+      if (!button) {
+        return;
+      }
+
+      const action = button.dataset.action;
+
+      if (action === 'add-evidence') {
+        openEvidenceDialog(button.dataset.competitorId);
+        return;
+      }
+
+      const index = Number(button.dataset.index);
+      const competitor = competitors[index];
+
+      if (action === 'edit') {
+        editingIndex = index;
+        document.querySelector('#name').value = competitor.name;
+        document.querySelector('#website').value = competitor.website;
+        document.querySelector('#positioning').value =
+          competitor.positioning;
+        dialogTitle.textContent = '编辑竞品';
+        saveButton.textContent = '保存修改';
+        dialog.showModal();
+      }
+
+      if (action === 'delete') {
+        const evidenceCount = evidenceItems.filter(
+          item => item.competitorId === competitor.id
+        ).length;
+        const matrixValueCount =
+          comparisonData.dimensions.filter(dimension =>
+            comparisonData.values[dimension.id]?.[
+              competitor.id
+            ]?.trim()
+          ).length;
+        const relatedData = [];
+
+        if (evidenceCount > 0) {
+          relatedData.push(`${evidenceCount} 条证据`);
+        }
+
+        if (matrixValueCount > 0) {
+          relatedData.push(`${matrixValueCount} 项矩阵内容`);
+        }
+
+        const message = relatedData.length > 0
+          ? `确定删除“${competitor.name}”吗？将同时删除${relatedData.join('和')}。`
+          : `确定删除“${competitor.name}”吗？`;
+
+        if (!window.confirm(message)) {
+          return;
+        }
+
+        competitors.splice(index, 1);
+        evidenceItems = evidenceItems.filter(
+          item => item.competitorId !== competitor.id
+        );
+
+        /* 同步删除该竞品在所有矩阵维度中的内容 */
+        comparisonData.dimensions.forEach(dimension => {
+          if (comparisonData.values[dimension.id]) {
+            delete comparisonData.values[dimension.id][
+              competitor.id
+            ];
+          }
+        });
+
+        persistCompetitors();
+        persistEvidence();
+        persistComparison();
+        render();
+      }
+    });
+
+    /* ==============================
+       打开新增竞品弹窗
+       ============================== */
+    document
+      .querySelector('#addButton')
+      .addEventListener('click', () => {
+        editingIndex = null;
+        form.reset();
+        dialogTitle.textContent = '添加竞品';
+        saveButton.textContent = '保存竞品';
+        dialog.showModal();
+      });
+
+    /* ==============================
+       取消新增或编辑竞品
+       ============================== */
+    document
+      .querySelector('#cancelButton')
+      .addEventListener('click', () => {
+        editingIndex = null;
+        form.reset();
+        dialog.close();
+      });
+
+    /* ==============================
+       保存新增或编辑后的竞品
+       编辑时保留原有唯一编号和证据关联
+       ============================== */
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+
+      const competitor = {
+        id:
+          editingIndex === null
+            ? createId()
+            : competitors[editingIndex].id,
+        name: document.querySelector('#name').value.trim(),
+        website:
+          document.querySelector('#website').value.trim(),
+        positioning:
+          document.querySelector('#positioning').value.trim()
+      };
+
+      if (editingIndex === null) {
+        competitors.push(competitor);
+      } else {
+        competitors[editingIndex] = competitor;
+      }
+
+      persistCompetitors();
+      editingIndex = null;
+      form.reset();
+      dialog.close();
+      render();
+    });
+
+    /* ==============================
+       富文本工具栏 Tooltip
+       同时支持鼠标悬停和键盘聚焦
+       ============================== */
+    function showRichToolbarTooltip(button) {
+      const label = button.dataset.tooltip;
+      if (!label) {
+        return;
+      }
+
+      richToolbarTooltip.textContent = label;
+      richToolbarTooltip.hidden = false;
+      button.setAttribute('aria-describedby', 'richToolbarTooltip');
+
+      const buttonRect = button.getBoundingClientRect();
+      const tooltipWidth = richToolbarTooltip.offsetWidth;
+      const tooltipHeight = richToolbarTooltip.offsetHeight;
+      const edgeGap = 8;
+      let left = buttonRect.left + buttonRect.width / 2;
+      let top = buttonRect.bottom + edgeGap;
+
+      left = Math.max(
+        tooltipWidth / 2 + edgeGap,
+        Math.min(window.innerWidth - tooltipWidth / 2 - edgeGap, left)
+      );
+
+      if (top + tooltipHeight > window.innerHeight - edgeGap) {
+        top = buttonRect.top - tooltipHeight - edgeGap;
+      }
+
+      richToolbarTooltip.style.left = `${left}px`;
+      richToolbarTooltip.style.top = `${top}px`;
+    }
+
+    function hideRichToolbarTooltip(button) {
+      richToolbarTooltip.hidden = true;
+      if (button) {
+        button.removeAttribute('aria-describedby');
+      }
+    }
+
+    richToolbar.addEventListener('mouseover', event => {
+      const button = event.target.closest('[data-tooltip]');
+      if (button && !button.contains(event.relatedTarget)) {
+        showRichToolbarTooltip(button);
+      }
+    });
+
+    richToolbar.addEventListener('mouseout', event => {
+      const button = event.target.closest('[data-tooltip]');
+      if (button && !button.contains(event.relatedTarget)) {
+        hideRichToolbarTooltip(button);
+      }
+    });
+
+    richToolbar.addEventListener('focusin', event => {
+      const button = event.target.closest('[data-tooltip]');
+      if (button) {
+        showRichToolbarTooltip(button);
+      }
+    });
+
+    richToolbar.addEventListener('focusout', event => {
+      const button = event.target.closest('[data-tooltip]');
+      if (button) {
+        hideRichToolbarTooltip(button);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      hideRichToolbarTooltip();
+    });
+
+    /* ==============================
+       富文本工具栏操作
+       保留文字选区，避免点击按钮后格式失效
+       ============================== */
+    let savedEditorRange = null;
+
+    function saveEditorSelection() {
+      if (!window.getSelection) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (
+        selection.rangeCount > 0 &&
+        evidenceContentEditor.contains(selection.anchorNode)
+      ) {
+        savedEditorRange = selection.getRangeAt(0).cloneRange();
+      }
+    }
+
+    function restoreEditorSelection() {
+      if (!savedEditorRange || !window.getSelection) {
+        evidenceContentEditor.focus();
+        return;
+      }
+
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(savedEditorRange);
+      evidenceContentEditor.focus();
+    }
+
+    function updateRichToolbarState() {
+      if (!document.queryCommandState) {
+        return;
+      }
+
+      richToolbar
+        .querySelectorAll('[data-state-command]')
+        .forEach(button => {
+          let isActive = false;
+          try {
+            isActive = document.queryCommandState(
+              button.dataset.stateCommand
+            );
+          } catch (error) {
+            isActive = false;
+          }
+          button.classList.toggle('is-active', isActive);
+          button.setAttribute(
+            'aria-pressed',
+            isActive ? 'true' : 'false'
+          );
+        });
+
+      /* 正文、小标题和引用同样显示当前激活状态 */
+      if (document.queryCommandValue) {
+        let currentBlock = '';
+        try {
+          currentBlock = String(
+            document.queryCommandValue('formatBlock') || ''
+          ).toLowerCase().replace(/[<>]/g, '');
+        } catch (error) {
+          currentBlock = '';
+        }
+
+        richToolbar
+          .querySelectorAll('[data-block-value]')
+          .forEach(button => {
+            const isActive =
+              button.dataset.blockValue === currentBlock;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute(
+              'aria-pressed',
+              isActive ? 'true' : 'false'
+            );
+          });
+      }
+    }
+
+    ['mouseup', 'keyup', 'input', 'focus'].forEach(eventName => {
+      evidenceContentEditor.addEventListener(eventName, () => {
+        saveEditorSelection();
+        updateRichToolbarState();
+      });
+    });
+
+    /* 阻止工具栏抢走编辑器焦点，并在按下时保存选区 */
+    richToolbar.addEventListener('mousedown', event => {
+      const button = event.target.closest(
+        'button[data-rich-command]'
+      );
+      if (!button) {
+        return;
+      }
+      saveEditorSelection();
+      event.preventDefault();
+    });
+
+    richToolbar.addEventListener('click', event => {
+      const button = event.target.closest(
+        'button[data-rich-command]'
+      );
+      if (!button) {
+        return;
+      }
+
+      const command = button.dataset.richCommand;
+      let value = button.dataset.richValue || null;
+
+      if (command === 'createLink') {
+        const inputUrl = window.prompt('请输入链接地址：');
+        if (!inputUrl) {
+          return;
+        }
+        value = /^(https?:|mailto:)/i.test(inputUrl)
+          ? inputUrl
+          : `https://${inputUrl}`;
+      }
+
+      restoreEditorSelection();
+      document.execCommand(command, false, value);
+      saveEditorSelection();
+      updateRichToolbarState();
+    });
+
+    /* ==============================
+       打开指定竞品的证据上传弹窗
+       ============================== */
+    function openEvidenceDialog(competitorId) {
+      const competitor = competitors.find(
+        item => item.id === competitorId
+      );
+
+      if (!competitor) {
+        window.alert('没有找到对应竞品。');
+        return;
+      }
+
+      resetEvidenceForm();
+      selectedEvidenceCompetitorId = competitorId;
+      evidenceCompetitorName.textContent = competitor.name;
+      renderEvidenceDimensionOptions();
+      evidenceDialog.showModal();
+    }
+
+    /* ==============================
+       打开已有证据的编辑弹窗
+       回填旧图片、文字和维度关联
+       ============================== */
+    function openEvidenceEdit(evidenceIndex) {
+      const evidence = evidenceItems[evidenceIndex];
+      if (!evidence) {
+        return;
+      }
+
+      const competitor = competitors.find(
+        item => item.id === evidence.competitorId
+      );
+      if (!competitor) {
+        window.alert('没有找到证据对应的竞品。');
+        return;
+      }
+
+      resetEvidenceForm();
+      editingEvidenceIndex = evidenceIndex;
+      selectedEvidenceCompetitorId = evidence.competitorId;
+      selectedEvidenceDimensionIds = new Set(
+        evidence.dimensionIds
+      );
+      retainedEvidenceImages = [...evidence.images];
+      evidenceCompetitorName.textContent = competitor.name;
+      evidenceTitle.value = evidence.title;
+      evidenceContentEditor.innerHTML = evidence.contentHtml;
+      evidenceDialogTitle.textContent = '编辑调研证据';
+      saveEvidenceButton.textContent = '保存修改';
+      renderEvidenceDimensionOptions();
+      renderPendingPreviews();
+      evidenceDialog.showModal();
+    }
+
+    /* ==============================
+       添加本地选择或剪贴板粘贴的多张图片
+       ============================== */
+    function addPendingFiles(files) {
+      const validFiles = [];
+      let oversizedCount = 0;
+      let invalidCount = 0;
+
+      files.forEach(file => {
+        if (!file.type.startsWith('image/')) {
+          invalidCount += 1;
+          return;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+          oversizedCount += 1;
+          return;
+        }
+
+        validFiles.push(file);
+      });
+
+      pendingEvidenceFiles.push(...validFiles);
+      renderPendingPreviews();
+
+      if (oversizedCount > 0) {
+        window.alert(
+          `${oversizedCount} 张图片超过 10MB，已跳过。`
+        );
+      }
+
+      if (invalidCount > 0) {
+        window.alert(
+          `${invalidCount} 个文件不是图片，已跳过。`
+        );
+      }
+    }
+
+    /* 文件选择框支持一次选择多张图片 */
+    evidenceImage.addEventListener('change', () => {
+      addPendingFiles(Array.from(evidenceImage.files));
+      evidenceImage.value = '';
+    });
+
+    /* ==============================
+       支持把剪贴板截图粘贴到当前证据
+       ============================== */
+    pasteArea.addEventListener('paste', event => {
+      const imageFiles = Array.from(
+        event.clipboardData.items
+      )
+        .filter(item => item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+
+      if (imageFiles.length === 0) {
+        window.alert('剪贴板中没有可用的图片。');
+        return;
+      }
+
+      event.preventDefault();
+      addPendingFiles(imageFiles);
+    });
+
+    /* ==============================
+       渲染所有待保存图片的缩略图
+       每张图片都可以单独移除
+       ============================== */
+    function renderPendingPreviews() {
+      revokePreviewUrls();
+
+      previewObjectUrls = pendingEvidenceFiles.map(file =>
+        URL.createObjectURL(file)
+      );
+      const allPreviewUrls = [
+        ...retainedEvidenceImages,
+        ...previewObjectUrls
+      ];
+
+      evidencePreviewList.innerHTML = allPreviewUrls
+        .map((url, index) => `
+          <div class="preview-item">
+            <img
+              src="${escapeHtml(url)}"
+              alt="待保存图片 ${index + 1}">
+            <button
+              class="preview-remove-button"
+              data-preview-index="${index}"
+              type="button"
+              title="移除图片">
+              ×
+            </button>
+          </div>
+        `)
+        .join('');
+    }
+
+    evidencePreviewList.addEventListener('click', event => {
+      const button = event.target.closest(
+        'button[data-preview-index]'
+      );
+
+      if (!button) {
+        return;
+      }
+
+      const previewIndex = Number(
+        button.dataset.previewIndex
+      );
+
+      if (previewIndex < retainedEvidenceImages.length) {
+        retainedEvidenceImages.splice(previewIndex, 1);
+      } else {
+        pendingEvidenceFiles.splice(
+          previewIndex - retainedEvidenceImages.length,
+          1
+        );
+      }
+
+      renderPendingPreviews();
+    });
+
+    /* ==============================
+       保存包含多张图片和文字记录的证据
+       ============================== */
+    evidenceForm.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      const title = evidenceTitle.value.trim();
+      if (!title) {
+        window.alert('请输入证据标题。');
+        return;
+      }
+      if (Array.from(title).length > 20) {
+        window.alert('证据标题不能超过 20 个字符。');
+        return;
+      }
+
+      const contentHtml = sanitizeRichHtml(
+        evidenceContentEditor.innerHTML
+      );
+      saveEvidenceButton.disabled = true;
+
+      try {
+        /* 编辑时先保留未被移除的旧图片 */
+        const compressedImages = [
+          ...retainedEvidenceImages
+        ];
+
+        /* 只压缩本次新选择或粘贴的图片 */
+        for (
+          let index = 0;
+          index < pendingEvidenceFiles.length;
+          index += 1
+        ) {
+          saveEvidenceButton.textContent =
+            `正在处理 ${index + 1}/${pendingEvidenceFiles.length}…`;
+          compressedImages.push(
+            await compressImage(pendingEvidenceFiles[index])
+          );
+        }
+
+        const previousEvidence =
+          editingEvidenceIndex === null
+            ? null
+            : evidenceItems[editingEvidenceIndex];
+        const now = new Date().toISOString();
+        const evidence = {
+          id: previousEvidence?.id || createId(),
+          competitorId: selectedEvidenceCompetitorId,
+          images: compressedImages,
+          dimensionIds: Array.from(
+            selectedEvidenceDimensionIds
+          ),
+          title,
+          contentHtml,
+          createdAt: previousEvidence?.createdAt || now,
+          updatedAt: previousEvidence ? now : undefined
+        };
+
+        if (editingEvidenceIndex === null) {
+          evidenceItems.push(evidence);
+        } else {
+          evidenceItems[editingEvidenceIndex] = evidence;
+        }
+
+        try {
+          persistEvidence();
+        } catch (storageError) {
+          if (editingEvidenceIndex === null) {
+            evidenceItems.pop();
+          } else {
+            evidenceItems[editingEvidenceIndex] =
+              previousEvidence;
+          }
+
+          throw new Error(
+            '浏览器存储空间不足，请减少图片数量或删除旧证据。'
+          );
+        }
+
+        evidenceDialog.close();
+        resetEvidenceForm();
+        render();
+      } catch (error) {
+        window.alert(error.message);
+        saveEvidenceButton.disabled = false;
+        saveEvidenceButton.textContent =
+          editingEvidenceIndex === null
+            ? '保存证据'
+            : '保存修改';
+      }
+    });
+
+    /* ==============================
+       取消添加证据并清空临时图片
+       ============================== */
+    document
+      .querySelector('#cancelEvidenceButton')
+      .addEventListener('click', () => {
+        evidenceDialog.close();
+        resetEvidenceForm();
+      });
+
+    /* ==============================
+       打开证据详情
+       完整展示所有图片和文字记录
+       ============================== */
+    function openEvidenceDetail(evidenceIndex) {
+      const evidence = evidenceItems[evidenceIndex];
+      if (!evidence) {
+        return;
+      }
+
+      const competitor = competitors.find(
+        item => item.id === evidence.competitorId
+      );
+
+      detailCompetitorName.textContent = competitor
+        ? competitor.name
+        : '已删除的竞品';
+      detailCreatedDate.textContent =
+        formatDate(evidence.createdAt);
+      detailEvidenceTitle.textContent = evidence.title;
+
+      const linkedDimensions = evidence.dimensionIds
+        .map(dimensionId =>
+          comparisonData.dimensions.find(
+            item => item.id === dimensionId
+          )
+        )
+        .filter(Boolean);
+      detailDimensions.innerHTML = linkedDimensions.length
+        ? linkedDimensions
+            .map(dimension => `
+              <span class="dimension-tag">
+                ${escapeHtml(dimension.name)}
+              </span>
+            `)
+            .join('')
+        : '<span class="form-help">未关联对比维度</span>';
+
+      const detailImageSources = evidence.images.length > 0
+        ? evidence.images
+        : [fallbackImage];
+      detailImages.innerHTML = detailImageSources
+        .map((image, index) => `
+          <img
+            src="${escapeHtml(image)}"
+            alt="证据图片 ${index + 1}">
+        `)
+        .join('');
+      detailComment.innerHTML = sanitizeRichHtml(
+        evidence.contentHtml
+      ) || '<p class="form-help">暂无详细内容</p>';
+      evidenceDetailDialog.showModal();
+    }
+
+    document
+      .querySelector('#closeDetailButton')
+      .addEventListener('click', () => {
+        evidenceDetailDialog.close();
+      });
+
+    /* ==============================
+       从矩阵单元格查看关联证据
+       只显示当前竞品与当前维度的证据
+       ============================== */
+    function openLinkedEvidence(dimensionId, competitorId) {
+      const dimension = comparisonData.dimensions.find(
+        item => item.id === dimensionId
+      );
+      const competitor = competitors.find(
+        item => item.id === competitorId
+      );
+      const linkedItems = evidenceItems
+        .map((evidence, evidenceIndex) => ({
+          evidence,
+          evidenceIndex
+        }))
+        .filter(entry =>
+          entry.evidence.competitorId === competitorId &&
+          entry.evidence.dimensionIds.includes(dimensionId)
+        );
+
+      linkedEvidenceTitle.textContent =
+        `${competitor?.name || '竞品'} · ${dimension?.name || '维度'}的相关证据`;
+      linkedEvidenceList.innerHTML = linkedItems
+        .map(entry => `
+          <button
+            class="linked-evidence-item"
+            data-linked-evidence-index="${entry.evidenceIndex}"
+            type="button">
+            <img
+              src="${escapeHtml(
+                entry.evidence.images[0] || fallbackImage
+              )}"
+              alt="关联证据缩略图">
+            <div>
+              <strong>
+                ${escapeHtml(entry.evidence.title)}
+              </strong>
+              <p>${escapeHtml(formatDate(entry.evidence.createdAt))}</p>
+            </div>
+          </button>
+        `)
+        .join('');
+      linkedEvidenceDialog.showModal();
+    }
+
+    /* 点击关联证据摘要后进入完整证据详情 */
+    linkedEvidenceList.addEventListener('click', event => {
+      const item = event.target.closest(
+        '[data-linked-evidence-index]'
+      );
+      if (!item) {
+        return;
+      }
+
+      linkedEvidenceDialog.close();
+      openEvidenceDetail(Number(
+        item.dataset.linkedEvidenceIndex
+      ));
+    });
+
+    document
+      .querySelector('#closeLinkedEvidenceButton')
+      .addEventListener('click', () => {
+        linkedEvidenceDialog.close();
+      });
+
+    /* ==============================
+       删除单条证据
+       删除按钮独立于详情点击操作
+       ============================== */
+    function deleteEvidence(evidenceIndex) {
+      if (!window.confirm('确定删除这条调研证据吗？')) {
+        return;
+      }
+
+      evidenceItems.splice(evidenceIndex, 1);
+      persistEvidence();
+      render();
+    }
+
+    /* ==============================
+       重置证据表单和图片预览
+       ============================== */
+    function resetEvidenceForm() {
+      evidenceForm.reset();
+      evidenceContentEditor.innerHTML = '';
+      savedEditorRange = null;
+      hideRichToolbarTooltip();
+      editingEvidenceIndex = null;
+      selectedEvidenceCompetitorId = null;
+      selectedEvidenceDimensionIds = new Set();
+      retainedEvidenceImages = [];
+      pendingEvidenceFiles = [];
+      revokePreviewUrls();
+      evidencePreviewList.innerHTML = '';
+      evidenceDimensionOptions.innerHTML = '';
+      evidenceCompetitorName.textContent = '';
+      inlineDimensionName.value = '';
+      inlineDimensionCreator.classList.remove('visible');
+      evidenceDialogTitle.textContent = '添加调研证据';
+      saveEvidenceButton.disabled = false;
+      saveEvidenceButton.textContent = '保存证据';
+    }
+
+    function revokePreviewUrls() {
+      previewObjectUrls.forEach(url =>
+        URL.revokeObjectURL(url)
+      );
+      previewObjectUrls = [];
+    }
+
+    /* ==============================
+       压缩单张证据图片
+       最长边限制为 1600 像素并输出 JPEG
+       ============================== */
+    function compressImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          const image = new Image();
+
+          image.onload = () => {
+            const maxSize = 1600;
+            const scale = Math.min(
+              1,
+              maxSize / Math.max(image.width, image.height)
+            );
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(image.width * scale);
+            canvas.height = Math.round(image.height * scale);
+            const context = canvas.getContext('2d');
+            context.drawImage(
+              image,
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
+            resolve(canvas.toDataURL('image/jpeg', 0.78));
+          };
+
+          image.onerror = () => {
+            reject(new Error('无法读取所选图片。'));
+          };
+          image.src = reader.result;
+        };
+
+        reader.onerror = () => {
+          reject(new Error('无法读取所选文件。'));
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    /* ==============================
+       按 Tab 选择导出数据
+       可导出部分 Tab，也可一次导出全部
+       ============================== */
+    function renderExportTabOptions() {
+      exportAllTabsCheckbox.checked = true;
+      exportTabOptions.innerHTML = workspaceState.tabs
+        .map(tab => `
+          <label class="tab-option">
+            <input
+              data-export-tab-id="${escapeHtml(tab.id)}"
+              type="checkbox"
+              checked>
+            ${escapeHtml(tab.name)}
+          </label>
+        `)
+        .join('');
+    }
+
+    exportDataButton.addEventListener('click', () => {
+      renderExportTabOptions();
+      exportTabsDialog.showModal();
+    });
+
+    exportAllTabsCheckbox.addEventListener('change', () => {
+      exportTabOptions
+        .querySelectorAll('[data-export-tab-id]')
+        .forEach(checkbox => {
+          checkbox.checked = exportAllTabsCheckbox.checked;
+        });
+    });
+
+    exportTabOptions.addEventListener('change', () => {
+      const checkboxes = Array.from(
+        exportTabOptions.querySelectorAll('[data-export-tab-id]')
+      );
+      exportAllTabsCheckbox.checked =
+        checkboxes.length > 0 &&
+        checkboxes.every(checkbox => checkbox.checked);
+    });
+
+    cancelExportTabsButton.addEventListener('click', () => {
+      exportTabsDialog.close();
+    });
+
+    confirmExportTabsButton.addEventListener('click', () => {
+      const selectedIds = Array.from(
+        exportTabOptions.querySelectorAll(
+          '[data-export-tab-id]:checked'
+        )
+      ).map(checkbox => checkbox.dataset.exportTabId);
+
+      if (selectedIds.length === 0) {
+        window.alert('请至少选择一个要导出的 Tab。');
+        return;
+      }
+
+      const selectedTabs = workspaceState.tabs.filter(tab =>
+        selectedIds.includes(tab.id)
+      );
+      downloadWorkspaceBackup(selectedTabs);
+      exportTabsDialog.close();
+    });
+
+    function downloadWorkspaceBackup(selectedTabs) {
+      const backup = {
+        format: 'competitor-insights-backup',
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        data: {
+          tabs: selectedTabs
+        }
+      };
+      const blob = new Blob(
+        [JSON.stringify(backup, null, 2)],
+        { type: 'application/json;charset=utf-8' }
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `竞品洞察台Tab备份-${date}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    /* ==============================
+       导入数据并选择新增或覆盖模式
+       同时兼容旧版单空间备份
+       ============================== */
+    importDataButton.addEventListener('click', () => {
+      importDataInput.click();
+    });
+
+    importDataInput.addEventListener('change', async () => {
+      const file = importDataInput.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      try {
+        const backup = JSON.parse(await readFileAsText(file));
+        pendingImportedTabs = validateBackupData(backup);
+        importTabsSummary.textContent =
+          `备份中包含 ${pendingImportedTabs.length} 个 Tab。`;
+        const appendMode = document.querySelector(
+          'input[name="importMode"][value="append"]'
+        );
+        appendMode.checked = true;
+        importModeDialog.showModal();
+      } catch (error) {
+        pendingImportedTabs = [];
+        window.alert(`导入失败：${error.message}`);
+      } finally {
+        importDataInput.value = '';
+      }
+    });
+
+    cancelImportModeButton.addEventListener('click', () => {
+      pendingImportedTabs = [];
+      importModeDialog.close();
+    });
+
+    confirmImportModeButton.addEventListener('click', () => {
+      if (pendingImportedTabs.length === 0) {
+        return;
+      }
+
+      const selectedMode = document.querySelector(
+        'input[name="importMode"]:checked'
+      )?.value || 'append';
+
+      if (
+        selectedMode === 'replace' &&
+        !window.confirm(
+          '覆盖模式会删除当前全部 Tab 和其中的数据。建议先导出备份。是否继续？'
+        )
+      ) {
+        return;
+      }
+
+      try {
+        const importedCount = pendingImportedTabs.length;
+        applyImportedTabs(pendingImportedTabs, selectedMode);
+        pendingImportedTabs = [];
+        importModeDialog.close();
+        render();
+        window.alert(
+          `导入成功：已${selectedMode === 'replace' ? '覆盖' : '新增'} ${importedCount} 个 Tab。`
+        );
+      } catch (error) {
+        window.alert(`导入失败：${error.message}`);
+      }
+    });
+
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(
+          new Error('无法读取所选备份文件。')
+        );
+        reader.readAsText(file);
+      });
+    }
+
+    function validateBackupData(backup) {
+      if (
+        !backup ||
+        backup.format !== 'competitor-insights-backup' ||
+        !backup.data
+      ) {
+        throw new Error('这不是竞品洞察台的有效备份文件。');
+      }
+
+      if (Array.isArray(backup.data.tabs)) {
+        if (backup.data.tabs.length === 0) {
+          throw new Error('备份文件中没有可导入的 Tab。');
+        }
+        return backup.data.tabs.map((tab, index) =>
+          normalizeWorkspaceTab(tab, index)
+        );
+      }
+
+      /* 兼容 v1：竞品、证据和矩阵会组成一个新 Tab */
+      if (
+        Array.isArray(backup.data.competitors) &&
+        Array.isArray(backup.data.evidenceItems) &&
+        backup.data.comparisonData
+      ) {
+        return [normalizeWorkspaceTab({
+          id: createId(),
+          name: '导入数据',
+          competitors: backup.data.competitors,
+          evidenceItems: backup.data.evidenceItems,
+          comparisonData: backup.data.comparisonData
+        }, 0)];
+      }
+
+      throw new Error('备份文件结构不完整。');
+    }
+
+    function applyImportedTabs(importedTabs, mode) {
+      const previousState = workspaceState;
+      const previousStored = localStorage.getItem(workspaceStorageKey);
+      const usedNames = new Set(
+        (mode === 'append' ? workspaceState.tabs : [])
+          .map(tab => tab.name.toLowerCase())
+      );
+      const preparedTabs = importedTabs.map(tab => ({
+        ...tab,
+        id: createId(),
+        name: createUniqueTabName(tab.name, usedNames)
+      }));
+
+      try {
+        const nextTabs = mode === 'replace'
+          ? preparedTabs
+          : [...workspaceState.tabs, ...preparedTabs];
+        workspaceState = {
+          version: 2,
+          activeTabId: preparedTabs[0].id,
+          tabs: nextTabs
+        };
+        activeWorkspaceTab = preparedTabs[0];
+        competitors = activeWorkspaceTab.competitors;
+        evidenceItems = activeWorkspaceTab.evidenceItems;
+        comparisonData = activeWorkspaceTab.comparisonData;
+        persistWorkspaceState();
+      } catch (error) {
+        workspaceState = previousState;
+        activeWorkspaceTab = workspaceState.tabs.find(
+          tab => tab.id === workspaceState.activeTabId
+        ) || workspaceState.tabs[0];
+        competitors = activeWorkspaceTab.competitors;
+        evidenceItems = activeWorkspaceTab.evidenceItems;
+        comparisonData = activeWorkspaceTab.comparisonData;
+        restoreStorageValue(workspaceStorageKey, previousStored);
+        throw new Error(
+          '浏览器存储空间不足，当前全部 Tab 已自动恢复。'
+        );
+      }
+    }
+
+    function createUniqueTabName(sourceName, usedNames) {
+      const base = Array.from(
+        String(sourceName || '导入 Tab').trim() || '导入 Tab'
+      ).slice(0, 20).join('');
+      let candidate = base;
+      let number = 2;
+      while (usedNames.has(candidate.toLowerCase())) {
+        const suffix = `（${number}）`;
+        candidate = Array.from(base)
+          .slice(0, Math.max(1, 20 - Array.from(suffix).length))
+          .join('') + suffix;
+        number += 1;
+      }
+      usedNames.add(candidate.toLowerCase());
+      return candidate;
+    }
+
+    function restoreStorageValue(key, value) {
+      if (value === null) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, value);
+      }
+    }
+
+
+    /* ==============================
+       多 Tab 数据模型、旧数据迁移与统一存储
+       ============================== */
+    function createDefaultComparisonData() {
+      return {
+        dimensions: defaultDimensionNames.map(name => ({
+          id: createId(),
+          name
+        })),
+        values: {}
+      };
+    }
+
+    function createEmptyWorkspaceTab(name = '默认空间') {
+      return {
+        id: createId(),
+        name: Array.from(String(name).trim() || '默认空间')
+          .slice(0, 20)
+          .join(''),
+        competitors: [],
+        evidenceItems: [],
+        comparisonData: createDefaultComparisonData()
+      };
+    }
+
+    function normalizeWorkspaceTab(tab = {}, index = 0) {
+      const competitors = Array.isArray(tab.competitors)
+        ? tab.competitors.map(item => ({
+            ...item,
+            id: item.id || createId()
+          }))
+        : [];
+      const competitorIds = new Set(
+        competitors.map(item => item.id)
+      );
+
+      const sourceComparison =
+        tab.comparisonData &&
+        typeof tab.comparisonData === 'object'
+          ? tab.comparisonData
+          : createDefaultComparisonData();
+      const dimensions = Array.isArray(sourceComparison.dimensions)
+        ? sourceComparison.dimensions
+            .filter(item => item && String(item.name || '').trim())
+            .map(item => ({
+              id: item.id || createId(),
+              name: String(item.name).trim()
+            }))
+        : [];
+      const dimensionIds = new Set(
+        dimensions.map(item => item.id)
+      );
+      const values = {};
+
+      dimensions.forEach(dimension => {
+        const sourceValues = sourceComparison.values?.[dimension.id];
+        if (!sourceValues || typeof sourceValues !== 'object') {
+          return;
+        }
+        values[dimension.id] = {};
+        competitors.forEach(competitor => {
+          if (typeof sourceValues[competitor.id] === 'string') {
+            values[dimension.id][competitor.id] =
+              sourceValues[competitor.id];
+          }
+        });
+      });
+
+      const evidenceItems = Array.isArray(tab.evidenceItems)
+        ? tab.evidenceItems
+            .map(normalizeEvidenceItem)
+            .filter(item => competitorIds.has(item.competitorId))
+            .map(item => ({
+              ...item,
+              dimensionIds: item.dimensionIds.filter(id =>
+                dimensionIds.has(id)
+              )
+            }))
+        : [];
+
+      return {
+        id: tab.id || createId(),
+        name: Array.from(
+          String(tab.name || `洞察空间 ${index + 1}`).trim()
+        ).slice(0, 20).join('') || `洞察空间 ${index + 1}`,
+        competitors,
+        evidenceItems,
+        comparisonData: {
+          dimensions,
+          values
+        }
+      };
+    }
+
+    function migrateLegacyWorkspaceData() {
+      return {
+        version: 2,
+        activeTabId: null,
+        tabs: [normalizeWorkspaceTab({
+          id: createId(),
+          name: '默认空间',
+          competitors: readStoredArray(storageKey),
+          evidenceItems: readStoredArray(evidenceStorageKey),
+          comparisonData:
+            readStoredObject(comparisonStorageKey) ||
+            createDefaultComparisonData()
+        }, 0)]
+      };
+    }
+
+    function loadWorkspaceState() {
+      const stored = readStoredObject(workspaceStorageKey);
+      const source =
+        stored && Array.isArray(stored.tabs) && stored.tabs.length > 0
+          ? stored
+          : migrateLegacyWorkspaceData();
+      const tabs = source.tabs.map((tab, index) =>
+        normalizeWorkspaceTab(tab, index)
+      );
+      const activeTabId = tabs.some(
+        tab => tab.id === source.activeTabId
+      )
+        ? source.activeTabId
+        : tabs[0].id;
+
+      return {
+        version: 2,
+        activeTabId,
+        tabs
+      };
+    }
+
+    function initializeWorkspaceStorage() {
+      if (localStorage.getItem(workspaceStorageKey)) {
+        persistWorkspaceState();
+        removeLegacyStorageKeys();
+        return;
+      }
+
+      const legacySnapshot = {
+        competitors: localStorage.getItem(storageKey),
+        evidence: localStorage.getItem(evidenceStorageKey),
+        comparison: localStorage.getItem(comparisonStorageKey)
+      };
+
+      try {
+        /* 空间足够时先写新键，验证成功后再清理旧键 */
+        persistWorkspaceState();
+      } catch (firstError) {
+        /* 接近容量上限时先在内存保留旧值，再释放重复空间 */
+        removeLegacyStorageKeys();
+        try {
+          persistWorkspaceState();
+        } catch (secondError) {
+          localStorage.removeItem(workspaceStorageKey);
+          restoreStorageValue(storageKey, legacySnapshot.competitors);
+          restoreStorageValue(
+            evidenceStorageKey,
+            legacySnapshot.evidence
+          );
+          restoreStorageValue(
+            comparisonStorageKey,
+            legacySnapshot.comparison
+          );
+          throw new Error(
+            '旧数据迁移失败，原有数据已自动恢复。'
+          );
+        }
+      }
+
+      removeLegacyStorageKeys();
+    }
+
+    function persistWorkspaceState() {
+      activeWorkspaceTab.competitors = competitors;
+      activeWorkspaceTab.evidenceItems = evidenceItems;
+      activeWorkspaceTab.comparisonData = comparisonData;
+      localStorage.setItem(
+        workspaceStorageKey,
+        JSON.stringify(workspaceState)
+      );
+    }
+
+    function removeLegacyStorageKeys() {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(evidenceStorageKey);
+      localStorage.removeItem(comparisonStorageKey);
+    }
+
+    /* ==============================
+       证据新旧数据兼容与富文本安全处理
+       ============================== */
+    function normalizeEvidenceItem(item = {}) {
+      const legacyText = String(item.comment || '').trim();
+      const sourceHtml = item.contentHtml ||
+        plainTextToHtml(legacyText);
+      const contentHtml = sanitizeRichHtml(sourceHtml);
+      const titleSource = String(
+        item.title || stripHtml(contentHtml) || legacyText || '未命名证据'
+      ).trim();
+
+      return {
+        ...item,
+        id: item.id || createId(),
+        images:
+          item.images ||
+          (item.image ? [item.image] : []),
+        dimensionIds: Array.isArray(item.dimensionIds)
+          ? item.dimensionIds
+          : [],
+        title: Array.from(titleSource).slice(0, 20).join(''),
+        contentHtml
+      };
+    }
+
+    function plainTextToHtml(text) {
+      if (!text) {
+        return '';
+      }
+
+      return String(text)
+        .split(/\n+/)
+        .map(line => `<p>${escapeHtml(line)}</p>`)
+        .join('');
+    }
+
+    function stripHtml(html) {
+      const container = document.createElement('div');
+      container.innerHTML = html || '';
+      return (container.textContent || '').trim();
+    }
+
+    /* 仅保留富文本编辑器支持的安全标签和链接协议 */
+    function sanitizeRichHtml(html) {
+      const template = document.createElement('template');
+      template.innerHTML = String(html || '');
+
+      /* 测试桩不具备 template.content 时使用纯文本兜底 */
+      if (!template.content) {
+        return String(html || '');
+      }
+
+      const allowedTags = new Set([
+        'P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U',
+        'S', 'STRIKE', 'H3', 'BLOCKQUOTE',
+        'UL', 'OL', 'LI', 'A', 'DIV'
+      ]);
+      const blockedTags = new Set([
+        'SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED'
+      ]);
+      const elements = Array.from(
+        template.content.querySelectorAll('*')
+      );
+
+      elements.forEach(element => {
+        if (blockedTags.has(element.tagName)) {
+          element.remove();
+          return;
+        }
+
+        if (!allowedTags.has(element.tagName)) {
+          element.replaceWith(...element.childNodes);
+          return;
+        }
+
+        const href = element.tagName === 'A'
+          ? String(element.getAttribute('href') || '').trim()
+          : '';
+        Array.from(element.attributes).forEach(attribute =>
+          element.removeAttribute(attribute.name)
+        );
+
+        if (
+          element.tagName === 'A' &&
+          /^(https?:|mailto:)/i.test(href)
+        ) {
+          element.setAttribute('href', href);
+          element.setAttribute('target', '_blank');
+          element.setAttribute('rel', 'noopener noreferrer');
+        }
+      });
+
+      return template.innerHTML.trim();
+    }
+
+    /* ==============================
+       数据读写和通用辅助函数
+       ============================== */
+    function readStoredArray(key) {
+      try {
+        const value = JSON.parse(
+          localStorage.getItem(key) || '[]'
+        );
+        return Array.isArray(value) ? value : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function readStoredObject(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) {
+          return null;
+        }
+
+        const value = JSON.parse(raw);
+        return value &&
+          typeof value === 'object' &&
+          !Array.isArray(value)
+            ? value
+            : null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function persistCompetitors() {
+      activeWorkspaceTab.competitors = competitors;
+      persistWorkspaceState();
+    }
+
+    function persistEvidence() {
+      activeWorkspaceTab.evidenceItems = evidenceItems;
+      persistWorkspaceState();
+    }
+
+    function persistComparison() {
+      activeWorkspaceTab.comparisonData = comparisonData;
+      persistWorkspaceState();
+    }
+
+    function createId() {
+      if (
+        window.crypto &&
+        typeof window.crypto.randomUUID === 'function'
+      ) {
+        return window.crypto.randomUUID();
+      }
+      return `${Date.now()}-${Math.random()}`;
+    }
+
+    function formatDate(value) {
+      return new Date(value).toLocaleDateString('zh-CN');
+    }
+
+    function formatShortDate(value) {
+      return new Date(value).toLocaleDateString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric'
+      });
+    }
+
+    /* 避免用户输入被浏览器当作 HTML 执行 */
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = String(value ?? '');
+      return div.innerHTML;
+    }
+
+    /* 页面初始化 */
+    render();
+  </script>
+</body>
+</html>
