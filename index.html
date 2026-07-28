@@ -413,6 +413,121 @@
     }
 
     /* ==============================
+       证据与对比维度关联
+       支持多选维度和弹窗内新增维度
+       ============================== */
+    .dimension-picker {
+      padding: 12px;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+    }
+
+    .dimension-picker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .dimension-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .dimension-option {
+      display: flex;
+      grid-template-columns: none;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 500;
+      background: white;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+    }
+
+    .dimension-option input {
+      width: auto;
+      margin: 0;
+    }
+
+    .inline-dimension-creator {
+      display: none;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .inline-dimension-creator.visible {
+      display: grid;
+    }
+
+    .inline-dimension-creator button {
+      padding: 8px 10px;
+    }
+
+    .detail-dimensions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .dimension-tag {
+      padding: 5px 9px;
+      color: #4338ca;
+      background: #eef2ff;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    /* 从矩阵单元格查看当前竞品的关联证据 */
+    .matrix-evidence-link {
+      width: 100%;
+      margin-top: 8px;
+      padding: 7px 10px;
+      color: #4338ca;
+      background: #eef2ff;
+      font-size: 12px;
+    }
+
+    .linked-evidence-list {
+      display: grid;
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .linked-evidence-item {
+      display: grid;
+      grid-template-columns: 86px 1fr;
+      gap: 12px;
+      padding: 10px;
+      color: #111827;
+      text-align: left;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .linked-evidence-item img {
+      width: 86px;
+      height: 86px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+
+    .linked-evidence-item p {
+      margin: 6px 0 0;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+
+    /* ==============================
        竞品横向对比矩阵
        竞品作为列、对比维度作为行
        ============================== */
@@ -750,6 +865,42 @@
         <strong id="evidenceCompetitorName"></strong>
       </div>
 
+      <!-- 选择证据支持的一个或多个对比维度 -->
+      <div class="dimension-picker">
+        <div class="dimension-picker-header">
+          <strong>关联对比维度</strong>
+          <button
+            id="showInlineDimensionButton"
+            class="matrix-button"
+            type="button">
+            新增维度
+          </button>
+        </div>
+
+        <div
+          id="evidenceDimensionOptions"
+          class="dimension-options">
+        </div>
+
+        <!-- 在证据弹窗内快速创建新维度 -->
+        <div
+          id="inlineDimensionCreator"
+          class="inline-dimension-creator">
+          <input
+            id="inlineDimensionName"
+            placeholder="输入新维度名称">
+          <button id="saveInlineDimensionButton" type="button">
+            添加
+          </button>
+          <button
+            id="cancelInlineDimensionButton"
+            class="secondary"
+            type="button">
+            取消
+          </button>
+        </div>
+      </div>
+
       <!-- 可以一次选择多张本地图片 -->
       <label>
         证据图片
@@ -815,6 +966,12 @@
       <span id="detailCreatedDate"></span>
     </div>
 
+    <!-- 显示证据关联的全部对比维度 -->
+    <div
+      id="detailDimensions"
+      class="detail-dimensions">
+    </div>
+
     <!-- JavaScript 会把全部证据图片显示在这里 -->
     <div id="detailImages" class="detail-images"></div>
 
@@ -823,6 +980,24 @@
 
     <div class="actions">
       <button id="closeDetailButton" type="button">
+        关闭
+      </button>
+    </div>
+  </dialog>
+
+  <!-- ==============================
+       矩阵关联证据弹窗
+       从竞品与维度交叉单元格查看证据
+       ============================== -->
+  <dialog id="linkedEvidenceDialog" class="detail-dialog">
+    <h2 id="linkedEvidenceTitle">相关证据</h2>
+    <div
+      id="linkedEvidenceList"
+      class="linked-evidence-list">
+    </div>
+
+    <div class="actions">
+      <button id="closeLinkedEvidenceButton" type="button">
         关闭
       </button>
     </div>
@@ -869,6 +1044,12 @@
     const evidenceForm = document.querySelector('#evidenceForm');
     const evidenceCompetitorName =
       document.querySelector('#evidenceCompetitorName');
+    const evidenceDimensionOptions =
+      document.querySelector('#evidenceDimensionOptions');
+    const inlineDimensionCreator =
+      document.querySelector('#inlineDimensionCreator');
+    const inlineDimensionName =
+      document.querySelector('#inlineDimensionName');
     const evidenceImage = document.querySelector('#evidenceImage');
     const evidencePreviewList =
       document.querySelector('#evidencePreviewList');
@@ -885,8 +1066,18 @@
       document.querySelector('#detailCompetitorName');
     const detailCreatedDate =
       document.querySelector('#detailCreatedDate');
+    const detailDimensions =
+      document.querySelector('#detailDimensions');
     const detailImages = document.querySelector('#detailImages');
     const detailComment = document.querySelector('#detailComment');
+
+    /* 获取矩阵关联证据弹窗元素 */
+    const linkedEvidenceDialog =
+      document.querySelector('#linkedEvidenceDialog');
+    const linkedEvidenceTitle =
+      document.querySelector('#linkedEvidenceTitle');
+    const linkedEvidenceList =
+      document.querySelector('#linkedEvidenceList');
 
     /* ==============================
        读取并迁移已有数据
@@ -903,7 +1094,10 @@
         id: item.id || createId(),
         images:
           item.images ||
-          (item.image ? [item.image] : [])
+          (item.image ? [item.image] : []),
+        dimensionIds: Array.isArray(item.dimensionIds)
+          ? item.dimensionIds
+          : []
       }))
       .filter(item => item.images.length > 0);
 
@@ -951,6 +1145,9 @@
 
     /* 当前正在添加证据的竞品编号 */
     let selectedEvidenceCompetitorId = null;
+
+    /* 当前证据关联的一个或多个对比维度 */
+    let selectedEvidenceDimensionIds = new Set();
 
     /* 待保存的图片文件和预览地址 */
     let pendingEvidenceFiles = [];
@@ -1099,6 +1296,11 @@
                 comparisonData.values[dimension.id]?.[
                   competitor.id
                 ] || '';
+              const linkedCount = evidenceItems.filter(
+                evidence =>
+                  evidence.competitorId === competitor.id &&
+                  evidence.dimensionIds.includes(dimension.id)
+              ).length;
 
               return `
                 <td>
@@ -1107,6 +1309,20 @@
                     data-dimension-id="${escapeHtml(dimension.id)}"
                     data-competitor-id="${escapeHtml(competitor.id)}"
                     placeholder="填写对比信息">${escapeHtml(value)}</textarea>
+
+                  ${
+                    linkedCount > 0
+                      ? `
+                        <button
+                          class="matrix-evidence-link"
+                          data-linked-dimension-id="${escapeHtml(dimension.id)}"
+                          data-linked-competitor-id="${escapeHtml(competitor.id)}"
+                          type="button">
+                          查看相关证据（${linkedCount}）
+                        </button>
+                      `
+                      : ''
+                  }
                 </td>
               `;
             })
@@ -1179,6 +1395,19 @@
        编辑或删除对比维度
        ============================== */
     comparisonContainer.addEventListener('click', event => {
+      /* 点击矩阵单元格中的证据入口 */
+      const linkedButton = event.target.closest(
+        'button[data-linked-dimension-id]'
+      );
+
+      if (linkedButton) {
+        openLinkedEvidence(
+          linkedButton.dataset.linkedDimensionId,
+          linkedButton.dataset.linkedCompetitorId
+        );
+        return;
+      }
+
       const button = event.target.closest(
         'button[data-dimension-action]'
       );
@@ -1214,8 +1443,18 @@
             item => item.id !== dimensionId
           );
         delete comparisonData.values[dimensionId];
+
+        /* 保留证据，只解除它与已删除维度的关联 */
+        evidenceItems = evidenceItems.map(evidence => ({
+          ...evidence,
+          dimensionIds: evidence.dimensionIds.filter(
+            id => id !== dimensionId
+          )
+        }));
+
         persistComparison();
-        renderComparison();
+        persistEvidence();
+        render();
       }
     });
 
@@ -1264,6 +1503,101 @@
       dimensionDialog.close();
       renderComparison();
     });
+
+    /* ==============================
+       渲染证据弹窗中的可选对比维度
+       ============================== */
+    function renderEvidenceDimensionOptions() {
+      if (comparisonData.dimensions.length === 0) {
+        evidenceDimensionOptions.innerHTML = `
+          <span class="form-help">
+            暂无维度，可以点击“新增维度”创建。
+          </span>
+        `;
+        return;
+      }
+
+      evidenceDimensionOptions.innerHTML =
+        comparisonData.dimensions
+          .map(dimension => `
+            <label class="dimension-option">
+              <input
+                type="checkbox"
+                data-evidence-dimension-id="${escapeHtml(dimension.id)}"
+                ${
+                  selectedEvidenceDimensionIds.has(dimension.id)
+                    ? 'checked'
+                    : ''
+                }>
+              ${escapeHtml(dimension.name)}
+            </label>
+          `)
+          .join('');
+    }
+
+    /* 多选框变化时更新当前证据的关联维度 */
+    evidenceDimensionOptions.addEventListener('change', event => {
+      const checkbox = event.target.closest(
+        'input[data-evidence-dimension-id]'
+      );
+      if (!checkbox) {
+        return;
+      }
+
+      const dimensionId =
+        checkbox.dataset.evidenceDimensionId;
+      if (checkbox.checked) {
+        selectedEvidenceDimensionIds.add(dimensionId);
+      } else {
+        selectedEvidenceDimensionIds.delete(dimensionId);
+      }
+    });
+
+    /* 在证据弹窗中展开新增维度输入框 */
+    document
+      .querySelector('#showInlineDimensionButton')
+      .addEventListener('click', () => {
+        inlineDimensionCreator.classList.add('visible');
+        inlineDimensionName.focus();
+      });
+
+    /* 取消在证据弹窗中新增维度 */
+    document
+      .querySelector('#cancelInlineDimensionButton')
+      .addEventListener('click', () => {
+        inlineDimensionName.value = '';
+        inlineDimensionCreator.classList.remove('visible');
+      });
+
+    /* 新建维度后立即勾选，并保留待上传图片和文字 */
+    document
+      .querySelector('#saveInlineDimensionButton')
+      .addEventListener('click', () => {
+        const name = inlineDimensionName.value.trim();
+        if (!name) {
+          window.alert('请输入维度名称。');
+          return;
+        }
+
+        let dimension = comparisonData.dimensions.find(
+          item => item.name.toLowerCase() === name.toLowerCase()
+        );
+
+        if (!dimension) {
+          dimension = {
+            id: createId(),
+            name
+          };
+          comparisonData.dimensions.push(dimension);
+          persistComparison();
+          renderComparison();
+        }
+
+        selectedEvidenceDimensionIds.add(dimension.id);
+        renderEvidenceDimensionOptions();
+        inlineDimensionName.value = '';
+        inlineDimensionCreator.classList.remove('visible');
+      });
 
     /* ==============================
        生成单个正方形证据卡片
@@ -1496,6 +1830,7 @@
       resetEvidenceForm();
       selectedEvidenceCompetitorId = competitorId;
       evidenceCompetitorName.textContent = competitor.name;
+      renderEvidenceDimensionOptions();
       evidenceDialog.showModal();
     }
 
@@ -1640,6 +1975,9 @@
           id: createId(),
           competitorId: selectedEvidenceCompetitorId,
           images: compressedImages,
+          dimensionIds: Array.from(
+            selectedEvidenceDimensionIds
+          ),
           comment:
             document.querySelector('#evidenceComment')
               .value
@@ -1697,6 +2035,24 @@
         : '已删除的竞品';
       detailCreatedDate.textContent =
         formatDate(evidence.createdAt);
+
+      const linkedDimensions = evidence.dimensionIds
+        .map(dimensionId =>
+          comparisonData.dimensions.find(
+            item => item.id === dimensionId
+          )
+        )
+        .filter(Boolean);
+      detailDimensions.innerHTML = linkedDimensions.length
+        ? linkedDimensions
+            .map(dimension => `
+              <span class="dimension-tag">
+                ${escapeHtml(dimension.name)}
+              </span>
+            `)
+            .join('')
+        : '<span class="form-help">未关联对比维度</span>';
+
       detailImages.innerHTML = evidence.images
         .map((image, index) => `
           <img
@@ -1712,6 +2068,71 @@
       .querySelector('#closeDetailButton')
       .addEventListener('click', () => {
         evidenceDetailDialog.close();
+      });
+
+    /* ==============================
+       从矩阵单元格查看关联证据
+       只显示当前竞品与当前维度的证据
+       ============================== */
+    function openLinkedEvidence(dimensionId, competitorId) {
+      const dimension = comparisonData.dimensions.find(
+        item => item.id === dimensionId
+      );
+      const competitor = competitors.find(
+        item => item.id === competitorId
+      );
+      const linkedItems = evidenceItems
+        .map((evidence, evidenceIndex) => ({
+          evidence,
+          evidenceIndex
+        }))
+        .filter(entry =>
+          entry.evidence.competitorId === competitorId &&
+          entry.evidence.dimensionIds.includes(dimensionId)
+        );
+
+      linkedEvidenceTitle.textContent =
+        `${competitor?.name || '竞品'} · ${dimension?.name || '维度'}的相关证据`;
+      linkedEvidenceList.innerHTML = linkedItems
+        .map(entry => `
+          <button
+            class="linked-evidence-item"
+            data-linked-evidence-index="${entry.evidenceIndex}"
+            type="button">
+            <img
+              src="${escapeHtml(entry.evidence.images[0])}"
+              alt="关联证据缩略图">
+            <div>
+              <strong>
+                ${escapeHtml(formatDate(entry.evidence.createdAt))}
+              </strong>
+              <p>${escapeHtml(entry.evidence.comment)}</p>
+            </div>
+          </button>
+        `)
+        .join('');
+      linkedEvidenceDialog.showModal();
+    }
+
+    /* 点击关联证据摘要后进入完整证据详情 */
+    linkedEvidenceList.addEventListener('click', event => {
+      const item = event.target.closest(
+        '[data-linked-evidence-index]'
+      );
+      if (!item) {
+        return;
+      }
+
+      linkedEvidenceDialog.close();
+      openEvidenceDetail(Number(
+        item.dataset.linkedEvidenceIndex
+      ));
+    });
+
+    document
+      .querySelector('#closeLinkedEvidenceButton')
+      .addEventListener('click', () => {
+        linkedEvidenceDialog.close();
       });
 
     /* ==============================
@@ -1734,10 +2155,14 @@
     function resetEvidenceForm() {
       evidenceForm.reset();
       selectedEvidenceCompetitorId = null;
+      selectedEvidenceDimensionIds = new Set();
       pendingEvidenceFiles = [];
       revokePreviewUrls();
       evidencePreviewList.innerHTML = '';
+      evidenceDimensionOptions.innerHTML = '';
       evidenceCompetitorName.textContent = '';
+      inlineDimensionName.value = '';
+      inlineDimensionCreator.classList.remove('visible');
       saveEvidenceButton.disabled = false;
       saveEvidenceButton.textContent = '保存证据';
     }
