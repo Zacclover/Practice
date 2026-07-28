@@ -1,0 +1,249 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "数据密集型竞品洞察工作台的黑白灰工业视觉系统，以克制橙色、锐利几何、分层线条和轻量十字底纹建立识别。",
+  "color": {
+    "$type": "color",
+    "primary": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.067,
+          0.067,
+          0.067
+        ],
+        "hex": "#111111"
+      }
+    },
+    "ink": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.098,
+          0.098,
+          0.098
+        ],
+        "hex": "#191919"
+      }
+    },
+    "graphite": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.204,
+          0.204,
+          0.204
+        ],
+        "hex": "#343434"
+      }
+    },
+    "lineMedium": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.349,
+          0.349,
+          0.349
+        ],
+        "hex": "#595959"
+      }
+    },
+    "gray500": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.545,
+          0.545,
+          0.533
+        ],
+        "hex": "#8b8b88"
+      }
+    },
+    "lineSubtle": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.788,
+          0.784,
+          0.765
+        ],
+        "hex": "#c9c8c3"
+      }
+    },
+    "gray100": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.937,
+          0.933,
+          0.914
+        ],
+        "hex": "#efeee9"
+      }
+    },
+    "paper": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.969,
+          0.965,
+          0.945
+        ],
+        "hex": "#f7f6f1"
+      }
+    },
+    "white": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          1,
+          1
+        ],
+        "hex": "#ffffff"
+      }
+    },
+    "orange": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          0.353,
+          0.122
+        ],
+        "hex": "#ff5a1f"
+      }
+    },
+    "danger": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.706,
+          0.137,
+          0.094
+        ],
+        "hex": "#b42318"
+      }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "xs": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
+    "sm": {
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      }
+    },
+    "md": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      }
+    },
+    "lg": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      }
+    },
+    "xl": {
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      }
+    },
+    "2xl": {
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      }
+    }
+  },
+  "rounded": {
+    "$type": "dimension",
+    "none": {
+      "$value": {
+        "value": 0,
+        "unit": "px"
+      }
+    }
+  },
+  "typography": {
+    "display": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Archivo Black, Noto Sans SC, Arial Black, sans-serif",
+        "fontSize": {
+          "value": 3.5,
+          "unit": "rem"
+        },
+        "fontWeight": 900,
+        "letterSpacing": {
+          "value": -0.07,
+          "unit": "em"
+        }
+      }
+    },
+    "heading-lg": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Noto Sans SC, Arial, sans-serif",
+        "fontSize": {
+          "value": 1.375,
+          "unit": "rem"
+        },
+        "fontWeight": 900,
+        "letterSpacing": {
+          "value": -0.04,
+          "unit": "em"
+        }
+      }
+    },
+    "heading-md": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Noto Sans SC, Arial, sans-serif",
+        "fontSize": {
+          "value": 1.125,
+          "unit": "rem"
+        },
+        "fontWeight": 800,
+        "letterSpacing": {
+          "value": -0.03,
+          "unit": "em"
+        }
+      }
+    },
+    "body": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Noto Sans SC, Arial, sans-serif",
+        "fontSize": {
+          "value": 0.875,
+          "unit": "rem"
+        },
+        "fontWeight": 400
+      }
+    },
+    "label-mono": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "IBM Plex Mono, ui-monospace, monospace",
+        "fontSize": {
+          "value": 0.6875,
+          "unit": "rem"
+        },
+        "fontWeight": 600,
+        "letterSpacing": {
+          "value": 0.04,
+          "unit": "em"
+        }
+      }
+    }
+  }
+}

@@ -8,11 +8,6 @@
   <!-- 浏览器标签页显示的页面名称 -->
   <title>竞品洞察台</title>
 
-  <!-- 正式视觉字体：展示标题、中文正文与技术标签分别使用统一字体角色 -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-
   <style>
     /* ==============================
        全局样式
@@ -1373,8 +1368,12 @@
     button:focus-visible,
     a:focus-visible,
     [contenteditable="true"]:focus-visible {
-      outline: 2px solid var(--orange);
+      outline: 2px solid var(--black);
       outline-offset: 3px;
+    }
+
+    button:focus-visible {
+      border-color: var(--orange);
     }
 
     button svg {
@@ -1518,6 +1517,7 @@
 
     .workspace-tab-select {
       min-height: 46px;
+      padding-right: 88px;
       color: var(--line-medium);
       background: transparent;
       border: 0;
@@ -1533,10 +1533,10 @@
     }
 
     .workspace-tab-action {
-      width: 28px;
-      min-width: 28px;
-      height: 28px;
-      min-height: 28px;
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      min-height: 40px;
       color: var(--gray-500);
       background: transparent;
       border: 0;
@@ -1547,11 +1547,24 @@
       color: var(--line-subtle);
     }
 
-    .workspace-tab-action:hover,
-    .workspace-tab-action.delete:hover {
+    .workspace-tab-action:not(.delete):hover {
       color: var(--black);
       background: var(--orange);
       transform: translateY(-50%);
+    }
+
+    .workspace-tab-action.delete:hover {
+      color: var(--white);
+      background: var(--danger);
+      transform: translateY(-50%);
+    }
+
+    .workspace-tab-action[data-tab-action="edit"] {
+      right: 44px;
+    }
+
+    .workspace-tab-action[data-tab-action="delete"] {
+      right: 4px;
     }
 
     .workspace-tab-item.is-drop-target {
@@ -1786,6 +1799,10 @@
     .evidence-edit-button,
     .evidence-delete-button,
     .preview-remove-button {
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      min-height: 40px;
       border-radius: 0;
     }
 
@@ -1955,6 +1972,10 @@
 
     .rich-toolbar button {
       min-height: 32px;
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      min-height: 40px;
       color: var(--line-medium);
       background: transparent;
       border: 1px solid transparent;
@@ -1971,8 +1992,19 @@
     }
 
     .rich-toolbar button:focus-visible {
-      outline: 2px solid var(--orange);
+      color: var(--black);
+      background: var(--white);
+      border-color: var(--orange);
+      outline: 2px solid var(--black);
       outline-offset: 1px;
+    }
+
+    .rich-toolbar button svg {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
     }
 
     .rich-toolbar-tooltip {
@@ -2018,6 +2050,33 @@
       }
 
       .workspace-tabs-tools button {
+        min-height: 40px;
+      }
+
+      /* 触屏可用性：Tab 编辑/关闭和富文本工具保持至少 40px 点击区域 */
+      .workspace-tab-select {
+        padding-right: 88px;
+      }
+
+      .workspace-tab-action {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+      }
+
+      .workspace-tab-action[data-tab-action="edit"] {
+        right: 44px;
+      }
+
+      .workspace-tab-action[data-tab-action="delete"] {
+        right: 4px;
+      }
+
+      .rich-toolbar button {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
         min-height: 40px;
       }
 

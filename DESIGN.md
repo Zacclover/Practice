@@ -140,6 +140,7 @@ components:
 - **正文与表单：** Noto Sans SC 400–600，优先保障中文可读性。
 - **技术标签：** IBM Plex Mono，用于 Tab、编号、状态、时间、坐标和 Tooltip 快捷键信息。
 - 不允许用 Mono 字体承载长段中文正文。
+- 字体栈只使用系统已安装字体或项目自托管字体；正式页面不得直接请求 Google Fonts 等第三方字体服务。远程字体不可用时必须保持完整可用性和清晰层级。
 
 ## Layout
 
@@ -177,10 +178,12 @@ components:
 ### Buttons
 
 - **Primary：** 橙底、黑字、透明边框、双角斜切；每个视区或弹窗只保留一个最高优先级动作。
-- **Primary Hover/Focus：** 黑底白字，外置 `2px` 橙色焦点轮廓。
+- **Primary Hover：** 黑底白字。
+- **键盘焦点：** 使用 `2px` 黑色外轮廓确保在白色与浅灰表面达到至少 `3:1`，并用橙色边框或局部状态保留品牌提示；不得只依赖低对比橙色外轮廓。
 - **Secondary：** 白底黑字、`1px` Strong 边框、完整矩形。
-- **Danger：** 深红底白字，仅用于明确破坏性动作；仍需二次确认。
+- **Danger：** 深红底白字，仅用于明确破坏性动作；Hover 不得变为橙色，且仍需二次确认。
 - 顶层操作按钮使用 `16px` 线性 SVG Icon：`1.7px` 线宽、square linecap、miter join。不得使用 Emoji 作为正式图标。
+- 所有 Icon Button 的实际点击区域不得小于 `40px × 40px`，包括 Tab 编辑/关闭、富文本工具、证据编辑/删除和图片移除。
 
 ### Tabs
 
@@ -207,7 +210,7 @@ components:
 
 - 弹窗白底、Strong 边框、无圆角、无阴影。
 - 输入框白底、Subtle 边框；Focus 使用黑色边框和 `2px` 橙色 outline。
-- 富文本工具栏保持纯 Icon + Tooltip；图标遵循统一线性规范。
+- 富文本工具栏保持纯 Icon + Tooltip；SVG 必须显式使用 `fill: none` 和 `stroke: currentColor`，避免旧规则同时填充与描边。
 - Tooltip 使用黑底白字、Mono 标签、无圆角。
 
 ### Motion and Accessibility
