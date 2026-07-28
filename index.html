@@ -135,6 +135,24 @@
     }
 
     /* ==============================
+       竞品卡片操作区
+       提供编辑和删除当前竞品的操作
+       ============================== */
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .edit-button {
+      background: #4f46e5;
+    }
+
+    .delete-button {
+      background: #dc2626;
+    }
+
+    /* ==============================
        空状态
        没有竞品数据时显示提示信息
        ============================== */
@@ -233,7 +251,7 @@
 
       <!-- 点击后打开添加竞品弹窗 -->
       <button id="addButton">
-        添加第一个竞品
+        添加竞品
       </button>
     </section>
 
@@ -253,7 +271,8 @@
        ============================== -->
   <dialog id="competitorDialog">
     <form id="competitorForm">
-      <h2>添加竞品</h2>
+      <!-- 编辑竞品时，JavaScript 会把标题改为“编辑竞品” -->
+      <h2 id="dialogTitle">添加竞品</h2>
 
       <!-- 竞品名称：必填 -->
       <label>
@@ -291,7 +310,7 @@
           取消
         </button>
 
-        <button type="submit">
+        <button id="saveButton" type="submit">
           保存竞品
         </button>
       </div>
@@ -318,6 +337,12 @@
     const form =
       document.querySelector('#competitorForm');
 
+    const dialogTitle =
+      document.querySelector('#dialogTitle');
+
+    const saveButton =
+      document.querySelector('#saveButton');
+
     /* ==============================
        读取已经保存的竞品
        如果没有数据，则使用空数组
@@ -325,6 +350,10 @@
     let competitors = JSON.parse(
       localStorage.getItem(storageKey) || '[]'
     );
+
+    /* 当前正在编辑的竞品序号
+       null 表示正在添加新竞品 */
+    let editingIndex = null;
 
     /* ==============================
        渲染竞品列表
@@ -344,7 +373,7 @@
 
       /* 有竞品时生成对应的竞品卡片 */
       list.innerHTML = competitors
-        .map(item => `
+        .map((item, index) => `
           <article class="card">
             <h3>${escapeHtml(item.name)}</h3>
 
@@ -366,6 +395,23 @@
                 `
                 : ''
             }
+
+            <!-- 编辑和删除按钮通过 data-index 识别当前竞品 -->
+            <div class="card-actions">
+              <button
+                class="edit-button"
+                data-action="edit"
+                data-index="${index}">
+                编辑
+              </button>
+
+              <button
+                class="delete-button"
+                data-action="delete"
+                data-index="${index}">
+                删除
+              </button>
+            </div>
           </article>
         `)
         .join('');
@@ -382,35 +428,88 @@
     }
 
     /* ==============================
-       打开弹窗
-       点击“添加第一个竞品”后执行
+       打开“添加竞品”弹窗
+       清空表单并切换到新增模式
        ============================== */
     document
       .querySelector('#addButton')
       .addEventListener('click', () => {
+        editingIndex = null;
+        form.reset();
+        dialogTitle.textContent = '添加竞品';
+        saveButton.textContent = '保存竞品';
         dialog.showModal();
       });
 
     /* ==============================
        关闭弹窗
-       点击“取消”后不保存数据
+       点击“取消”后不保存本次修改
        ============================== */
     document
       .querySelector('#cancelButton')
       .addEventListener('click', () => {
+        editingIndex = null;
+        form.reset();
         dialog.close();
       });
 
     /* ==============================
+       处理竞品卡片操作
+       根据按钮类型执行编辑或删除
+       ============================== */
+    list.addEventListener('click', event => {
+      const button = event.target.closest('button[data-action]');
+
+      /* 点击的不是编辑或删除按钮时，不执行后续操作 */
+      if (!button) {
+        return;
+      }
+
+      const index = Number(button.dataset.index);
+      const action = button.dataset.action;
+      const competitor = competitors[index];
+
+      /* 编辑竞品：把已有内容填入表单 */
+      if (action === 'edit') {
+        editingIndex = index;
+        document.querySelector('#name').value = competitor.name;
+        document.querySelector('#website').value = competitor.website;
+        document.querySelector('#positioning').value =
+          competitor.positioning;
+        dialogTitle.textContent = '编辑竞品';
+        saveButton.textContent = '保存修改';
+        dialog.showModal();
+      }
+
+      /* 删除竞品：确认后删除并保存最新数据 */
+      if (action === 'delete') {
+        const confirmed = window.confirm(
+          `确定删除“${competitor.name}”吗？`
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        competitors.splice(index, 1);
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify(competitors)
+        );
+        render();
+      }
+    });
+
+    /* ==============================
        保存竞品
-       获取表单内容并保存到浏览器
+       新增模式会添加数据，编辑模式会更新数据
        ============================== */
     form.addEventListener('submit', event => {
       /* 阻止浏览器刷新页面 */
       event.preventDefault();
 
-      /* 把新竞品加入数组 */
-      competitors.push({
+      /* 从表单中读取最新竞品信息 */
+      const competitor = {
         name:
           document.querySelector('#name')
             .value
@@ -425,7 +524,14 @@
           document.querySelector('#positioning')
             .value
             .trim()
-      });
+      };
+
+      /* 根据当前模式新增或更新竞品 */
+      if (editingIndex === null) {
+        competitors.push(competitor);
+      } else {
+        competitors[editingIndex] = competitor;
+      }
 
       /* 保存到浏览器 localStorage */
       localStorage.setItem(
@@ -433,7 +539,8 @@
         JSON.stringify(competitors)
       );
 
-      /* 清空表单 */
+      /* 保存完成后退出编辑模式并清空表单 */
+      editingIndex = null;
       form.reset();
 
       /* 关闭添加弹窗 */
