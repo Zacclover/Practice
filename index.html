@@ -2554,6 +2554,12 @@
       .comparison-header h2 small {
         white-space: normal;
       }
+
+      /* 窄屏空状态保持同一实际高度，避免较长文案单独换行 */
+      .empty,
+      .comparison-empty {
+        font-size: 14px;
+      }
     }
 
     /* 减少动态：保留状态变化，但移除所有非必要位移与过渡 */
