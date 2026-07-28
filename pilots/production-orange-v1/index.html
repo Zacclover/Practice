@@ -1778,6 +1778,22 @@
       border-radius: 0;
     }
 
+    /* 空状态一致性：竞品档案与横向对比共用尺寸，矩阵外框仅在空状态隐藏 */
+    .empty,
+    .comparison-empty {
+      display: grid;
+      min-height: 84px;
+      padding: 28px;
+      place-items: center;
+      line-height: 1.5;
+    }
+
+    .comparison-scroll:has(> .comparison-empty) {
+      overflow: visible;
+      background: transparent;
+      border: 0;
+    }
+
     .evidence-tile,
     .evidence-collage,
     .evidence-count,
