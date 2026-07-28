@@ -64,7 +64,7 @@
       padding: 32px;
       background: white;
       border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+      box-shadow: none;
     }
 
     .hero h2 {
@@ -260,10 +260,7 @@
       left: 0;
       padding: 28px 10px 10px;
       color: white;
-      background: linear-gradient(
-        transparent,
-        rgba(46, 16, 101, .96)
-      );
+      background: rgba(17, 17, 17, .88);
     }
 
     .evidence-tile-tags {
@@ -677,7 +674,7 @@
       min-width: 190px !important;
       max-width: 190px;
       background: white;
-      box-shadow: 1px 0 #e5e7eb;
+      box-shadow: none;
     }
 
     .comparison-table th.dimension-column {
@@ -814,7 +811,7 @@
       background: white;
       border-color: #d4d4d8;
       border-radius: 6px;
-      box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+      box-shadow: none;
     }
 
     .workspace-tab-item.is-dragging {
@@ -824,7 +821,7 @@
 
     .workspace-tab-item.is-drop-target {
       border-color: #4f46e5;
-      box-shadow: inset 3px 0 0 #4f46e5;
+      box-shadow: none;
     }
 
     .workspace-tab-select {
@@ -1090,7 +1087,7 @@
     .rich-toolbar button.is-active {
       color: #1264a3;
       background: #dff3fa;
-      box-shadow: inset 0 0 0 1px rgba(18, 100, 163, .2);
+      box-shadow: none;
     }
 
     /* Tooltip 使用 fixed 定位，避免被弹窗和编辑器边界裁切 */
@@ -1102,7 +1099,7 @@
       color: white;
       background: #1d1c1d;
       border-radius: 6px;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, .22);
+      box-shadow: none;
       font-size: 12px;
       font-weight: 600;
       line-height: 1.3;
@@ -1222,7 +1219,7 @@
       padding: 24px;
       border: 0;
       border-radius: 14px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, .2);
+      box-shadow: none;
     }
 
     /* 弹窗打开时的页面半透明遮罩 */
@@ -1271,6 +1268,1316 @@
       color: #374151;
       background: #e5e7eb;
     }
+
+    /* ================================================================
+       ORANGE INDUSTRIAL V1.0：正式视觉系统覆盖层
+       统一颜色、字体、线条、底纹、几何与交互，不改动业务数据逻辑
+       ================================================================ */
+    :root {
+      --black: #111111;
+      --ink: #191919;
+      --graphite: #343434;
+      --line-strong: #111111;
+      --line-medium: #595959;
+      --line-subtle: #c9c8c3;
+      --gray-500: #8b8b88;
+      --gray-100: #efeee9;
+      --paper: #f7f6f1;
+      --white: #ffffff;
+      --orange: #ff5a1f;
+      --danger: #b42318;
+      --cross-grid-size: 44px;
+      --font-display: "Archivo Black", "Noto Sans SC", "Arial Black", sans-serif;
+      --font-body: "Noto Sans SC", Arial, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+
+    /* 页面底色：仅保留一层 44px 浅灰小十字，不穿透实色数据面板 */
+    html {
+      background: var(--paper);
+    }
+
+    body {
+      min-height: 100vh;
+      color: var(--ink);
+      background-color: var(--paper);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'%3E%3Cpath d='M22 19v6M19 22h6' fill='none' stroke='%23c9c8c3' stroke-width='0.6'/%3E%3C/svg%3E");
+      background-size: var(--cross-grid-size) var(--cross-grid-size);
+      font-family: var(--font-body);
+      line-height: 1.55;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    /* 黑色产品 Header：用纯黑结构面建立最高层页面边界 */
+    header {
+      min-height: 88px;
+      padding: 22px 40px;
+      color: var(--white);
+      background: var(--black);
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    header h1 {
+      font-family: var(--font-display);
+      font-size: clamp(22px, 3vw, 32px);
+      font-weight: 900;
+      letter-spacing: -.055em;
+      line-height: 1;
+    }
+
+    header span {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 30px auto 56px;
+      padding: 0 24px;
+    }
+
+    /* 通用按钮：默认深色；最高优先级与次级动作在下方明确分层 */
+    button {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 15px;
+      color: var(--white);
+      background: var(--black);
+      border: 1px solid var(--line-strong);
+      border-radius: 0;
+      font-weight: 700;
+      line-height: 1.2;
+      transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+    }
+
+    button:focus-visible,
+    a:focus-visible,
+    [contenteditable="true"]:focus-visible {
+      outline: 2px solid var(--black);
+      outline-offset: 3px;
+    }
+
+    button:focus-visible {
+      border-color: var(--orange);
+    }
+
+    button svg {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
+    }
+
+    /* Primary Button：橙底黑字、无黑边、左上和右下 9px 斜切 */
+    #addWorkspaceTabButton,
+    #addButton,
+    #addDimensionButton,
+    #saveTabButton,
+    #confirmExportTabsButton,
+    #confirmImportModeButton,
+    #saveButton,
+    #saveDimensionButton,
+    #saveInlineDimensionButton,
+    #saveEvidenceButton {
+      color: var(--black);
+      background: var(--orange);
+      border-color: transparent;
+      clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    }
+
+    #addWorkspaceTabButton:hover,
+    #addWorkspaceTabButton:focus-visible,
+    #addButton:hover,
+    #addButton:focus-visible,
+    #addDimensionButton:hover,
+    #addDimensionButton:focus-visible,
+    #saveTabButton:hover,
+    #saveTabButton:focus-visible,
+    #confirmExportTabsButton:hover,
+    #confirmExportTabsButton:focus-visible,
+    #confirmImportModeButton:hover,
+    #confirmImportModeButton:focus-visible,
+    #saveButton:hover,
+    #saveButton:focus-visible,
+    #saveDimensionButton:hover,
+    #saveDimensionButton:focus-visible,
+    #saveInlineDimensionButton:hover,
+    #saveInlineDimensionButton:focus-visible,
+    #saveEvidenceButton:hover,
+    #saveEvidenceButton:focus-visible {
+      color: var(--white);
+      background: var(--black);
+    }
+
+    /* Secondary Button：完整矩形、白底黑框，不与橙色主操作竞争 */
+    .secondary,
+    .backup-button,
+    .small-button,
+    .matrix-button,
+    #closeDetailButton,
+    #closeLinkedEvidenceButton {
+      color: var(--black);
+      background: var(--white);
+      border: 1px solid var(--line-strong);
+      border-radius: 0;
+      clip-path: none;
+    }
+
+    .secondary:hover,
+    .backup-button:hover,
+    .small-button:hover,
+    .matrix-button:hover,
+    #closeDetailButton:hover,
+    #closeLinkedEvidenceButton:hover {
+      color: var(--white);
+      background: var(--black);
+    }
+
+    .delete-button,
+    .matrix-delete-button,
+    .evidence-delete-button,
+    .preview-remove-button {
+      color: var(--white);
+      background: var(--danger);
+      border-color: var(--danger);
+      clip-path: none;
+    }
+
+    /* 洞察空间：全宽实色结构面和等宽工业 Tab */
+    .workspace-tabs-section {
+      padding: 0;
+      background: var(--white);
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    .workspace-tabs-header {
+      min-height: 64px;
+      padding: 11px 40px;
+      border-bottom: 1px solid var(--line-medium);
+    }
+
+    .workspace-tabs-header h2 {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .workspace-tabs-header h2::before {
+      color: var(--orange);
+      content: "SYS / 00  ";
+    }
+
+    .workspace-tabs-tools {
+      gap: 8px;
+    }
+
+    .workspace-tabs {
+      background: var(--gray-100);
+      border-top: 1px solid var(--line-medium);
+      border-bottom: 0;
+      border-radius: 0;
+    }
+
+    .workspace-tab-item {
+      min-height: 48px;
+      background: transparent;
+      border: 0;
+      border-right: 1px solid var(--line-medium);
+      border-radius: 0;
+    }
+
+    .workspace-tab-item.is-active {
+      background: var(--black);
+      border-color: var(--line-medium);
+      border-bottom: 3px solid var(--orange);
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .workspace-tab-select {
+      min-height: 46px;
+      padding-right: 88px;
+      color: var(--line-medium);
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-select {
+      color: var(--white);
+      font-weight: 700;
+    }
+
+    .workspace-tab-action {
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      min-height: 40px;
+      color: var(--gray-500);
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-action {
+      color: var(--line-subtle);
+    }
+
+    .workspace-tab-action:not(.delete):hover {
+      color: var(--black);
+      background: var(--orange);
+      transform: translateY(-50%);
+    }
+
+    .workspace-tab-action.delete:hover {
+      color: var(--white);
+      background: var(--danger);
+      transform: translateY(-50%);
+    }
+
+    .workspace-tab-action[data-tab-action="edit"] {
+      right: 44px;
+    }
+
+    .workspace-tab-action[data-tab-action="delete"] {
+      right: 4px;
+    }
+
+    /* 键盘焦点：浅色 Tab 用黑色外轮廓，黑色 Active Tab 用橙色实体边框 */
+    .workspace-tab-select:focus-visible,
+    .workspace-tab-action:focus-visible {
+      border: 1px solid var(--orange);
+    }
+
+    .workspace-tab-action:focus-visible {
+      color: var(--black);
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-action:focus-visible {
+      color: var(--white);
+    }
+
+    .workspace-tab-item.is-drop-target {
+      border-left: 3px solid var(--orange);
+      box-shadow: none;
+    }
+
+    /* Hero：实底、强边界和轻量几何线框构成沉浸层级 */
+    .hero {
+      position: relative;
+      min-height: 244px;
+      overflow: hidden;
+      padding: clamp(28px, 5vw, 58px);
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
+      box-shadow: none;
+      isolation: isolate;
+    }
+
+    .hero::before {
+      position: absolute;
+      z-index: -1;
+      top: 30px;
+      right: clamp(28px, 8vw, 96px);
+      width: 132px;
+      height: 132px;
+      border: 1px solid var(--line-subtle);
+      content: "";
+      transform: rotate(-8deg);
+    }
+
+    .hero::after {
+      position: absolute;
+      right: 20px;
+      bottom: 18px;
+      padding: 5px 8px;
+      color: var(--black);
+      background: var(--orange);
+      content: "AXIS / 00";
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    .hero h2 {
+      max-width: 720px;
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(38px, 6vw, 66px);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: .98;
+    }
+
+    .hero p {
+      max-width: 620px;
+      margin: 22px 0 0;
+      color: var(--line-medium);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      margin-top: 28px;
+    }
+
+    /* 区块标题：工业编号、粗体排版和一级黑线 */
+    .section-title,
+    .comparison-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 34px 0 16px;
+    }
+
+    .section-title {
+      font-family: var(--font-body);
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+    }
+
+    .section-title::before {
+      color: var(--orange);
+      content: "01 /";
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+
+    .section-title::after {
+      height: 2px;
+      flex: 1;
+      background: var(--line-strong);
+      content: "";
+    }
+
+    .comparison-section {
+      margin-top: 40px;
+    }
+
+    .comparison-header {
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    .comparison-header h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+    }
+
+    .comparison-header h2::before {
+      margin-right: 10px;
+      color: var(--orange);
+      content: "02 /";
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+
+    /* 竞品卡片：无圆角、无阴影，以 Medium 边界和黑白反转表达层级 */
+    .grid {
+      gap: 0;
+    }
+
+    .card {
+      padding: 22px;
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--line-medium);
+      border-radius: 0;
+      transition: color .16s ease, background .16s ease, transform .16s ease;
+    }
+
+    .card:hover,
+    .card:focus-within {
+      color: var(--white);
+      background: var(--graphite);
+      transform: translateY(-2px);
+    }
+
+    .card h3 {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -.04em;
+    }
+
+    .card p,
+    .card:hover p,
+    .card:focus-within p {
+      color: inherit;
+    }
+
+    .card a,
+    .rich-editor a,
+    .rich-content a {
+      color: var(--orange);
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .card-actions {
+      padding-top: 14px;
+      border-top: 1px solid var(--line-medium);
+    }
+
+    .edit-button {
+      color: var(--white);
+      background: var(--black);
+      border-color: var(--black);
+    }
+
+    .competitor-evidence {
+      border-top: 1px solid var(--line-medium);
+    }
+
+    .evidence-header h4,
+    .evidence-date,
+    .matrix-auto-title,
+    .matrix-manual-label {
+      font-family: var(--font-mono);
+      letter-spacing: .02em;
+    }
+
+    .evidence-empty,
+    .empty,
+    .comparison-empty {
+      color: var(--line-medium);
+      background: var(--white);
+      border: 1px dashed var(--line-medium);
+      border-radius: 0;
+    }
+
+    /* 空状态一致性：竞品档案与横向对比共用尺寸，矩阵外框仅在空状态隐藏 */
+    .empty,
+    .comparison-empty {
+      display: grid;
+      min-height: 84px;
+      padding: 28px;
+      place-items: center;
+      line-height: 1.5;
+    }
+
+    .comparison-scroll:has(> .comparison-empty) {
+      overflow: visible;
+      background: transparent;
+      border: 0;
+    }
+
+    .evidence-tile,
+    .evidence-collage,
+    .evidence-count,
+    .evidence-date,
+    .evidence-tile-tag,
+    .evidence-preview-item,
+    .detail-image,
+    .detail-body,
+    .detail-dimensions,
+    .detail-dimension-tag,
+    .linked-evidence-item {
+      border-radius: 0;
+    }
+
+    .evidence-tile {
+      background: var(--gray-100);
+      border: 1px solid var(--line-medium);
+    }
+
+    .evidence-overlay,
+    .evidence-date,
+    .evidence-count {
+      color: var(--white);
+      background: rgba(17, 17, 17, .88);
+    }
+
+    .evidence-tile-tag,
+    .detail-dimension-tag {
+      color: var(--black);
+      background: var(--orange);
+    }
+
+    .evidence-edit-button,
+    .evidence-delete-button,
+    .preview-remove-button {
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      min-height: 40px;
+      border-radius: 0;
+    }
+
+    .evidence-count {
+      top: 54px;
+    }
+
+    .evidence-edit-button {
+      color: var(--white);
+      background: var(--black);
+    }
+
+    .evidence-target,
+    .paste-area,
+    .detail-body,
+    .detail-dimensions {
+      color: var(--ink);
+      background: var(--gray-100);
+      border-radius: 0;
+    }
+
+    .paste-area {
+      border: 1px dashed var(--line-medium);
+    }
+
+    .paste-area:focus {
+      background: var(--white);
+      border-color: var(--line-strong);
+      outline: 2px solid var(--orange);
+      outline-offset: 2px;
+    }
+
+    /* 对比矩阵：Strong 外框、Subtle 单元格，不使用 Sticky 阴影 */
+    .comparison-scroll {
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
+    }
+
+    .comparison-table {
+      color: var(--ink);
+      background: var(--white);
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      border-right: 1px solid var(--line-subtle);
+      border-bottom: 1px solid var(--line-subtle);
+    }
+
+    .comparison-table th {
+      color: var(--white);
+      background: var(--black);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .comparison-table td {
+      background: var(--white);
+    }
+
+    .comparison-table th.dimension-column,
+    .comparison-table td.dimension-column {
+      border-right: 1px solid var(--line-medium);
+      box-shadow: none;
+    }
+
+    .comparison-table th.dimension-column {
+      background: var(--graphite);
+    }
+
+    .matrix-input {
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid transparent;
+      border-radius: 0;
+    }
+
+    .matrix-input:focus {
+      background: var(--white);
+      border-color: var(--line-strong);
+      outline: 2px solid var(--orange);
+      outline-offset: -2px;
+    }
+
+    .matrix-evidence-line {
+      color: var(--ink);
+      background: var(--gray-100);
+      border-left: 3px solid var(--orange);
+      border-radius: 0;
+    }
+
+    .matrix-evidence-link {
+      color: var(--black);
+      background: var(--white);
+      border: 1px solid var(--line-medium);
+      border-radius: 0;
+    }
+
+    /* 弹窗与表单：实色白面、Strong 外框和橙色键盘焦点 */
+    dialog {
+      color: var(--ink);
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    dialog::backdrop {
+      background: rgba(17, 17, 17, .68);
+    }
+
+    dialog h2 {
+      margin-top: 0;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--line-strong);
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input,
+    textarea {
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--line-subtle);
+      border-radius: 0;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--line-strong);
+      outline: 2px solid var(--orange);
+      outline-offset: 2px;
+    }
+
+    .tab-option,
+    .import-mode-card {
+      background: var(--gray-100);
+      border: 1px solid var(--line-subtle);
+      border-radius: 0;
+    }
+
+    .import-mode-card small {
+      color: var(--line-medium);
+    }
+
+    /* 富文本：线性 Icon、实色工具栏、黑色 Tooltip */
+    .rich-editor-shell {
+      background: var(--white);
+      border: 1px solid var(--line-strong);
+      border-radius: 0;
+    }
+
+    .rich-toolbar {
+      background: var(--gray-100);
+      border-bottom: 1px solid var(--line-medium);
+    }
+
+    .rich-toolbar-divider {
+      background: var(--line-subtle);
+    }
+
+    .rich-toolbar button {
+      min-height: 32px;
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      min-height: 40px;
+      color: var(--line-medium);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 0;
+      clip-path: none;
+    }
+
+    .rich-toolbar button:hover,
+    .rich-toolbar button.is-active {
+      color: var(--white);
+      background: var(--black);
+      border-color: var(--black);
+      transform: none;
+    }
+
+    .rich-toolbar button:focus-visible {
+      color: var(--black);
+      background: var(--white);
+      border-color: var(--orange);
+      outline: 2px solid var(--black);
+      outline-offset: 1px;
+    }
+
+    .rich-toolbar button svg {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
+    }
+
+    .rich-toolbar-tooltip {
+      color: var(--white);
+      background: var(--black);
+      border: 1px solid var(--line-medium);
+      border-radius: 0;
+      box-shadow: none;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .rich-editor,
+    .rich-content {
+      color: var(--ink);
+    }
+
+    .rich-editor blockquote,
+    .rich-content blockquote {
+      color: var(--ink);
+      background: var(--gray-100);
+      border-left: 4px solid var(--orange);
+    }
+
+    .rich-editor h3,
+    .rich-content h3 {
+      color: var(--black);
+    }
+
+    /* ================================================================
+       Pilot 同源排版：品牌锁定、类型海报、几何坐标板与中英文辅助层级
+       ================================================================ */
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      border: 1px solid var(--white);
+      transform: rotate(-8deg);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      position: absolute;
+      content: "";
+    }
+
+    .brand-mark::before {
+      inset: 7px;
+      background: var(--orange);
+    }
+
+    .brand-mark::after {
+      width: 10px;
+      height: 10px;
+      right: -5px;
+      bottom: -5px;
+      border: 1px solid var(--white);
+      background: var(--black);
+    }
+
+    .brand-lockup h1 {
+      margin: 0;
+    }
+
+    .brand-lockup p,
+    .header-meta {
+      font-family: var(--font-mono);
+      letter-spacing: .075em;
+      text-transform: uppercase;
+    }
+
+    .brand-lockup p {
+      margin: 7px 0 0;
+      color: var(--line-subtle);
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .header-meta {
+      display: grid;
+      gap: 5px;
+      justify-items: end;
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .header-meta strong {
+      color: var(--white);
+      font-size: 10px;
+    }
+
+    .header-meta span {
+      color: var(--line-subtle);
+      font-size: 9px;
+    }
+
+    .workspace-tabs-header h2 {
+      display: flex;
+      align-items: baseline;
+      gap: 9px;
+    }
+
+    .workspace-tabs-header h2::before {
+      display: none;
+      content: none;
+    }
+
+    .workspace-tabs-header h2 .workspace-code {
+      color: var(--orange);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .workspace-tabs-header h2 small {
+      color: var(--gray-500);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .06em;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr);
+      min-height: 300px;
+      padding: 0;
+    }
+
+    .hero::before,
+    .hero::after {
+      display: none;
+      content: none;
+    }
+
+    .type-poster {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      min-width: 0;
+      padding: 30px 34px 32px;
+      flex-direction: column;
+      justify-content: center;
+      border-right: 1px solid var(--line-medium);
+    }
+
+    .system-line {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      color: var(--line-medium);
+      font: 600 10px/1 var(--font-mono);
+      letter-spacing: .08em;
+    }
+
+    .system-line::before {
+      width: 34px;
+      height: 2px;
+      background: var(--orange);
+      content: "";
+    }
+
+    .type-poster h2 {
+      max-width: 650px;
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(38px, 4.4vw, 62px);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: .98;
+      text-transform: uppercase;
+      text-wrap: balance;
+    }
+
+    .type-poster h2 .outline {
+      display: block;
+      color: var(--white);
+      -webkit-text-stroke: 1.4px var(--black);
+    }
+
+    .type-poster .description {
+      max-width: 560px;
+      margin: 18px 0 22px;
+      color: var(--line-medium);
+      font-size: 13px;
+      line-height: 1.65;
+      text-wrap: pretty;
+    }
+
+    .type-poster .hero-actions {
+      margin-top: 0;
+    }
+
+    .object-board {
+      position: relative;
+      min-height: 298px;
+      overflow: hidden;
+      background: var(--gray-100);
+    }
+
+    .axis-line {
+      position: absolute;
+      background: var(--line-subtle);
+    }
+
+    .axis-line.x {
+      top: 50%;
+      right: 0;
+      left: 0;
+      height: .6px;
+    }
+
+    .axis-line.y {
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: .6px;
+    }
+
+    .object-board .corner {
+      position: absolute;
+      z-index: 3;
+      color: var(--line-medium);
+      font: 600 10px/1 var(--font-mono);
+    }
+
+    .object-board .corner.tl {
+      top: 12px;
+      left: 12px;
+    }
+
+    .object-board .corner.br {
+      right: 12px;
+      bottom: 12px;
+      color: var(--orange);
+      font-size: 16px;
+    }
+
+    .disc {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 178px;
+      height: 178px;
+      background: var(--black);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .disc::before {
+      position: absolute;
+      top: 23px;
+      left: 25px;
+      width: 74px;
+      height: 74px;
+      background: var(--white);
+      border-radius: 50%;
+      content: "";
+    }
+
+    .plate {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 146px;
+      height: 82px;
+      background: var(--orange);
+      border: 1px solid var(--black);
+      transform: translate(-32%, -8%) rotate(-12deg);
+    }
+
+    .plate::before {
+      position: absolute;
+      inset: 12px;
+      border: 1px solid var(--black);
+      content: "";
+    }
+
+    .orbit {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 250px;
+      height: 80px;
+      border: 1px solid var(--black);
+      border-radius: 50%;
+      transform: translate(-50%, -50%) rotate(-18deg);
+    }
+
+    /* 中英文区块标题：中文负责识别，英文只做技术注释 */
+    .section-title > span,
+    .comparison-header h2 > span {
+      white-space: nowrap;
+    }
+
+    .section-title small,
+    .comparison-header h2 small {
+      color: var(--gray-500);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }
+
+    .section-title::after {
+      order: 2;
+    }
+
+    .section-title small {
+      order: 3;
+    }
+
+    .comparison-header h2 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    /* 数据图像优化：统一裁切与拼图边界，只使用克制的 Hover 缩放 */
+    .evidence-collage img {
+      image-rendering: auto;
+      transition: transform .18s ease;
+      will-change: transform;
+    }
+
+    .evidence-tile:hover .evidence-collage img,
+    .evidence-tile:focus-within .evidence-collage img {
+      transform: scale(1.025);
+    }
+
+    .evidence-collage img + img {
+      border-left: 1px solid var(--line-subtle);
+    }
+
+    .card {
+      position: relative;
+    }
+
+    /* 链接可访问性：正文以黑/白保证对比，橙色只作为下划线识别 */
+    .card a,
+    .rich-editor a,
+    .rich-content a {
+      color: var(--black);
+      text-decoration-color: var(--orange);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+
+    .card:hover a,
+    .card:focus-within a {
+      color: var(--white);
+    }
+
+    .card:focus-within a:focus-visible {
+      outline-color: var(--orange);
+    }
+
+    .card::before {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 6px;
+      height: 6px;
+      background: var(--orange);
+      content: "";
+    }
+
+    /* 响应式：保留固定 Tab 宽度，同时降低移动端装饰尺度 */
+    @media (max-width: 640px) {
+      header {
+        min-height: 72px;
+        padding: 18px 16px;
+      }
+
+      header span {
+        font-size: 9px;
+      }
+
+      .workspace-tabs-header {
+        padding: 10px 16px;
+      }
+
+      .workspace-tabs-tools button {
+        min-height: 40px;
+      }
+
+      /* 触屏可用性：Tab 编辑/关闭和富文本工具保持至少 40px 点击区域 */
+      .workspace-tab-select {
+        padding-right: 88px;
+      }
+
+      .workspace-tab-action {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+      }
+
+      .workspace-tab-action[data-tab-action="edit"] {
+        right: 44px;
+      }
+
+      .workspace-tab-action[data-tab-action="delete"] {
+        right: 4px;
+      }
+
+      .rich-toolbar button {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+      }
+
+      main {
+        margin-top: 20px;
+        padding: 0 16px;
+      }
+
+      .hero {
+        min-height: 220px;
+        padding: 28px 22px;
+      }
+
+      .hero h2 {
+        max-width: 92%;
+        font-size: clamp(34px, 11vw, 48px);
+      }
+
+      .hero::before {
+        right: -36px;
+        width: 104px;
+        height: 104px;
+      }
+
+      .comparison-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+
+    @media (max-width: 760px) {
+      header {
+        padding-right: 16px;
+        padding-left: 16px;
+      }
+
+      .header-meta {
+        display: none;
+      }
+
+      .brand-mark {
+        width: 30px;
+        height: 30px;
+        flex-basis: 30px;
+      }
+
+      .workspace-tabs-header h2 small {
+        display: none;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        min-height: 0;
+        padding: 0;
+      }
+
+      .type-poster {
+        padding: 28px 22px 30px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line-medium);
+      }
+
+      .type-poster h2 {
+        max-width: 100%;
+        font-size: clamp(36px, 12vw, 48px);
+      }
+
+      .object-board {
+        min-height: 230px;
+      }
+
+      .disc {
+        width: 142px;
+        height: 142px;
+      }
+
+      .disc::before {
+        top: 19px;
+        left: 20px;
+        width: 58px;
+        height: 58px;
+      }
+
+      .plate {
+        width: 118px;
+        height: 66px;
+      }
+
+      .orbit {
+        width: 200px;
+        height: 64px;
+      }
+
+      .section-title small,
+      .comparison-header h2 small {
+        white-space: normal;
+      }
+    }
+
+    /* 减少动态：保留状态变化，但移除所有非必要位移与过渡 */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+
+      button:hover,
+      .card:hover,
+      .card:focus-within {
+        transform: none;
+      }
+
+      .evidence-tile:hover .evidence-collage img,
+      .evidence-tile:focus-within .evidence-collage img {
+        transform: none;
+      }
+    }
   </style>
 </head>
 
@@ -1280,8 +2587,17 @@
        展示当前产品名称
        ============================== -->
   <header>
-    <h1>竞品洞察台</h1>
-    <span>Competitor Insights</span>
+    <div class="brand-lockup">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>竞品洞察台</h1>
+        <p>COMPETITIVE INTELLIGENCE SYSTEM</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <strong>SPATIAL INSIGHT / V1.0</strong>
+      <span>RESEARCH OPERATIONS</span>
+    </div>
   </header>
 
   <!-- ==============================
@@ -1290,18 +2606,28 @@
        ============================== -->
   <section class="workspace-tabs-section">
     <div class="workspace-tabs-header">
-      <h2>洞察空间</h2>
+      <h2>
+        <span class="workspace-code">SYS / 00</span>
+        <span>洞察空间</span>
+        <small>INSIGHT WORKSPACES</small>
+      </h2>
       <div class="workspace-tabs-tools">
         <button
           class="backup-button"
           id="exportDataButton"
           type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 14V3M8 7l4-4 4 4M4 13v7h16v-7"></path>
+          </svg>
           导出数据
         </button>
         <button
           class="backup-button"
           id="importDataButton"
           type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 3v11M8 10l4 4 4-4M4 13v7h16v-7"></path>
+          </svg>
           导入数据
         </button>
         <input
@@ -1313,6 +2639,9 @@
           id="addWorkspaceTabButton"
           class="workspace-tab-add"
           type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 5h18v14H3zM12 8v8M8 12h8"></path>
+          </svg>
           添加 Tab
         </button>
       </div>
@@ -1332,22 +2661,46 @@
   <main>
     <!-- 产品介绍和主要操作区域 -->
     <section class="hero">
-      <h2>让竞品研究更有依据</h2>
+      <div class="type-poster">
+        <div class="system-line">RESEARCH SYSTEM / ISSUE 001</div>
+        <h2>
+          竞争情报
+          <span class="outline">RESEARCH</span>
+          工作系统
+        </h2>
 
-      <p>
-        集中管理竞品档案、调研证据、横向对比和关键洞察。
-      </p>
+        <p class="description">
+          将分散的竞品档案、调研证据和横向对比组织成可追溯的决策坐标。
+        </p>
 
-      <!-- 竞品管理和数据备份操作 -->
-      <div class="hero-actions">
-        <button id="addButton">
-          添加竞品
-        </button>
+        <!-- 竞品管理和数据备份操作 -->
+        <div class="hero-actions">
+          <button id="addButton">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 4h16v16H4zM12 8v8M8 12h8"></path>
+            </svg>
+            添加竞品
+          </button>
+        </div>
+      </div>
+
+      <!-- 轻量几何坐标板：只承担视觉识别，不承载业务信息 -->
+      <div class="object-board" aria-hidden="true">
+        <span class="corner tl">X: 044 / Y: 006</span>
+        <span class="corner br">+</span>
+        <div class="axis-line x"></div>
+        <div class="axis-line y"></div>
+        <div class="orbit"></div>
+        <div class="disc"></div>
+        <div class="plate"></div>
       </div>
     </section>
 
     <!-- 竞品档案列表区域 -->
-    <h2 class="section-title">竞品档案</h2>
+    <h2 class="section-title">
+      <span>竞品档案</span>
+      <small>COMPETITOR PROFILES</small>
+    </h2>
 
     <!-- JavaScript 会把竞品卡片显示在这里 -->
     <section
@@ -1361,7 +2714,10 @@
          ============================== -->
     <section class="comparison-section">
       <div class="comparison-header">
-        <h2>竞品横向对比</h2>
+        <h2>
+          <span>竞品横向对比</span>
+          <small>COMPARISON MATRIX</small>
+        </h2>
         <button id="addDimensionButton">
           添加对比维度
         </button>
@@ -2005,7 +3361,7 @@
        ============================== */
     function renderWorkspaceTabs() {
       workspaceTabs.innerHTML = workspaceState.tabs
-        .map(tab => {
+        .map((tab, tabIndex) => {
           const isActive = tab.id === workspaceState.activeTabId;
           return `
             <div
@@ -2019,7 +3375,10 @@
                 type="button"
                 role="tab"
                 aria-selected="${isActive ? 'true' : 'false'}"
-                title="${escapeHtml(tab.name)}">
+                aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                aria-posinset="${tabIndex + 1}"
+                aria-setsize="${workspaceState.tabs.length}"
+                title="${escapeHtml(tab.name)}；Alt + ← / → 排序">
                 ${escapeHtml(tab.name)}
               </button>
 
@@ -2223,6 +3582,50 @@
       }
     });
 
+    /* ==============================
+       Tab 键盘排序
+       使用 Alt + 左右方向键复用拖拽排序函数并恢复焦点
+       ============================== */
+    workspaceTabs.addEventListener('keydown', event => {
+      const tabButton = event.target.closest(
+        '.workspace-tab-select[data-tab-id]'
+      );
+      if (
+        !tabButton ||
+        !event.altKey ||
+        (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')
+      ) {
+        return;
+      }
+
+      const tabId = tabButton.dataset.tabId;
+      const currentIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === tabId
+      );
+      const direction = event.key === 'ArrowLeft' ? -1 : 1;
+      const targetIndex = currentIndex + direction;
+      event.preventDefault();
+      if (
+        currentIndex < 0 ||
+        targetIndex < 0 ||
+        targetIndex >= workspaceState.tabs.length
+      ) {
+        return;
+      }
+
+      const targetId = workspaceState.tabs[targetIndex].id;
+      if (moveWorkspaceTab(tabId, targetId, direction > 0)) {
+        requestAnimationFrame(() => {
+          const movedButton = Array.from(
+            workspaceTabs.querySelectorAll(
+              '.workspace-tab-select[data-tab-id]'
+            )
+          ).find(button => button.dataset.tabId === tabId);
+          movedButton?.focus();
+        });
+      }
+    });
+
     workspaceTabs.addEventListener('dragstart', event => {
       const tabItem = event.target.closest('[data-workspace-tab-id]');
       if (!tabItem) {
@@ -2293,6 +3696,7 @@
 
       list.innerHTML = competitors
         .map((item, index) => {
+          const website = normalizeWebsiteUrl(item.website);
           const relatedEvidence = evidenceItems
             .map((evidence, evidenceIndex) => ({
               evidence,
@@ -2326,12 +3730,12 @@
               </p>
 
               ${
-                item.website
+                website
                   ? `
                     <a
-                      href="${escapeHtml(item.website)}"
+                      href="${escapeHtml(website)}"
                       target="_blank"
-                      rel="noopener">
+                      rel="noopener noreferrer">
                       访问官网 →
                     </a>
                   `
@@ -2803,6 +4207,9 @@
           class="evidence-tile"
           data-evidence-action="view"
           data-index="${evidenceIndex}"
+          role="button"
+          tabindex="0"
+          aria-label="查看证据详情：${escapeHtml(evidence.title)}"
           title="点击查看证据详情">
 
           <div class="evidence-collage ${imageCountClass}">
@@ -2976,6 +4383,26 @@
     });
 
     /* ==============================
+       证据详情键盘入口
+       Enter 或 Space 与点击卡片共用同一详情函数
+       ============================== */
+    list.addEventListener('keydown', event => {
+      const evidenceTile = event.target.closest(
+        '.evidence-tile[data-evidence-action="view"]'
+      );
+      if (
+        !evidenceTile ||
+        event.target !== evidenceTile ||
+        (event.key !== 'Enter' && event.key !== ' ')
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      openEvidenceDetail(Number(evidenceTile.dataset.index));
+    });
+
+    /* ==============================
        打开新增竞品弹窗
        ============================== */
     document
@@ -3006,14 +4433,22 @@
     form.addEventListener('submit', event => {
       event.preventDefault();
 
+      const websiteField = document.querySelector('#website');
+      const websiteInput = websiteField.value.trim();
+      const website = normalizeWebsiteUrl(websiteInput);
+      if (websiteInput && !website) {
+        window.alert('官网地址仅支持以 http:// 或 https:// 开头的链接。');
+        websiteField.focus();
+        return;
+      }
+
       const competitor = {
         id:
           editingIndex === null
             ? createId()
             : competitors[editingIndex].id,
         name: document.querySelector('#name').value.trim(),
-        website:
-          document.querySelector('#website').value.trim(),
+        website,
         positioning:
           document.querySelector('#positioning').value.trim()
       };
@@ -4026,7 +5461,8 @@
       const competitors = Array.isArray(tab.competitors)
         ? tab.competitors.map(item => ({
             ...item,
-            id: item.id || createId()
+            id: item.id || createId(),
+            website: normalizeWebsiteUrl(item.website)
           }))
         : [];
       const competitorIds = new Set(
@@ -4355,6 +5791,27 @@
       const div = document.createElement('div');
       div.textContent = String(value ?? '');
       return div.innerHTML;
+    }
+
+    /* 官网地址协议白名单：阻止 javascript:、data: 等危险链接 */
+    function normalizeWebsiteUrl(value = '') {
+      const trimmedValue = String(value ?? '').trim();
+      if (!trimmedValue) {
+        return '';
+      }
+
+      try {
+        const parsedUrl = new URL(trimmedValue);
+        if (
+          parsedUrl.protocol !== 'http:' &&
+          parsedUrl.protocol !== 'https:'
+        ) {
+          return '';
+        }
+        return trimmedValue;
+      } catch (error) {
+        return '';
+      }
     }
 
     /* 页面初始化 */
