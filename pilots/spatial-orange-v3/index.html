@@ -22,6 +22,9 @@
       --paper: #f7f6f1;
       --white: #ffffff;
       --orange: #ff5a1f;
+      --line-strong: #111111;
+      --line-medium: #595959;
+      --line-subtle: #c9c8c3;
       --font-display: "Archivo Black", "Noto Sans SC", "Arial Black", sans-serif;
       --font-ui: "Noto Sans SC", "Arial", sans-serif;
       --font-mono: "IBM Plex Mono", ui-monospace, monospace;
@@ -44,7 +47,7 @@
       min-height: 92px;
       color: var(--white);
       background: var(--black);
-      border-bottom: 1px solid var(--black);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     .brand {
@@ -98,7 +101,7 @@
       align-content: center;
       min-width: 250px;
       padding: 18px 28px;
-      border-left: 1px solid var(--gray-700);
+      border-left: 1px solid var(--line-medium);
       font: 500 11px/1.5 var(--font-mono);
       text-transform: uppercase;
     }
@@ -107,7 +110,7 @@
 
     .workspace {
       background: var(--white);
-      border-bottom: 1px solid var(--black);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     .workspace-head {
@@ -177,14 +180,22 @@
     .button:active { transform: translateY(1px); }
 
     .button.primary {
-      color: var(--white);
-      background: var(--black);
+      color: var(--black);
+      background: var(--orange);
+      clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
     }
 
     .button.primary .signal {
       width: 5px;
       height: 5px;
-      background: var(--orange);
+      background: var(--black);
+    }
+
+    .button.primary:hover,
+    .button.primary:focus-visible {
+      color: var(--white);
+      background: var(--black);
+      outline-color: var(--orange);
     }
 
     .tabs {
@@ -192,7 +203,7 @@
       width: 100%;
       overflow-x: auto;
       background: var(--gray-100);
-      border-top: 1px solid var(--gray-300);
+      border-top: 1px solid var(--line-medium);
       scrollbar-width: thin;
     }
 
@@ -208,7 +219,7 @@
       color: var(--gray-700);
       background: var(--gray-100);
       border: 0;
-      border-right: 1px solid var(--gray-300);
+      border-right: 1px solid var(--line-medium);
       border-radius: 0;
       cursor: pointer;
       font: 500 12px/1 var(--font-mono);
@@ -244,7 +255,7 @@
       min-height: 300px;
       overflow: hidden;
       background: var(--white);
-      border: 2px solid var(--black);
+      border: 2px solid var(--line-strong);
       border-radius: 0;
     }
 
@@ -256,7 +267,7 @@
       justify-content: center;
       min-width: 0;
       padding: 30px 34px 32px;
-      border-right: 1px solid var(--black);
+      border-right: 1px solid var(--line-medium);
     }
 
     .system-line {
@@ -310,7 +321,7 @@
 
     .axis-line {
       position: absolute;
-      background: var(--gray-300);
+      background: var(--line-subtle);
     }
 
     .axis-line.x { left: 0; right: 0; top: 50%; height: 1px; }
@@ -399,7 +410,7 @@
       font: 600 11px/1 var(--font-mono);
     }
 
-    .section-head .line { height: 1px; background: var(--black); }
+    .section-head .line { height: 1px; background: var(--line-strong); }
 
     .section-head .note {
       color: var(--gray-700);
@@ -409,8 +420,8 @@
     .cards {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      border-top: 1px solid var(--black);
-      border-left: 1px solid var(--black);
+      border-top: 1px solid var(--line-medium);
+      border-left: 1px solid var(--line-medium);
     }
 
     .card {
@@ -419,8 +430,8 @@
       min-height: 242px;
       padding: 20px;
       background: var(--white);
-      border-right: 1px solid var(--black);
-      border-bottom: 1px solid var(--black);
+      border-right: 1px solid var(--line-medium);
+      border-bottom: 1px solid var(--line-medium);
       border-radius: 0;
       transition: color .16s var(--ease), background-color .16s var(--ease), transform .16s var(--ease);
     }
@@ -487,8 +498,8 @@
     .matrix {
       overflow-x: auto;
       background: var(--white);
-      border-top: 1px solid var(--black);
-      border-left: 1px solid var(--black);
+      border-top: 1px solid var(--line-strong);
+      border-left: 1px solid var(--line-strong);
     }
 
     .row {
@@ -500,8 +511,8 @@
     .cell {
       min-height: 48px;
       padding: 14px;
-      border-right: 1px solid var(--black);
-      border-bottom: 1px solid var(--black);
+      border-right: 1px solid var(--line-subtle);
+      border-bottom: 1px solid var(--line-subtle);
       font-size: 12px;
     }
 
@@ -527,12 +538,12 @@
 
     @media (max-width: 760px) {
       .top { grid-template-columns: 1fr; }
-      .pilot-stamp { min-width: 0; border-top: 1px solid var(--gray-700); border-left: 0; }
+      .pilot-stamp { min-width: 0; border-top: 1px solid var(--line-medium); border-left: 0; }
       .brand, .workspace-head { padding-left: 16px; padding-right: 16px; }
       .workspace-head { align-items: flex-start; flex-direction: column; }
       .tools { flex-wrap: wrap; }
       .hero { grid-template-columns: 1fr; }
-      .type-poster { border-right: 0; border-bottom: 1px solid var(--black); }
+      .type-poster { border-right: 0; border-bottom: 1px solid var(--line-medium); }
       .type-poster h2 { font-size: 40px; }
       .object-board { min-height: 240px; }
       .cards { grid-template-columns: 1fr; }
@@ -555,7 +566,7 @@
       <div class="brand-mark" aria-hidden="true"></div>
       <div><h1>竞品洞察台</h1><p>COMPETITOR INTELLIGENCE SYSTEM</p></div>
     </div>
-    <div class="pilot-stamp"><b>V3 / ORANGE SIGNAL</b><span>BLACK · WHITE · GRAY / SHARP UI</span></div>
+    <div class="pilot-stamp"><b>V3 / ORANGE SIGNAL</b><span>ORANGE VISUAL BUDGET: 10–15%</span></div>
   </header>
 
   <section class="workspace">
