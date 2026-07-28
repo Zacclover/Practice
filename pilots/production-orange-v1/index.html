@@ -2385,6 +2385,21 @@
       position: relative;
     }
 
+    /* 链接可访问性：正文以黑/白保证对比，橙色只作为下划线识别 */
+    .card a,
+    .rich-editor a,
+    .rich-content a {
+      color: var(--black);
+      text-decoration-color: var(--orange);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+
+    .card:hover a,
+    .card:focus-within a {
+      color: var(--white);
+    }
+
     .card::before {
       position: absolute;
       top: 12px;
@@ -2551,6 +2566,11 @@
       button:hover,
       .card:hover,
       .card:focus-within {
+        transform: none;
+      }
+
+      .evidence-tile:hover .evidence-collage img,
+      .evidence-tile:focus-within .evidence-collage img {
         transform: none;
       }
     }

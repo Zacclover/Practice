@@ -206,6 +206,7 @@ components:
 - Hover 可使用 Graphite 黑白反转和最多 `-2px` 位移。
 - 证据图片允许使用实色半透明黑色遮罩保证白字可读；禁止渐变遮罩。
 - 多图证据使用 Subtle 分割线组织拼图；Hover/Focus 图片缩放上限为 `1.025`，不得使用滤镜、渐变遮罩或影响证据真实性的视觉处理。
+- 白色正文面上的链接使用黑色文字和橙色下划线；Graphite 反转面使用白色文字和橙色下划线。橙色不得单独承担普通正文文字颜色。
 - 标签使用矩形，不使用药丸形圆角。
 
 ### Matrix
@@ -226,6 +227,7 @@ components:
 
 - 动效只使用 `transform` 与 `opacity`，常规持续时间 `120ms–180ms`。
 - `prefers-reduced-motion: reduce` 下移除非必要位移和过渡。
+- Reduced Motion 下证据图片 Hover/Focus 的 `transform` 必须为 `none`，不能只把持续时间缩短。
 - 正文对比目标 WCAG AA `4.5:1`；控件边界和状态至少 `3:1`。
 - 所有操作必须支持键盘；Hover 信息必须在 `:focus-visible` 时同样可见。
 - 触屏目标尺寸不小于 `40px × 40px`。
