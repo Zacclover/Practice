@@ -2400,6 +2400,10 @@
       color: var(--white);
     }
 
+    .card:focus-within a:focus-visible {
+      outline-color: var(--orange);
+    }
+
     .card::before {
       position: absolute;
       top: 12px;
@@ -3357,7 +3361,7 @@
        ============================== */
     function renderWorkspaceTabs() {
       workspaceTabs.innerHTML = workspaceState.tabs
-        .map(tab => {
+        .map((tab, tabIndex) => {
           const isActive = tab.id === workspaceState.activeTabId;
           return `
             <div
@@ -3371,7 +3375,10 @@
                 type="button"
                 role="tab"
                 aria-selected="${isActive ? 'true' : 'false'}"
-                title="${escapeHtml(tab.name)}">
+                aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                aria-posinset="${tabIndex + 1}"
+                aria-setsize="${workspaceState.tabs.length}"
+                title="${escapeHtml(tab.name)}；Alt + ← / → 排序">
                 ${escapeHtml(tab.name)}
               </button>
 
@@ -3572,6 +3579,50 @@
         openWorkspaceTabDialog(tabId);
       } else if (button.dataset.tabAction === 'delete') {
         deleteWorkspaceTab(tabId);
+      }
+    });
+
+    /* ==============================
+       Tab 键盘排序
+       使用 Alt + 左右方向键复用拖拽排序函数并恢复焦点
+       ============================== */
+    workspaceTabs.addEventListener('keydown', event => {
+      const tabButton = event.target.closest(
+        '.workspace-tab-select[data-tab-id]'
+      );
+      if (
+        !tabButton ||
+        !event.altKey ||
+        (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')
+      ) {
+        return;
+      }
+
+      const tabId = tabButton.dataset.tabId;
+      const currentIndex = workspaceState.tabs.findIndex(
+        tab => tab.id === tabId
+      );
+      const direction = event.key === 'ArrowLeft' ? -1 : 1;
+      const targetIndex = currentIndex + direction;
+      if (
+        currentIndex < 0 ||
+        targetIndex < 0 ||
+        targetIndex >= workspaceState.tabs.length
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      const targetId = workspaceState.tabs[targetIndex].id;
+      if (moveWorkspaceTab(tabId, targetId, direction > 0)) {
+        requestAnimationFrame(() => {
+          const movedButton = Array.from(
+            workspaceTabs.querySelectorAll(
+              '.workspace-tab-select[data-tab-id]'
+            )
+          ).find(button => button.dataset.tabId === tabId);
+          movedButton?.focus();
+        });
       }
     });
 
@@ -4155,6 +4206,9 @@
           class="evidence-tile"
           data-evidence-action="view"
           data-index="${evidenceIndex}"
+          role="button"
+          tabindex="0"
+          aria-label="查看证据详情：${escapeHtml(evidence.title)}"
           title="点击查看证据详情">
 
           <div class="evidence-collage ${imageCountClass}">
@@ -4325,6 +4379,26 @@
         persistComparison();
         render();
       }
+    });
+
+    /* ==============================
+       证据详情键盘入口
+       Enter 或 Space 与点击卡片共用同一详情函数
+       ============================== */
+    list.addEventListener('keydown', event => {
+      const evidenceTile = event.target.closest(
+        '.evidence-tile[data-evidence-action="view"]'
+      );
+      if (
+        !evidenceTile ||
+        event.target !== evidenceTile ||
+        (event.key !== 'Enter' && event.key !== ' ')
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      openEvidenceDetail(Number(evidenceTile.dataset.index));
     });
 
     /* ==============================
