@@ -243,8 +243,8 @@
 
     .evidence-count {
       position: absolute;
-      top: 8px;
-      right: 42px;
+      top: 42px;
+      right: 8px;
       padding: 4px 7px;
       color: white;
       background: rgba(15, 23, 42, .72);
@@ -252,7 +252,7 @@
       font-size: 11px;
     }
 
-    /* 评论以渐变遮罩显示在图片底部 */
+    /* 评论和关联维度显示在卡片底部遮罩上 */
     .evidence-overlay {
       position: absolute;
       right: 0;
@@ -262,8 +262,27 @@
       color: white;
       background: linear-gradient(
         transparent,
-        rgba(15, 23, 42, .9)
+        rgba(15, 23, 42, .92)
       );
+    }
+
+    .evidence-tile-tags {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 5px;
+      overflow: hidden;
+    }
+
+    .evidence-tile-tag {
+      max-width: 72px;
+      padding: 2px 5px;
+      overflow: hidden;
+      color: #312e81;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: rgba(224, 231, 255, .95);
+      border-radius: 999px;
+      font-size: 9px;
     }
 
     .evidence-overlay p {
@@ -273,7 +292,7 @@
       font-size: 12px;
       line-height: 1.4;
       -webkit-box-orient: vertical;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
     }
 
     .evidence-date {
@@ -287,17 +306,30 @@
       font-size: 11px;
     }
 
-    .evidence-delete-button {
+    .evidence-tile-actions {
       position: absolute;
       top: 8px;
       right: 8px;
+      display: flex;
+      gap: 5px;
+    }
+
+    .evidence-edit-button,
+    .evidence-delete-button {
       width: 28px;
       height: 28px;
       padding: 0;
-      background: rgba(220, 38, 38, .9);
       border-radius: 50%;
-      font-size: 16px;
+      font-size: 15px;
       line-height: 28px;
+    }
+
+    .evidence-edit-button {
+      background: rgba(79, 70, 229, .92);
+    }
+
+    .evidence-delete-button {
+      background: rgba(220, 38, 38, .92);
     }
 
     /* ==============================
@@ -857,7 +889,7 @@
        ============================== -->
   <dialog id="evidenceDialog">
     <form id="evidenceForm">
-      <h2>添加调研证据</h2>
+      <h2 id="evidenceDialogTitle">添加调研证据</h2>
 
       <!-- 显示从哪张竞品卡片打开了证据弹窗 -->
       <div class="evidence-target">
@@ -912,7 +944,7 @@
       </label>
 
       <p class="form-help">
-        支持一次选择多张图片；建议每张原图不超过 10MB。
+        图片为选填；没有截图时会显示四叶草兜底图。建议每张原图不超过 10MB。
       </p>
 
       <!-- 点击后可以直接粘贴剪贴板中的截图 -->
@@ -1012,6 +1044,23 @@
     const evidenceStorageKey = 'competitor-insights-evidence';
     const comparisonStorageKey = 'competitor-insights-comparison';
 
+    /* 没有证据截图时使用内置四叶草 SVG 兜底图 */
+    const fallbackImage =
+      `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+          <rect width="200" height="200" fill="#ecfdf5"/>
+          <line x1="100" y1="94" x2="78" y2="132" stroke="#15803d" stroke-width="8" stroke-linecap="round"/>
+          <g fill="#22c55e">
+            <circle cx="82" cy="68" r="24"/>
+            <circle cx="118" cy="68" r="24"/>
+            <circle cx="82" cy="102" r="24"/>
+            <circle cx="118" cy="102" r="24"/>
+          </g>
+          <circle cx="100" cy="85" r="8" fill="#16a34a"/>
+          <text x="100" y="166" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#166534">暂无截图</text>
+        </svg>
+      `)}`;
+
     /* ==============================
        获取竞品管理相关页面元素
        ============================== */
@@ -1041,6 +1090,8 @@
        获取证据上传相关页面元素
        ============================== */
     const evidenceDialog = document.querySelector('#evidenceDialog');
+    const evidenceDialogTitle =
+      document.querySelector('#evidenceDialogTitle');
     const evidenceForm = document.querySelector('#evidenceForm');
     const evidenceCompetitorName =
       document.querySelector('#evidenceCompetitorName');
@@ -1098,8 +1149,7 @@
         dimensionIds: Array.isArray(item.dimensionIds)
           ? item.dimensionIds
           : []
-      }))
-      .filter(item => item.images.length > 0);
+      }));
 
     /* 首次使用矩阵时创建推荐的默认对比维度 */
     const defaultDimensionNames = [
@@ -1149,7 +1199,13 @@
     /* 当前证据关联的一个或多个对比维度 */
     let selectedEvidenceDimensionIds = new Set();
 
-    /* 待保存的图片文件和预览地址 */
+    /* 当前正在编辑的证据序号，null 表示新增 */
+    let editingEvidenceIndex = null;
+
+    /* 编辑证据时继续保留的旧图片 */
+    let retainedEvidenceImages = [];
+
+    /* 待保存的新图片文件和预览地址 */
     let pendingEvidenceFiles = [];
     let previewObjectUrls = [];
 
@@ -1604,7 +1660,10 @@
        最多用四格拼图展示图片缩略图
        ============================== */
     function renderEvidenceTile(evidence, evidenceIndex) {
-      const previewImages = evidence.images.slice(0, 4);
+      const displayImages = evidence.images.length > 0
+        ? evidence.images
+        : [fallbackImage];
+      const previewImages = displayImages.slice(0, 4);
       const imageCountClass = `image-count-${
         Math.min(previewImages.length, 4)
       }`;
@@ -1613,6 +1672,25 @@
           <img src="${escapeHtml(image)}" alt="证据图片">
         `)
         .join('');
+      const linkedDimensions = evidence.dimensionIds
+        .map(dimensionId =>
+          comparisonData.dimensions.find(
+            item => item.id === dimensionId
+          )
+        )
+        .filter(Boolean);
+      const visibleTags = linkedDimensions
+        .slice(0, 2)
+        .map(dimension => `
+          <span class="evidence-tile-tag">
+            ${escapeHtml(dimension.name)}
+          </span>
+        `)
+        .join('');
+      const extraTagCount = Math.max(
+        0,
+        linkedDimensions.length - 2
+      );
       const date = formatShortDate(evidence.createdAt);
 
       return `
@@ -1640,16 +1718,46 @@
               : ''
           }
 
-          <button
-            class="evidence-delete-button"
-            data-evidence-action="delete"
-            data-index="${evidenceIndex}"
-            type="button"
-            title="删除证据">
-            ×
-          </button>
+          <!-- 编辑和删除证据的独立按钮 -->
+          <div class="evidence-tile-actions">
+            <button
+              class="evidence-edit-button"
+              data-evidence-action="edit"
+              data-index="${evidenceIndex}"
+              type="button"
+              title="编辑证据">
+              ✎
+            </button>
+
+            <button
+              class="evidence-delete-button"
+              data-evidence-action="delete"
+              data-index="${evidenceIndex}"
+              type="button"
+              title="删除证据">
+              ×
+            </button>
+          </div>
 
           <div class="evidence-overlay">
+            ${
+              linkedDimensions.length > 0
+                ? `
+                  <div class="evidence-tile-tags">
+                    ${visibleTags}
+                    ${
+                      extraTagCount > 0
+                        ? `
+                          <span class="evidence-tile-tag">
+                            +${extraTagCount}
+                          </span>
+                        `
+                        : ''
+                    }
+                  </div>
+                `
+                : ''
+            }
             <p>${escapeHtml(evidence.comment)}</p>
           </div>
         </article>
@@ -1674,6 +1782,10 @@
 
         if (evidenceAction === 'view') {
           openEvidenceDetail(evidenceIndex);
+        }
+
+        if (evidenceAction === 'edit') {
+          openEvidenceEdit(evidenceIndex);
         }
 
         if (evidenceAction === 'delete') {
@@ -1835,6 +1947,41 @@
     }
 
     /* ==============================
+       打开已有证据的编辑弹窗
+       回填旧图片、文字和维度关联
+       ============================== */
+    function openEvidenceEdit(evidenceIndex) {
+      const evidence = evidenceItems[evidenceIndex];
+      if (!evidence) {
+        return;
+      }
+
+      const competitor = competitors.find(
+        item => item.id === evidence.competitorId
+      );
+      if (!competitor) {
+        window.alert('没有找到证据对应的竞品。');
+        return;
+      }
+
+      resetEvidenceForm();
+      editingEvidenceIndex = evidenceIndex;
+      selectedEvidenceCompetitorId = evidence.competitorId;
+      selectedEvidenceDimensionIds = new Set(
+        evidence.dimensionIds
+      );
+      retainedEvidenceImages = [...evidence.images];
+      evidenceCompetitorName.textContent = competitor.name;
+      document.querySelector('#evidenceComment').value =
+        evidence.comment;
+      evidenceDialogTitle.textContent = '编辑调研证据';
+      saveEvidenceButton.textContent = '保存修改';
+      renderEvidenceDimensionOptions();
+      renderPendingPreviews();
+      evidenceDialog.showModal();
+    }
+
+    /* ==============================
        添加本地选择或剪贴板粘贴的多张图片
        ============================== */
     function addPendingFiles(files) {
@@ -1908,8 +2055,12 @@
       previewObjectUrls = pendingEvidenceFiles.map(file =>
         URL.createObjectURL(file)
       );
+      const allPreviewUrls = [
+        ...retainedEvidenceImages,
+        ...previewObjectUrls
+      ];
 
-      evidencePreviewList.innerHTML = previewObjectUrls
+      evidencePreviewList.innerHTML = allPreviewUrls
         .map((url, index) => `
           <div class="preview-item">
             <img
@@ -1936,10 +2087,19 @@
         return;
       }
 
-      pendingEvidenceFiles.splice(
-        Number(button.dataset.previewIndex),
-        1
+      const previewIndex = Number(
+        button.dataset.previewIndex
       );
+
+      if (previewIndex < retainedEvidenceImages.length) {
+        retainedEvidenceImages.splice(previewIndex, 1);
+      } else {
+        pendingEvidenceFiles.splice(
+          previewIndex - retainedEvidenceImages.length,
+          1
+        );
+      }
+
       renderPendingPreviews();
     });
 
@@ -1948,17 +2108,15 @@
        ============================== */
     evidenceForm.addEventListener('submit', async event => {
       event.preventDefault();
-
-      if (pendingEvidenceFiles.length === 0) {
-        window.alert('请至少选择或粘贴一张证据图片。');
-        return;
-      }
-
       saveEvidenceButton.disabled = true;
 
       try {
-        const compressedImages = [];
+        /* 编辑时先保留未被移除的旧图片 */
+        const compressedImages = [
+          ...retainedEvidenceImages
+        ];
 
+        /* 只压缩本次新选择或粘贴的图片 */
         for (
           let index = 0;
           index < pendingEvidenceFiles.length;
@@ -1971,8 +2129,13 @@
           );
         }
 
+        const previousEvidence =
+          editingEvidenceIndex === null
+            ? null
+            : evidenceItems[editingEvidenceIndex];
+        const now = new Date().toISOString();
         const evidence = {
-          id: createId(),
+          id: previousEvidence?.id || createId(),
           competitorId: selectedEvidenceCompetitorId,
           images: compressedImages,
           dimensionIds: Array.from(
@@ -1982,15 +2145,26 @@
             document.querySelector('#evidenceComment')
               .value
               .trim(),
-          createdAt: new Date().toISOString()
+          createdAt: previousEvidence?.createdAt || now,
+          updatedAt: previousEvidence ? now : undefined
         };
 
-        evidenceItems.push(evidence);
+        if (editingEvidenceIndex === null) {
+          evidenceItems.push(evidence);
+        } else {
+          evidenceItems[editingEvidenceIndex] = evidence;
+        }
 
         try {
           persistEvidence();
         } catch (storageError) {
-          evidenceItems.pop();
+          if (editingEvidenceIndex === null) {
+            evidenceItems.pop();
+          } else {
+            evidenceItems[editingEvidenceIndex] =
+              previousEvidence;
+          }
+
           throw new Error(
             '浏览器存储空间不足，请减少图片数量或删除旧证据。'
           );
@@ -2002,7 +2176,10 @@
       } catch (error) {
         window.alert(error.message);
         saveEvidenceButton.disabled = false;
-        saveEvidenceButton.textContent = '保存证据';
+        saveEvidenceButton.textContent =
+          editingEvidenceIndex === null
+            ? '保存证据'
+            : '保存修改';
       }
     });
 
@@ -2053,7 +2230,10 @@
             .join('')
         : '<span class="form-help">未关联对比维度</span>';
 
-      detailImages.innerHTML = evidence.images
+      const detailImageSources = evidence.images.length > 0
+        ? evidence.images
+        : [fallbackImage];
+      detailImages.innerHTML = detailImageSources
         .map((image, index) => `
           <img
             src="${escapeHtml(image)}"
@@ -2100,7 +2280,9 @@
             data-linked-evidence-index="${entry.evidenceIndex}"
             type="button">
             <img
-              src="${escapeHtml(entry.evidence.images[0])}"
+              src="${escapeHtml(
+                entry.evidence.images[0] || fallbackImage
+              )}"
               alt="关联证据缩略图">
             <div>
               <strong>
@@ -2154,8 +2336,10 @@
        ============================== */
     function resetEvidenceForm() {
       evidenceForm.reset();
+      editingEvidenceIndex = null;
       selectedEvidenceCompetitorId = null;
       selectedEvidenceDimensionIds = new Set();
+      retainedEvidenceImages = [];
       pendingEvidenceFiles = [];
       revokePreviewUrls();
       evidencePreviewList.innerHTML = '';
@@ -2163,6 +2347,7 @@
       evidenceCompetitorName.textContent = '';
       inlineDimensionName.value = '';
       inlineDimensionCreator.classList.remove('visible');
+      evidenceDialogTitle.textContent = '添加调研证据';
       saveEvidenceButton.disabled = false;
       saveEvidenceButton.textContent = '保存证据';
     }
