@@ -2034,6 +2034,333 @@
       color: var(--black);
     }
 
+    /* ================================================================
+       Pilot 同源排版：品牌锁定、类型海报、几何坐标板与中英文辅助层级
+       ================================================================ */
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      border: 1px solid var(--white);
+      transform: rotate(-8deg);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      position: absolute;
+      content: "";
+    }
+
+    .brand-mark::before {
+      inset: 7px;
+      background: var(--orange);
+    }
+
+    .brand-mark::after {
+      width: 10px;
+      height: 10px;
+      right: -5px;
+      bottom: -5px;
+      border: 1px solid var(--white);
+      background: var(--black);
+    }
+
+    .brand-lockup h1 {
+      margin: 0;
+    }
+
+    .brand-lockup p,
+    .header-meta {
+      font-family: var(--font-mono);
+      letter-spacing: .075em;
+      text-transform: uppercase;
+    }
+
+    .brand-lockup p {
+      margin: 7px 0 0;
+      color: var(--line-subtle);
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .header-meta {
+      display: grid;
+      gap: 5px;
+      justify-items: end;
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .header-meta strong {
+      color: var(--white);
+      font-size: 10px;
+    }
+
+    .header-meta span {
+      color: var(--line-subtle);
+      font-size: 9px;
+    }
+
+    .workspace-tabs-header h2 {
+      display: flex;
+      align-items: baseline;
+      gap: 9px;
+    }
+
+    .workspace-tabs-header h2::before {
+      display: none;
+      content: none;
+    }
+
+    .workspace-tabs-header h2 .workspace-code {
+      color: var(--orange);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .workspace-tabs-header h2 small {
+      color: var(--gray-500);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .06em;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr);
+      min-height: 300px;
+      padding: 0;
+    }
+
+    .hero::before,
+    .hero::after {
+      display: none;
+      content: none;
+    }
+
+    .type-poster {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      min-width: 0;
+      padding: 30px 34px 32px;
+      flex-direction: column;
+      justify-content: center;
+      border-right: 1px solid var(--line-medium);
+    }
+
+    .system-line {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      color: var(--line-medium);
+      font: 600 10px/1 var(--font-mono);
+      letter-spacing: .08em;
+    }
+
+    .system-line::before {
+      width: 34px;
+      height: 2px;
+      background: var(--orange);
+      content: "";
+    }
+
+    .type-poster h2 {
+      max-width: 650px;
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(38px, 4.4vw, 62px);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: .98;
+      text-transform: uppercase;
+      text-wrap: balance;
+    }
+
+    .type-poster h2 .outline {
+      display: block;
+      color: var(--white);
+      -webkit-text-stroke: 1.4px var(--black);
+    }
+
+    .type-poster .description {
+      max-width: 560px;
+      margin: 18px 0 22px;
+      color: var(--line-medium);
+      font-size: 13px;
+      line-height: 1.65;
+      text-wrap: pretty;
+    }
+
+    .type-poster .hero-actions {
+      margin-top: 0;
+    }
+
+    .object-board {
+      position: relative;
+      min-height: 298px;
+      overflow: hidden;
+      background: var(--gray-100);
+    }
+
+    .axis-line {
+      position: absolute;
+      background: var(--line-subtle);
+    }
+
+    .axis-line.x {
+      top: 50%;
+      right: 0;
+      left: 0;
+      height: .6px;
+    }
+
+    .axis-line.y {
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: .6px;
+    }
+
+    .object-board .corner {
+      position: absolute;
+      z-index: 3;
+      color: var(--line-medium);
+      font: 600 10px/1 var(--font-mono);
+    }
+
+    .object-board .corner.tl {
+      top: 12px;
+      left: 12px;
+    }
+
+    .object-board .corner.br {
+      right: 12px;
+      bottom: 12px;
+      color: var(--orange);
+      font-size: 16px;
+    }
+
+    .disc {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 178px;
+      height: 178px;
+      background: var(--black);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .disc::before {
+      position: absolute;
+      top: 23px;
+      left: 25px;
+      width: 74px;
+      height: 74px;
+      background: var(--white);
+      border-radius: 50%;
+      content: "";
+    }
+
+    .plate {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 146px;
+      height: 82px;
+      background: var(--orange);
+      border: 1px solid var(--black);
+      transform: translate(-32%, -8%) rotate(-12deg);
+    }
+
+    .plate::before {
+      position: absolute;
+      inset: 12px;
+      border: 1px solid var(--black);
+      content: "";
+    }
+
+    .orbit {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 250px;
+      height: 80px;
+      border: 1px solid var(--black);
+      border-radius: 50%;
+      transform: translate(-50%, -50%) rotate(-18deg);
+    }
+
+    /* 中英文区块标题：中文负责识别，英文只做技术注释 */
+    .section-title > span,
+    .comparison-header h2 > span {
+      white-space: nowrap;
+    }
+
+    .section-title small,
+    .comparison-header h2 small {
+      color: var(--gray-500);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }
+
+    .section-title::after {
+      order: 2;
+    }
+
+    .section-title small {
+      order: 3;
+    }
+
+    .comparison-header h2 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    /* 数据图像优化：统一裁切与拼图边界，只使用克制的 Hover 缩放 */
+    .evidence-collage img {
+      image-rendering: auto;
+      transition: transform .18s ease;
+      will-change: transform;
+    }
+
+    .evidence-tile:hover .evidence-collage img,
+    .evidence-tile:focus-within .evidence-collage img {
+      transform: scale(1.025);
+    }
+
+    .evidence-collage img + img {
+      border-left: 1px solid var(--line-subtle);
+    }
+
+    .card {
+      position: relative;
+    }
+
+    .card::before {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 6px;
+      height: 6px;
+      background: var(--orange);
+      content: "";
+    }
+
     /* 响应式：保留固定 Tab 宽度，同时降低移动端装饰尺度 */
     @media (max-width: 640px) {
       header {
@@ -2107,6 +2434,75 @@
       }
     }
 
+    @media (max-width: 760px) {
+      header {
+        padding-right: 16px;
+        padding-left: 16px;
+      }
+
+      .header-meta {
+        display: none;
+      }
+
+      .brand-mark {
+        width: 30px;
+        height: 30px;
+        flex-basis: 30px;
+      }
+
+      .workspace-tabs-header h2 small {
+        display: none;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        min-height: 0;
+        padding: 0;
+      }
+
+      .type-poster {
+        padding: 28px 22px 30px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line-medium);
+      }
+
+      .type-poster h2 {
+        max-width: 100%;
+        font-size: clamp(36px, 12vw, 48px);
+      }
+
+      .object-board {
+        min-height: 230px;
+      }
+
+      .disc {
+        width: 142px;
+        height: 142px;
+      }
+
+      .disc::before {
+        top: 19px;
+        left: 20px;
+        width: 58px;
+        height: 58px;
+      }
+
+      .plate {
+        width: 118px;
+        height: 66px;
+      }
+
+      .orbit {
+        width: 200px;
+        height: 64px;
+      }
+
+      .section-title small,
+      .comparison-header h2 small {
+        white-space: normal;
+      }
+    }
+
     /* 减少动态：保留状态变化，但移除所有非必要位移与过渡 */
     @media (prefers-reduced-motion: reduce) {
       *,
@@ -2133,8 +2529,17 @@
        展示当前产品名称
        ============================== -->
   <header>
-    <h1>竞品洞察台</h1>
-    <span>Competitor Insights</span>
+    <div class="brand-lockup">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>竞品洞察台</h1>
+        <p>COMPETITIVE INTELLIGENCE SYSTEM</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <strong>SPATIAL INSIGHT / V1.0</strong>
+      <span>RESEARCH OPERATIONS</span>
+    </div>
   </header>
 
   <!-- ==============================
@@ -2143,7 +2548,11 @@
        ============================== -->
   <section class="workspace-tabs-section">
     <div class="workspace-tabs-header">
-      <h2>洞察空间</h2>
+      <h2>
+        <span class="workspace-code">SYS / 00</span>
+        <span>洞察空间</span>
+        <small>INSIGHT WORKSPACES</small>
+      </h2>
       <div class="workspace-tabs-tools">
         <button
           class="backup-button"
@@ -2194,25 +2603,46 @@
   <main>
     <!-- 产品介绍和主要操作区域 -->
     <section class="hero">
-      <h2>让竞品研究更有依据</h2>
+      <div class="type-poster">
+        <div class="system-line">RESEARCH SYSTEM / ISSUE 001</div>
+        <h2>
+          竞争情报
+          <span class="outline">RESEARCH</span>
+          工作系统
+        </h2>
 
-      <p>
-        集中管理竞品档案、调研证据、横向对比和关键洞察。
-      </p>
+        <p class="description">
+          将分散的竞品档案、调研证据和横向对比组织成可追溯的决策坐标。
+        </p>
 
-      <!-- 竞品管理和数据备份操作 -->
-      <div class="hero-actions">
-        <button id="addButton">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M4 4h16v16H4zM12 8v8M8 12h8"></path>
-          </svg>
-          添加竞品
-        </button>
+        <!-- 竞品管理和数据备份操作 -->
+        <div class="hero-actions">
+          <button id="addButton">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 4h16v16H4zM12 8v8M8 12h8"></path>
+            </svg>
+            添加竞品
+          </button>
+        </div>
+      </div>
+
+      <!-- 轻量几何坐标板：只承担视觉识别，不承载业务信息 -->
+      <div class="object-board" aria-hidden="true">
+        <span class="corner tl">X: 044 / Y: 006</span>
+        <span class="corner br">+</span>
+        <div class="axis-line x"></div>
+        <div class="axis-line y"></div>
+        <div class="orbit"></div>
+        <div class="disc"></div>
+        <div class="plate"></div>
       </div>
     </section>
 
     <!-- 竞品档案列表区域 -->
-    <h2 class="section-title">竞品档案</h2>
+    <h2 class="section-title">
+      <span>竞品档案</span>
+      <small>COMPETITOR PROFILES</small>
+    </h2>
 
     <!-- JavaScript 会把竞品卡片显示在这里 -->
     <section
@@ -2226,7 +2656,10 @@
          ============================== -->
     <section class="comparison-section">
       <div class="comparison-header">
-        <h2>竞品横向对比</h2>
+        <h2>
+          <span>竞品横向对比</span>
+          <small>COMPARISON MATRIX</small>
+        </h2>
         <button id="addDimensionButton">
           添加对比维度
         </button>
