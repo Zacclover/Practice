@@ -3604,6 +3604,7 @@
       );
       const direction = event.key === 'ArrowLeft' ? -1 : 1;
       const targetIndex = currentIndex + direction;
+      event.preventDefault();
       if (
         currentIndex < 0 ||
         targetIndex < 0 ||
@@ -3612,7 +3613,6 @@
         return;
       }
 
-      event.preventDefault();
       const targetId = workspaceState.tabs[targetIndex].id;
       if (moveWorkspaceTab(tabId, targetId, direction > 0)) {
         requestAnimationFrame(() => {
@@ -3696,6 +3696,7 @@
 
       list.innerHTML = competitors
         .map((item, index) => {
+          const website = normalizeWebsiteUrl(item.website);
           const relatedEvidence = evidenceItems
             .map((evidence, evidenceIndex) => ({
               evidence,
@@ -3729,12 +3730,12 @@
               </p>
 
               ${
-                item.website
+                website
                   ? `
                     <a
-                      href="${escapeHtml(item.website)}"
+                      href="${escapeHtml(website)}"
                       target="_blank"
-                      rel="noopener">
+                      rel="noopener noreferrer">
                       访问官网 →
                     </a>
                   `
@@ -4432,14 +4433,22 @@
     form.addEventListener('submit', event => {
       event.preventDefault();
 
+      const websiteField = document.querySelector('#website');
+      const websiteInput = websiteField.value.trim();
+      const website = normalizeWebsiteUrl(websiteInput);
+      if (websiteInput && !website) {
+        window.alert('官网地址仅支持以 http:// 或 https:// 开头的链接。');
+        websiteField.focus();
+        return;
+      }
+
       const competitor = {
         id:
           editingIndex === null
             ? createId()
             : competitors[editingIndex].id,
         name: document.querySelector('#name').value.trim(),
-        website:
-          document.querySelector('#website').value.trim(),
+        website,
         positioning:
           document.querySelector('#positioning').value.trim()
       };
@@ -5452,7 +5461,8 @@
       const competitors = Array.isArray(tab.competitors)
         ? tab.competitors.map(item => ({
             ...item,
-            id: item.id || createId()
+            id: item.id || createId(),
+            website: normalizeWebsiteUrl(item.website)
           }))
         : [];
       const competitorIds = new Set(
@@ -5781,6 +5791,27 @@
       const div = document.createElement('div');
       div.textContent = String(value ?? '');
       return div.innerHTML;
+    }
+
+    /* 官网地址协议白名单：阻止 javascript:、data: 等危险链接 */
+    function normalizeWebsiteUrl(value = '') {
+      const trimmedValue = String(value ?? '').trim();
+      if (!trimmedValue) {
+        return '';
+      }
+
+      try {
+        const parsedUrl = new URL(trimmedValue);
+        if (
+          parsedUrl.protocol !== 'http:' &&
+          parsedUrl.protocol !== 'https:'
+        ) {
+          return '';
+        }
+        return trimmedValue;
+      } catch (error) {
+        return '';
+      }
     }
 
     /* 页面初始化 */
