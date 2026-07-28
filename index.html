@@ -768,6 +768,9 @@
     }
 
     .rich-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
       display: flex;
       flex-wrap: wrap;
       gap: 5px;
@@ -784,6 +787,19 @@
       border: 1px solid #d1d5db;
       border-radius: 6px;
       font-size: 12px;
+    }
+
+    .rich-toolbar button:hover {
+      color: #4338ca;
+      background: #eef2ff;
+      border-color: #a5b4fc;
+    }
+
+    .rich-toolbar button.is-active {
+      color: white;
+      background: #4f46e5;
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, .18);
     }
 
     .rich-editor {
@@ -808,8 +824,63 @@
       overflow-wrap: anywhere;
     }
 
+    .rich-editor a,
     .rich-content a {
       color: #4f46e5;
+      text-decoration: underline;
+    }
+
+    /* 编辑器和详情共用相同的富文本显示规则 */
+    .rich-editor strong,
+    .rich-editor b,
+    .rich-content strong,
+    .rich-content b {
+      font-weight: 700;
+    }
+
+    .rich-editor em,
+    .rich-editor i,
+    .rich-content em,
+    .rich-content i {
+      font-style: italic;
+    }
+
+    .rich-editor u,
+    .rich-content u {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 2px;
+    }
+
+    .rich-editor s,
+    .rich-editor strike,
+    .rich-content s,
+    .rich-content strike {
+      text-decoration: line-through;
+    }
+
+    .rich-editor ul,
+    .rich-editor ol,
+    .rich-content ul,
+    .rich-content ol {
+      margin: 10px 0;
+      padding-left: 28px;
+    }
+
+    .rich-editor blockquote,
+    .rich-content blockquote {
+      margin: 12px 0;
+      padding: 8px 12px;
+      color: #4c1d95;
+      background: #f5f3ff;
+      border-left: 4px solid #7c3aed;
+    }
+
+    .rich-editor h3,
+    .rich-content h3 {
+      margin: 16px 0 8px;
+      color: #312e81;
+      font-size: 18px;
     }
 
     /* ==============================
@@ -1129,12 +1200,24 @@
           id="richToolbar"
           class="rich-toolbar"
           aria-label="富文本工具栏">
-          <button type="button" data-rich-command="bold" title="粗体"><strong>B</strong></button>
-          <button type="button" data-rich-command="italic" title="斜体"><em>I</em></button>
-          <button type="button" data-rich-command="underline" title="下划线"><u>U</u></button>
-          <button type="button" data-rich-command="insertUnorderedList" title="项目列表">• 列表</button>
-          <button type="button" data-rich-command="insertOrderedList" title="编号列表">1. 列表</button>
-          <button type="button" data-rich-command="createLink" title="添加链接">链接</button>
+          <!-- 段落结构 -->
+          <button type="button" data-rich-command="formatBlock" data-rich-value="p" title="正文">正文</button>
+          <button type="button" data-rich-command="formatBlock" data-rich-value="h3" title="小标题">小标题</button>
+          <button type="button" data-rich-command="formatBlock" data-rich-value="blockquote" title="引用">引用</button>
+
+          <!-- 行内文字格式 -->
+          <button type="button" data-rich-command="bold" data-state-command="bold" title="粗体"><strong>B</strong>&nbsp;粗体</button>
+          <button type="button" data-rich-command="italic" data-state-command="italic" title="斜体"><em>I</em>&nbsp;斜体</button>
+          <button type="button" data-rich-command="underline" data-state-command="underline" title="下划线"><u>U</u>&nbsp;下划线</button>
+          <button type="button" data-rich-command="strikeThrough" data-state-command="strikeThrough" title="删除线"><s>S</s>&nbsp;删除线</button>
+
+          <!-- 列表、链接和历史操作 -->
+          <button type="button" data-rich-command="insertUnorderedList" data-state-command="insertUnorderedList" title="项目列表">• 项目列表</button>
+          <button type="button" data-rich-command="insertOrderedList" data-state-command="insertOrderedList" title="编号列表">1. 编号列表</button>
+          <button type="button" data-rich-command="createLink" title="添加链接">添加链接</button>
+          <button type="button" data-rich-command="unlink" title="移除链接">移除链接</button>
+          <button type="button" data-rich-command="undo" title="撤销">撤销</button>
+          <button type="button" data-rich-command="redo" title="重做">重做</button>
           <button type="button" data-rich-command="removeFormat" title="清除格式">清除格式</button>
         </div>
         <div
@@ -2151,7 +2234,75 @@
 
     /* ==============================
        富文本工具栏操作
+       保留文字选区，避免点击按钮后格式失效
        ============================== */
+    let savedEditorRange = null;
+
+    function saveEditorSelection() {
+      if (!window.getSelection) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (
+        selection.rangeCount > 0 &&
+        evidenceContentEditor.contains(selection.anchorNode)
+      ) {
+        savedEditorRange = selection.getRangeAt(0).cloneRange();
+      }
+    }
+
+    function restoreEditorSelection() {
+      if (!savedEditorRange || !window.getSelection) {
+        evidenceContentEditor.focus();
+        return;
+      }
+
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(savedEditorRange);
+      evidenceContentEditor.focus();
+    }
+
+    function updateRichToolbarState() {
+      if (!document.queryCommandState) {
+        return;
+      }
+
+      richToolbar
+        .querySelectorAll('[data-state-command]')
+        .forEach(button => {
+          let isActive = false;
+          try {
+            isActive = document.queryCommandState(
+              button.dataset.stateCommand
+            );
+          } catch (error) {
+            isActive = false;
+          }
+          button.classList.toggle('is-active', isActive);
+        });
+    }
+
+    ['mouseup', 'keyup', 'input', 'focus'].forEach(eventName => {
+      evidenceContentEditor.addEventListener(eventName, () => {
+        saveEditorSelection();
+        updateRichToolbarState();
+      });
+    });
+
+    /* 阻止工具栏抢走编辑器焦点，并在按下时保存选区 */
+    richToolbar.addEventListener('mousedown', event => {
+      const button = event.target.closest(
+        'button[data-rich-command]'
+      );
+      if (!button) {
+        return;
+      }
+      saveEditorSelection();
+      event.preventDefault();
+    });
+
     richToolbar.addEventListener('click', event => {
       const button = event.target.closest(
         'button[data-rich-command]'
@@ -2161,7 +2312,7 @@
       }
 
       const command = button.dataset.richCommand;
-      let value = null;
+      let value = button.dataset.richValue || null;
 
       if (command === 'createLink') {
         const inputUrl = window.prompt('请输入链接地址：');
@@ -2173,8 +2324,10 @@
           : `https://${inputUrl}`;
       }
 
-      evidenceContentEditor.focus();
+      restoreEditorSelection();
       document.execCommand(command, false, value);
+      saveEditorSelection();
+      updateRichToolbarState();
     });
 
     /* ==============================
@@ -2603,6 +2756,7 @@
     function resetEvidenceForm() {
       evidenceForm.reset();
       evidenceContentEditor.innerHTML = '';
+      savedEditorRange = null;
       editingEvidenceIndex = null;
       selectedEvidenceCompetitorId = null;
       selectedEvidenceDimensionIds = new Set();
@@ -2915,6 +3069,7 @@
 
       const allowedTags = new Set([
         'P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U',
+        'S', 'STRIKE', 'H3', 'BLOCKQUOTE',
         'UL', 'OL', 'LI', 'A', 'DIV'
       ]);
       const blockedTags = new Set([
