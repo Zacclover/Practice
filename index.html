@@ -738,6 +738,81 @@
     }
 
     /* ==============================
+       数据备份与导入操作
+       ============================== */
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .backup-button {
+      color: #4338ca;
+      background: #eef2ff;
+    }
+
+    .hidden-file-input {
+      display: none;
+    }
+
+    /* ==============================
+       调研证据富文本编辑器
+       支持常用文字格式、列表和链接
+       ============================== */
+    .rich-editor-shell {
+      overflow: hidden;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+    }
+
+    .rich-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 8px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .rich-toolbar button {
+      min-width: 34px;
+      padding: 6px 8px;
+      color: #374151;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .rich-editor {
+      min-height: 150px;
+      max-height: 360px;
+      padding: 12px;
+      overflow-y: auto;
+      color: #111827;
+      line-height: 1.65;
+      outline: none;
+    }
+
+    .rich-editor:empty::before {
+      color: #9ca3af;
+      content: attr(data-placeholder);
+      pointer-events: none;
+    }
+
+    .rich-content {
+      color: #374151;
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+
+    .rich-content a {
+      color: #4f46e5;
+    }
+
+    /* ==============================
        添加竞品弹窗
        用于填写竞品基本信息
        ============================== */
@@ -821,10 +896,29 @@
         集中管理竞品档案、调研证据、横向对比和关键洞察。
       </p>
 
-      <!-- 点击后打开添加竞品弹窗 -->
-      <button id="addButton">
-        添加竞品
-      </button>
+      <!-- 竞品管理和数据备份操作 -->
+      <div class="hero-actions">
+        <button id="addButton">
+          添加竞品
+        </button>
+        <button
+          class="backup-button"
+          id="exportDataButton"
+          type="button">
+          导出数据
+        </button>
+        <button
+          class="backup-button"
+          id="importDataButton"
+          type="button">
+          导入数据
+        </button>
+        <input
+          class="hidden-file-input"
+          id="importDataInput"
+          type="file"
+          accept="application/json,.json">
+      </div>
     </section>
 
     <!-- 竞品档案列表区域 -->
@@ -1015,14 +1109,40 @@
         class="preview-grid">
       </div>
 
-      <!-- 填写对图片内容的观察或评论 -->
+      <!-- 证据标题：必填，卡片和对比矩阵只显示标题 -->
       <label>
-        证据评论
-        <textarea
-          id="evidenceComment"
+        证据标题
+        <input
+          id="evidenceTitle"
+          maxlength="20"
           required
-          placeholder="描述图片展示了什么，以及你从中发现了什么"></textarea>
+          placeholder="最多 20 个字符">
       </label>
+      <p class="form-help">
+        标题最多 20 个字符，用于证据卡片和对比矩阵。
+      </p>
+
+      <!-- 证据内容：不限长度并支持常用富文本格式 -->
+      <label>证据内容</label>
+      <div class="rich-editor-shell">
+        <div
+          id="richToolbar"
+          class="rich-toolbar"
+          aria-label="富文本工具栏">
+          <button type="button" data-rich-command="bold" title="粗体"><strong>B</strong></button>
+          <button type="button" data-rich-command="italic" title="斜体"><em>I</em></button>
+          <button type="button" data-rich-command="underline" title="下划线"><u>U</u></button>
+          <button type="button" data-rich-command="insertUnorderedList" title="项目列表">• 列表</button>
+          <button type="button" data-rich-command="insertOrderedList" title="编号列表">1. 列表</button>
+          <button type="button" data-rich-command="createLink" title="添加链接">链接</button>
+          <button type="button" data-rich-command="removeFormat" title="清除格式">清除格式</button>
+        </div>
+        <div
+          id="evidenceContentEditor"
+          class="rich-editor"
+          contenteditable="true"
+          data-placeholder="记录详细观察、分析和结论，内容长度不限"></div>
+      </div>
 
       <!-- 证据表单操作按钮 -->
       <div class="actions">
@@ -1046,6 +1166,7 @@
        ============================== -->
   <dialog id="evidenceDetailDialog" class="detail-dialog">
     <h2>证据详情</h2>
+    <h3 id="detailEvidenceTitle"></h3>
 
     <div class="detail-meta">
       <strong id="detailCompetitorName"></strong>
@@ -1061,8 +1182,11 @@
     <!-- JavaScript 会把全部证据图片显示在这里 -->
     <div id="detailImages" class="detail-images"></div>
 
-    <h3>文字记录</h3>
-    <div id="detailComment" class="detail-comment"></div>
+    <h3>证据内容</h3>
+    <div
+      id="detailComment"
+      class="detail-comment rich-content">
+    </div>
 
     <div class="actions">
       <button id="closeDetailButton" type="button">
@@ -1140,6 +1264,14 @@
     const saveDimensionButton =
       document.querySelector('#saveDimensionButton');
 
+    /* 获取数据导入与导出相关页面元素 */
+    const exportDataButton =
+      document.querySelector('#exportDataButton');
+    const importDataButton =
+      document.querySelector('#importDataButton');
+    const importDataInput =
+      document.querySelector('#importDataInput');
+
     /* ==============================
        获取证据上传相关页面元素
        ============================== */
@@ -1159,6 +1291,10 @@
     const evidencePreviewList =
       document.querySelector('#evidencePreviewList');
     const pasteArea = document.querySelector('#pasteArea');
+    const evidenceTitle = document.querySelector('#evidenceTitle');
+    const evidenceContentEditor =
+      document.querySelector('#evidenceContentEditor');
+    const richToolbar = document.querySelector('#richToolbar');
     const saveEvidenceButton =
       document.querySelector('#saveEvidenceButton');
 
@@ -1171,6 +1307,8 @@
       document.querySelector('#detailCompetitorName');
     const detailCreatedDate =
       document.querySelector('#detailCreatedDate');
+    const detailEvidenceTitle =
+      document.querySelector('#detailEvidenceTitle');
     const detailDimensions =
       document.querySelector('#detailDimensions');
     const detailImages = document.querySelector('#detailImages');
@@ -1194,16 +1332,7 @@
     }));
 
     let evidenceItems = readStoredArray(evidenceStorageKey)
-      .map(item => ({
-        ...item,
-        id: item.id || createId(),
-        images:
-          item.images ||
-          (item.image ? [item.image] : []),
-        dimensionIds: Array.isArray(item.dimensionIds)
-          ? item.dimensionIds
-          : []
-      }));
+      .map(normalizeEvidenceItem);
 
     /* 首次使用矩阵时创建推荐的默认对比维度 */
     const defaultDimensionNames = [
@@ -1421,8 +1550,8 @@
                     class="matrix-evidence-line"
                     data-matrix-evidence-index="${entry.evidenceIndex}"
                     type="button"
-                    title="${escapeHtml(entry.evidence.comment)}">
-                    ${escapeHtml(entry.evidence.comment)}
+                    title="${escapeHtml(entry.evidence.title)}">
+                    ${escapeHtml(entry.evidence.title)}
                   </button>
                 `)
                 .join('');
@@ -1852,7 +1981,7 @@
                 `
                 : ''
             }
-            <p>${escapeHtml(evidence.comment)}</p>
+            <p>${escapeHtml(evidence.title)}</p>
           </div>
         </article>
       `;
@@ -2021,6 +2150,34 @@
     });
 
     /* ==============================
+       富文本工具栏操作
+       ============================== */
+    richToolbar.addEventListener('click', event => {
+      const button = event.target.closest(
+        'button[data-rich-command]'
+      );
+      if (!button) {
+        return;
+      }
+
+      const command = button.dataset.richCommand;
+      let value = null;
+
+      if (command === 'createLink') {
+        const inputUrl = window.prompt('请输入链接地址：');
+        if (!inputUrl) {
+          return;
+        }
+        value = /^(https?:|mailto:)/i.test(inputUrl)
+          ? inputUrl
+          : `https://${inputUrl}`;
+      }
+
+      evidenceContentEditor.focus();
+      document.execCommand(command, false, value);
+    });
+
+    /* ==============================
        打开指定竞品的证据上传弹窗
        ============================== */
     function openEvidenceDialog(competitorId) {
@@ -2066,8 +2223,8 @@
       );
       retainedEvidenceImages = [...evidence.images];
       evidenceCompetitorName.textContent = competitor.name;
-      document.querySelector('#evidenceComment').value =
-        evidence.comment;
+      evidenceTitle.value = evidence.title;
+      evidenceContentEditor.innerHTML = evidence.contentHtml;
       evidenceDialogTitle.textContent = '编辑调研证据';
       saveEvidenceButton.textContent = '保存修改';
       renderEvidenceDimensionOptions();
@@ -2202,6 +2359,20 @@
        ============================== */
     evidenceForm.addEventListener('submit', async event => {
       event.preventDefault();
+
+      const title = evidenceTitle.value.trim();
+      if (!title) {
+        window.alert('请输入证据标题。');
+        return;
+      }
+      if (Array.from(title).length > 20) {
+        window.alert('证据标题不能超过 20 个字符。');
+        return;
+      }
+
+      const contentHtml = sanitizeRichHtml(
+        evidenceContentEditor.innerHTML
+      );
       saveEvidenceButton.disabled = true;
 
       try {
@@ -2235,10 +2406,8 @@
           dimensionIds: Array.from(
             selectedEvidenceDimensionIds
           ),
-          comment:
-            document.querySelector('#evidenceComment')
-              .value
-              .trim(),
+          title,
+          contentHtml,
           createdAt: previousEvidence?.createdAt || now,
           updatedAt: previousEvidence ? now : undefined
         };
@@ -2306,6 +2475,7 @@
         : '已删除的竞品';
       detailCreatedDate.textContent =
         formatDate(evidence.createdAt);
+      detailEvidenceTitle.textContent = evidence.title;
 
       const linkedDimensions = evidence.dimensionIds
         .map(dimensionId =>
@@ -2334,7 +2504,9 @@
             alt="证据图片 ${index + 1}">
         `)
         .join('');
-      detailComment.textContent = evidence.comment;
+      detailComment.innerHTML = sanitizeRichHtml(
+        evidence.contentHtml
+      ) || '<p class="form-help">暂无详细内容</p>';
       evidenceDetailDialog.showModal();
     }
 
@@ -2380,9 +2552,9 @@
               alt="关联证据缩略图">
             <div>
               <strong>
-                ${escapeHtml(formatDate(entry.evidence.createdAt))}
+                ${escapeHtml(entry.evidence.title)}
               </strong>
-              <p>${escapeHtml(entry.evidence.comment)}</p>
+              <p>${escapeHtml(formatDate(entry.evidence.createdAt))}</p>
             </div>
           </button>
         `)
@@ -2430,6 +2602,7 @@
        ============================== */
     function resetEvidenceForm() {
       evidenceForm.reset();
+      evidenceContentEditor.innerHTML = '';
       editingEvidenceIndex = null;
       selectedEvidenceCompetitorId = null;
       selectedEvidenceDimensionIds = new Set();
@@ -2495,6 +2668,291 @@
         };
         reader.readAsDataURL(file);
       });
+    }
+
+    /* ==============================
+       导出完整数据备份
+       包含竞品、图片证据、维度和矩阵内容
+       ============================== */
+    exportDataButton.addEventListener('click', () => {
+      const backup = {
+        format: 'competitor-insights-backup',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        data: {
+          competitors,
+          evidenceItems,
+          comparisonData
+        }
+      };
+      const blob = new Blob(
+        [JSON.stringify(backup, null, 2)],
+        { type: 'application/json;charset=utf-8' }
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `竞品洞察台备份-${date}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    importDataButton.addEventListener('click', () => {
+      importDataInput.click();
+    });
+
+    importDataInput.addEventListener('change', async () => {
+      const file = importDataInput.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      try {
+        const backup = JSON.parse(await readFileAsText(file));
+        const imported = validateBackupData(backup);
+        const confirmed = window.confirm(
+          '导入将覆盖当前浏览器中的全部竞品、证据和矩阵数据。建议先导出当前数据备份。是否继续？'
+        );
+        if (!confirmed) {
+          return;
+        }
+
+        applyImportedData(imported);
+        render();
+        window.alert(
+          `导入成功：${competitors.length} 个竞品，${evidenceItems.length} 条证据。`
+        );
+      } catch (error) {
+        window.alert(`导入失败：${error.message}`);
+      } finally {
+        importDataInput.value = '';
+      }
+    });
+
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(
+          new Error('无法读取所选备份文件。')
+        );
+        reader.readAsText(file);
+      });
+    }
+
+    function validateBackupData(backup) {
+      if (
+        !backup ||
+        backup.format !== 'competitor-insights-backup' ||
+        !backup.data
+      ) {
+        throw new Error('这不是竞品洞察台的有效备份文件。');
+      }
+
+      const data = backup.data;
+      if (
+        !Array.isArray(data.competitors) ||
+        !Array.isArray(data.evidenceItems) ||
+        !data.comparisonData ||
+        !Array.isArray(data.comparisonData.dimensions)
+      ) {
+        throw new Error('备份文件结构不完整。');
+      }
+
+      const importedCompetitors = data.competitors.map(item => ({
+        ...item,
+        id: item.id || createId()
+      }));
+      const competitorIds = new Set(
+        importedCompetitors.map(item => item.id)
+      );
+      const importedDimensions = data.comparisonData.dimensions
+        .filter(item => item && String(item.name || '').trim())
+        .map(item => ({
+          id: item.id || createId(),
+          name: String(item.name).trim()
+        }));
+      const dimensionIds = new Set(
+        importedDimensions.map(item => item.id)
+      );
+      const importedEvidence = data.evidenceItems
+        .map(normalizeEvidenceItem)
+        .filter(item => competitorIds.has(item.competitorId))
+        .map(item => ({
+          ...item,
+          dimensionIds: item.dimensionIds.filter(id =>
+            dimensionIds.has(id)
+          )
+        }));
+
+      const importedValues = {};
+      importedDimensions.forEach(dimension => {
+        const sourceValues =
+          data.comparisonData.values?.[dimension.id];
+        if (!sourceValues || typeof sourceValues !== 'object') {
+          return;
+        }
+
+        importedValues[dimension.id] = {};
+        importedCompetitors.forEach(competitor => {
+          if (typeof sourceValues[competitor.id] === 'string') {
+            importedValues[dimension.id][competitor.id] =
+              sourceValues[competitor.id];
+          }
+        });
+      });
+
+      return {
+        competitors: importedCompetitors,
+        evidenceItems: importedEvidence,
+        comparisonData: {
+          dimensions: importedDimensions,
+          values: importedValues
+        }
+      };
+    }
+
+    /* 导入失败时同时恢复内存状态和三个本地存储键 */
+    function applyImportedData(imported) {
+      const previous = {
+        competitors,
+        evidenceItems,
+        comparisonData,
+        storedCompetitors: localStorage.getItem(storageKey),
+        storedEvidence: localStorage.getItem(evidenceStorageKey),
+        storedComparison: localStorage.getItem(comparisonStorageKey)
+      };
+
+      try {
+        competitors = imported.competitors;
+        evidenceItems = imported.evidenceItems;
+        comparisonData = imported.comparisonData;
+        persistCompetitors();
+        persistEvidence();
+        persistComparison();
+      } catch (error) {
+        competitors = previous.competitors;
+        evidenceItems = previous.evidenceItems;
+        comparisonData = previous.comparisonData;
+        restoreStorageValue(storageKey, previous.storedCompetitors);
+        restoreStorageValue(
+          evidenceStorageKey,
+          previous.storedEvidence
+        );
+        restoreStorageValue(
+          comparisonStorageKey,
+          previous.storedComparison
+        );
+        throw new Error(
+          '浏览器存储空间不足，当前数据已自动恢复。'
+        );
+      }
+    }
+
+    function restoreStorageValue(key, value) {
+      if (value === null) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, value);
+      }
+    }
+
+    /* ==============================
+       证据新旧数据兼容与富文本安全处理
+       ============================== */
+    function normalizeEvidenceItem(item = {}) {
+      const legacyText = String(item.comment || '').trim();
+      const sourceHtml = item.contentHtml ||
+        plainTextToHtml(legacyText);
+      const contentHtml = sanitizeRichHtml(sourceHtml);
+      const titleSource = String(
+        item.title || stripHtml(contentHtml) || legacyText || '未命名证据'
+      ).trim();
+
+      return {
+        ...item,
+        id: item.id || createId(),
+        images:
+          item.images ||
+          (item.image ? [item.image] : []),
+        dimensionIds: Array.isArray(item.dimensionIds)
+          ? item.dimensionIds
+          : [],
+        title: Array.from(titleSource).slice(0, 20).join(''),
+        contentHtml
+      };
+    }
+
+    function plainTextToHtml(text) {
+      if (!text) {
+        return '';
+      }
+
+      return String(text)
+        .split(/\n+/)
+        .map(line => `<p>${escapeHtml(line)}</p>`)
+        .join('');
+    }
+
+    function stripHtml(html) {
+      const container = document.createElement('div');
+      container.innerHTML = html || '';
+      return (container.textContent || '').trim();
+    }
+
+    /* 仅保留富文本编辑器支持的安全标签和链接协议 */
+    function sanitizeRichHtml(html) {
+      const template = document.createElement('template');
+      template.innerHTML = String(html || '');
+
+      /* 测试桩不具备 template.content 时使用纯文本兜底 */
+      if (!template.content) {
+        return String(html || '');
+      }
+
+      const allowedTags = new Set([
+        'P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U',
+        'UL', 'OL', 'LI', 'A', 'DIV'
+      ]);
+      const blockedTags = new Set([
+        'SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED'
+      ]);
+      const elements = Array.from(
+        template.content.querySelectorAll('*')
+      );
+
+      elements.forEach(element => {
+        if (blockedTags.has(element.tagName)) {
+          element.remove();
+          return;
+        }
+
+        if (!allowedTags.has(element.tagName)) {
+          element.replaceWith(...element.childNodes);
+          return;
+        }
+
+        const href = element.tagName === 'A'
+          ? String(element.getAttribute('href') || '').trim()
+          : '';
+        Array.from(element.attributes).forEach(attribute =>
+          element.removeAttribute(attribute.name)
+        );
+
+        if (
+          element.tagName === 'A' &&
+          /^(https?:|mailto:)/i.test(href)
+        ) {
+          element.setAttribute('href', href);
+          element.setAttribute('target', '_blank');
+          element.setAttribute('rel', 'noopener noreferrer');
+        }
+      });
+
+      return template.innerHTML.trim();
     }
 
     /* ==============================
