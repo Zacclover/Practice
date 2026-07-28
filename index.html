@@ -153,68 +153,211 @@
     }
 
     /* ==============================
-       调研证据区域
-       展示证据操作栏和图片证据卡片
+       竞品卡片内的调研证据区域
+       证据横向排列，超出宽度后可以左右滚动
        ============================== */
-    .section-toolbar {
+    .competitor-evidence {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .evidence-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      margin: 36px 0 16px;
+      gap: 12px;
+      margin-bottom: 12px;
     }
 
-    .section-toolbar h2 {
+    .evidence-header h4 {
       margin: 0;
+      font-size: 15px;
     }
 
-    .evidence-card {
+    .small-button {
+      padding: 7px 11px;
+      font-size: 13px;
+    }
+
+    .evidence-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 2px 2px 12px;
+      scroll-snap-type: x proximity;
+      scrollbar-width: thin;
+    }
+
+    .evidence-empty {
+      min-width: 100%;
+      padding: 18px;
+      color: #6b7280;
+      text-align: center;
+      font-size: 14px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 10px;
+    }
+
+    /* 单条证据使用固定正方形卡片 */
+    .evidence-tile {
+      position: relative;
+      flex: 0 0 160px;
+      width: 160px;
+      height: 160px;
       overflow: hidden;
-      background: white;
-      border: 1px solid #e5e7eb;
+      background: #e5e7eb;
       border-radius: 12px;
+      cursor: pointer;
+      scroll-snap-align: start;
     }
 
-    .evidence-card img {
+    /* 多图证据在方块内使用最多四格拼图 */
+    .evidence-collage {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 2px;
+    }
+
+    .evidence-collage.image-count-1 {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+    }
+
+    .evidence-collage.image-count-2 {
+      grid-template-rows: 1fr;
+    }
+
+    .evidence-collage img {
       display: block;
       width: 100%;
-      height: 190px;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
       object-fit: cover;
-      background: #e5e7eb;
     }
 
-    .evidence-content {
-      padding: 18px;
+    .evidence-count {
+      position: absolute;
+      top: 8px;
+      right: 42px;
+      padding: 4px 7px;
+      color: white;
+      background: rgba(15, 23, 42, .72);
+      border-radius: 6px;
+      font-size: 11px;
     }
 
-    .evidence-meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
-      color: #6b7280;
-      font-size: 14px;
+    /* 评论以渐变遮罩显示在图片底部 */
+    .evidence-overlay {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding: 28px 10px 10px;
+      color: white;
+      background: linear-gradient(
+        transparent,
+        rgba(15, 23, 42, .9)
+      );
     }
 
-    .evidence-comment {
+    .evidence-overlay p {
+      display: -webkit-box;
       margin: 0;
-      color: #374151;
-      line-height: 1.6;
-      white-space: pre-wrap;
+      overflow: hidden;
+      font-size: 12px;
+      line-height: 1.4;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .evidence-date {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 4px 7px;
+      color: white;
+      background: rgba(15, 23, 42, .72);
+      border-radius: 6px;
+      font-size: 11px;
+    }
+
+    .evidence-delete-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      background: rgba(220, 38, 38, .9);
+      border-radius: 50%;
+      font-size: 16px;
+      line-height: 28px;
     }
 
     /* ==============================
-       图片上传预览
-       用户选择图片后在保存前预览
+       多图上传和截图粘贴区域
+       展示选择方式、缩略图和单图移除按钮
        ============================== */
-    .image-preview {
-      display: none;
-      width: 100%;
-      max-height: 240px;
-      object-fit: contain;
-      border: 1px solid #e5e7eb;
+    .evidence-target {
+      padding: 12px;
+      color: #374151;
+      background: #eef2ff;
       border-radius: 8px;
+    }
+
+    .paste-area {
+      padding: 18px;
+      color: #4f46e5;
+      text-align: center;
       background: #f8fafc;
+      border: 2px dashed #a5b4fc;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    .paste-area:focus {
+      background: #eef2ff;
+      border-color: #4f46e5;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fill,
+        minmax(90px, 1fr)
+      );
+      gap: 10px;
+    }
+
+    .preview-item {
+      position: relative;
+      aspect-ratio: 1;
+      overflow: hidden;
+      background: #e5e7eb;
+      border-radius: 8px;
+    }
+
+    .preview-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .preview-remove-button {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      background: rgba(220, 38, 38, .9);
+      border-radius: 50%;
     }
 
     .form-help {
@@ -224,13 +367,49 @@
       line-height: 1.5;
     }
 
-    select {
+    /* ==============================
+       证据详情弹窗
+       完整展示所有图片和文字记录
+       ============================== */
+    .detail-dialog {
+      width: min(900px, calc(100% - 32px));
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+    }
+
+    .detail-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      color: #6b7280;
+    }
+
+    .detail-images {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(240px, 1fr)
+      );
+      gap: 14px;
+      margin: 18px 0;
+    }
+
+    .detail-images img {
       width: 100%;
-      padding: 10px 12px;
-      font: inherit;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      background: white;
+      max-height: 520px;
+      object-fit: contain;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+    }
+
+    .detail-comment {
+      padding: 16px;
+      color: #374151;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      background: #f8fafc;
+      border-radius: 10px;
     }
 
     /* ==============================
@@ -344,23 +523,6 @@
       id="competitorList"
       class="grid">
     </section>
-
-    <!-- ==============================
-         调研证据区域
-         展示与竞品关联的图片和评论
-         ============================== -->
-    <div class="section-toolbar">
-      <h2>调研证据</h2>
-      <button id="addEvidenceButton">
-        添加证据
-      </button>
-    </div>
-
-    <!-- JavaScript 会把调研证据卡片显示在这里 -->
-    <section
-      id="evidenceList"
-      class="grid">
-    </section>
   </main>
 
   <!-- ==============================
@@ -422,32 +584,39 @@
     <form id="evidenceForm">
       <h2>添加调研证据</h2>
 
-      <!-- 选择这条证据对应的竞品 -->
-      <label>
-        对应竞品
-        <select id="evidenceCompetitor" required>
-        </select>
-      </label>
+      <!-- 显示从哪张竞品卡片打开了证据弹窗 -->
+      <div class="evidence-target">
+        对应竞品：
+        <strong id="evidenceCompetitorName"></strong>
+      </div>
 
-      <!-- 从本地设备选择一张图片 -->
+      <!-- 可以一次选择多张本地图片 -->
       <label>
         证据图片
         <input
           id="evidenceImage"
           type="file"
           accept="image/*"
-          required>
+          multiple>
       </label>
 
       <p class="form-help">
-        图片会自动压缩后保存在当前浏览器中。建议单张原图不超过 10MB。
+        支持一次选择多张图片；建议每张原图不超过 10MB。
       </p>
 
-      <!-- 选择图片后显示压缩前的预览 -->
-      <img
-        id="evidencePreview"
-        class="image-preview"
-        alt="待上传证据图片预览">
+      <!-- 点击后可以直接粘贴剪贴板中的截图 -->
+      <div
+        id="pasteArea"
+        class="paste-area"
+        tabindex="0">
+        点击这里，然后按 Ctrl+V 或 Command+V 粘贴截图
+      </div>
+
+      <!-- 显示所有待保存图片的缩略图 -->
+      <div
+        id="evidencePreviewList"
+        class="preview-grid">
+      </div>
 
       <!-- 填写对图片内容的观察或评论 -->
       <label>
@@ -474,244 +643,203 @@
     </form>
   </dialog>
 
+  <!-- ==============================
+       证据详情弹窗
+       显示全部图片和完整文字记录
+       ============================== -->
+  <dialog id="evidenceDetailDialog" class="detail-dialog">
+    <h2>证据详情</h2>
+
+    <div class="detail-meta">
+      <strong id="detailCompetitorName"></strong>
+      <span id="detailCreatedDate"></span>
+    </div>
+
+    <!-- JavaScript 会把全部证据图片显示在这里 -->
+    <div id="detailImages" class="detail-images"></div>
+
+    <h3>文字记录</h3>
+    <div id="detailComment" class="detail-comment"></div>
+
+    <div class="actions">
+      <button id="closeDetailButton" type="button">
+        关闭
+      </button>
+    </div>
+  </dialog>
+
   <script>
     /* ==============================
-       数据存储设置
-       定义浏览器 localStorage 使用的名称
+       浏览器存储名称
+       分别保存竞品档案和调研证据
        ============================== */
     const storageKey = 'competitor-insights-items';
     const evidenceStorageKey = 'competitor-insights-evidence';
 
     /* ==============================
-       获取页面元素
-       方便后续操作竞品列表、弹窗和表单
+       获取竞品管理相关页面元素
        ============================== */
-    const list =
-      document.querySelector('#competitorList');
+    const list = document.querySelector('#competitorList');
+    const dialog = document.querySelector('#competitorDialog');
+    const form = document.querySelector('#competitorForm');
+    const dialogTitle = document.querySelector('#dialogTitle');
+    const saveButton = document.querySelector('#saveButton');
 
-    const dialog =
-      document.querySelector('#competitorDialog');
-
-    const form =
-      document.querySelector('#competitorForm');
-
-    const dialogTitle =
-      document.querySelector('#dialogTitle');
-
-    const saveButton =
-      document.querySelector('#saveButton');
-
-    const evidenceList =
-      document.querySelector('#evidenceList');
-
-    const evidenceDialog =
-      document.querySelector('#evidenceDialog');
-
-    const evidenceForm =
-      document.querySelector('#evidenceForm');
-
-    const evidenceCompetitor =
-      document.querySelector('#evidenceCompetitor');
-
-    const evidenceImage =
-      document.querySelector('#evidenceImage');
-
-    const evidencePreview =
-      document.querySelector('#evidencePreview');
-
+    /* ==============================
+       获取证据上传相关页面元素
+       ============================== */
+    const evidenceDialog = document.querySelector('#evidenceDialog');
+    const evidenceForm = document.querySelector('#evidenceForm');
+    const evidenceCompetitorName =
+      document.querySelector('#evidenceCompetitorName');
+    const evidenceImage = document.querySelector('#evidenceImage');
+    const evidencePreviewList =
+      document.querySelector('#evidencePreviewList');
+    const pasteArea = document.querySelector('#pasteArea');
     const saveEvidenceButton =
       document.querySelector('#saveEvidenceButton');
 
     /* ==============================
-       读取已经保存的竞品
-       如果没有数据，则使用空数组
+       获取证据详情相关页面元素
        ============================== */
-    let competitors = JSON.parse(
-      localStorage.getItem(storageKey) || '[]'
-    );
+    const evidenceDetailDialog =
+      document.querySelector('#evidenceDetailDialog');
+    const detailCompetitorName =
+      document.querySelector('#detailCompetitorName');
+    const detailCreatedDate =
+      document.querySelector('#detailCreatedDate');
+    const detailImages = document.querySelector('#detailImages');
+    const detailComment = document.querySelector('#detailComment');
 
-    /* 为旧版竞品数据补充唯一编号
-       证据通过编号与竞品建立稳定关联 */
-    competitors = competitors.map(item => ({
+    /* ==============================
+       读取并迁移已有数据
+       兼容旧版单图证据和无编号竞品
+       ============================== */
+    let competitors = readStoredArray(storageKey).map(item => ({
       ...item,
       id: item.id || createId()
     }));
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify(competitors)
-    );
 
-    /* 读取浏览器中已经保存的调研证据 */
-    let evidenceItems = JSON.parse(
-      localStorage.getItem(evidenceStorageKey) || '[]'
-    );
+    let evidenceItems = readStoredArray(evidenceStorageKey)
+      .map(item => ({
+        ...item,
+        id: item.id || createId(),
+        images:
+          item.images ||
+          (item.image ? [item.image] : [])
+      }))
+      .filter(item => item.images.length > 0);
 
-    /* 当前正在编辑的竞品序号
-       null 表示正在添加新竞品 */
+    persistCompetitors();
+    persistEvidence();
+
+    /* 当前正在编辑的竞品序号，null 表示新增 */
     let editingIndex = null;
 
+    /* 当前正在添加证据的竞品编号 */
+    let selectedEvidenceCompetitorId = null;
+
+    /* 待保存的图片文件和预览地址 */
+    let pendingEvidenceFiles = [];
+    let previewObjectUrls = [];
+
     /* ==============================
-       渲染竞品列表
-       根据数据生成空状态或竞品卡片
+       渲染竞品档案
+       每张竞品卡片内包含自己的证据横向列表
        ============================== */
     function render() {
-      /* 每次竞品变化后同步更新证据表单和证据卡片 */
-      populateEvidenceCompetitors();
-      renderEvidence();
-
-      /* 没有竞品时显示空状态 */
       if (competitors.length === 0) {
         list.innerHTML = `
           <div class="empty">
             还没有竞品，点击上方按钮添加第一个。
           </div>
         `;
-
         return;
       }
 
-      /* 有竞品时生成对应的竞品卡片 */
       list.innerHTML = competitors
-        .map((item, index) => `
-          <article class="card">
-            <h3>${escapeHtml(item.name)}</h3>
-
-            <p>
-              ${escapeHtml(
-                item.positioning || '暂未填写产品定位'
-              )}
-            </p>
-
-            ${
-              item.website
-                ? `
-                  <a
-                    href="${escapeHtml(item.website)}"
-                    target="_blank"
-                    rel="noopener">
-                    访问官网 →
-                  </a>
-                `
-                : ''
-            }
-
-            <!-- 编辑和删除按钮通过 data-index 识别当前竞品 -->
-            <div class="card-actions">
-              <button
-                class="edit-button"
-                data-action="edit"
-                data-index="${index}">
-                编辑
-              </button>
-
-              <button
-                class="delete-button"
-                data-action="delete"
-                data-index="${index}">
-                删除
-              </button>
-            </div>
-          </article>
-        `)
-        .join('');
-    }
-
-    /* ==============================
-       生成唯一编号
-       用于稳定关联竞品和调研证据
-       ============================== */
-    function createId() {
-      if (
-        window.crypto &&
-        typeof window.crypto.randomUUID === 'function'
-      ) {
-        return window.crypto.randomUUID();
-      }
-
-      return `${Date.now()}-${Math.random()}`;
-    }
-
-    /* ==============================
-       更新证据表单中的竞品选项
-       竞品新增、编辑或删除后自动同步
-       ============================== */
-    function populateEvidenceCompetitors() {
-      const selectedValue = evidenceCompetitor.value;
-
-      if (competitors.length === 0) {
-        evidenceCompetitor.innerHTML = `
-          <option value="">请先添加竞品</option>
-        `;
-        return;
-      }
-
-      evidenceCompetitor.innerHTML = competitors
-        .map(item => `
-          <option value="${escapeHtml(item.id)}">
-            ${escapeHtml(item.name)}
-          </option>
-        `)
-        .join('');
-
-      /* 如果原选项仍然存在，则保持原来的选择 */
-      if (
-        competitors.some(item => item.id === selectedValue)
-      ) {
-        evidenceCompetitor.value = selectedValue;
-      }
-    }
-
-    /* ==============================
-       渲染调研证据列表
-       展示证据图片、对应竞品、日期和评论
-       ============================== */
-    function renderEvidence() {
-      if (evidenceItems.length === 0) {
-        evidenceList.innerHTML = `
-          <div class="empty">
-            还没有调研证据，点击“添加证据”上传第一张图片。
-          </div>
-        `;
-        return;
-      }
-
-      evidenceList.innerHTML = evidenceItems
         .map((item, index) => {
-          const competitor = competitors.find(
-            entry => entry.id === item.competitorId
-          );
-          const competitorName = competitor
-            ? competitor.name
-            : '已删除的竞品';
-          const createdDate = new Date(
-            item.createdAt
-          ).toLocaleDateString('zh-CN');
+          const relatedEvidence = evidenceItems
+            .map((evidence, evidenceIndex) => ({
+              evidence,
+              evidenceIndex
+            }))
+            .filter(entry =>
+              entry.evidence.competitorId === item.id
+            );
+
+          const evidenceMarkup = relatedEvidence.length
+            ? relatedEvidence
+                .map(entry => renderEvidenceTile(
+                  entry.evidence,
+                  entry.evidenceIndex
+                ))
+                .join('')
+            : `
+                <div class="evidence-empty">
+                  还没有证据，点击“添加证据”上传图片。
+                </div>
+              `;
 
           return `
-            <article class="evidence-card">
-              <img
-                src="${escapeHtml(item.image)}"
-                alt="${escapeHtml(competitorName)}的调研证据">
+            <article class="card">
+              <h3>${escapeHtml(item.name)}</h3>
 
-              <div class="evidence-content">
-                <div class="evidence-meta">
-                  <strong>${escapeHtml(competitorName)}</strong>
-                  <span>${escapeHtml(createdDate)}</span>
-                </div>
+              <p>
+                ${escapeHtml(
+                  item.positioning || '暂未填写产品定位'
+                )}
+              </p>
 
-                <p class="evidence-comment">
-                  ${escapeHtml(item.comment)}
-                </p>
+              ${
+                item.website
+                  ? `
+                    <a
+                      href="${escapeHtml(item.website)}"
+                      target="_blank"
+                      rel="noopener">
+                      访问官网 →
+                    </a>
+                  `
+                  : ''
+              }
 
-                <div class="card-actions">
+              <!-- 竞品档案基础操作 -->
+              <div class="card-actions">
+                <button
+                  class="edit-button"
+                  data-action="edit"
+                  data-index="${index}">
+                  编辑
+                </button>
+
+                <button
+                  class="delete-button"
+                  data-action="delete"
+                  data-index="${index}">
+                  删除
+                </button>
+              </div>
+
+              <!-- 当前竞品关联的调研证据 -->
+              <section class="competitor-evidence">
+                <div class="evidence-header">
+                  <h4>
+                    调研证据（${relatedEvidence.length}）
+                  </h4>
+
                   <button
-                    class="delete-button"
-                    data-evidence-action="delete"
-                    data-index="${index}">
-                    删除证据
+                    class="small-button"
+                    data-action="add-evidence"
+                    data-competitor-id="${escapeHtml(item.id)}">
+                    添加证据
                   </button>
                 </div>
-              </div>
+
+                <div class="evidence-scroll">
+                  ${evidenceMarkup}
+                </div>
+              </section>
             </article>
           `;
         })
@@ -719,21 +847,465 @@
     }
 
     /* ==============================
-       重置证据表单
-       清空图片、评论和图片预览
+       生成单个正方形证据卡片
+       最多用四格拼图展示图片缩略图
        ============================== */
-    function resetEvidenceForm() {
-      evidenceForm.reset();
-      evidencePreview.removeAttribute('src');
-      evidencePreview.style.display = 'none';
-      saveEvidenceButton.disabled = false;
-      saveEvidenceButton.textContent = '保存证据';
-      populateEvidenceCompetitors();
+    function renderEvidenceTile(evidence, evidenceIndex) {
+      const previewImages = evidence.images.slice(0, 4);
+      const imageCountClass = `image-count-${
+        Math.min(previewImages.length, 4)
+      }`;
+      const collage = previewImages
+        .map(image => `
+          <img src="${escapeHtml(image)}" alt="证据图片">
+        `)
+        .join('');
+      const date = formatShortDate(evidence.createdAt);
+
+      return `
+        <article
+          class="evidence-tile"
+          data-evidence-action="view"
+          data-index="${evidenceIndex}"
+          title="点击查看证据详情">
+
+          <div class="evidence-collage ${imageCountClass}">
+            ${collage}
+          </div>
+
+          <span class="evidence-date">
+            ${escapeHtml(date)}
+          </span>
+
+          ${
+            evidence.images.length > 1
+              ? `
+                <span class="evidence-count">
+                  ${evidence.images.length} 张
+                </span>
+              `
+              : ''
+          }
+
+          <button
+            class="evidence-delete-button"
+            data-evidence-action="delete"
+            data-index="${evidenceIndex}"
+            type="button"
+            title="删除证据">
+            ×
+          </button>
+
+          <div class="evidence-overlay">
+            <p>${escapeHtml(evidence.comment)}</p>
+          </div>
+        </article>
+      `;
     }
 
     /* ==============================
-       压缩证据图片
-       限制最长边为 1600 像素并输出 JPEG
+       处理竞品卡片中的所有点击操作
+       包括竞品编辑删除、添加证据和证据详情
+       ============================== */
+    list.addEventListener('click', event => {
+      const evidenceControl = event.target.closest(
+        '[data-evidence-action]'
+      );
+
+      if (evidenceControl) {
+        const evidenceIndex = Number(
+          evidenceControl.dataset.index
+        );
+        const evidenceAction =
+          evidenceControl.dataset.evidenceAction;
+
+        if (evidenceAction === 'view') {
+          openEvidenceDetail(evidenceIndex);
+        }
+
+        if (evidenceAction === 'delete') {
+          deleteEvidence(evidenceIndex);
+        }
+
+        return;
+      }
+
+      const button = event.target.closest('button[data-action]');
+      if (!button) {
+        return;
+      }
+
+      const action = button.dataset.action;
+
+      if (action === 'add-evidence') {
+        openEvidenceDialog(button.dataset.competitorId);
+        return;
+      }
+
+      const index = Number(button.dataset.index);
+      const competitor = competitors[index];
+
+      if (action === 'edit') {
+        editingIndex = index;
+        document.querySelector('#name').value = competitor.name;
+        document.querySelector('#website').value = competitor.website;
+        document.querySelector('#positioning').value =
+          competitor.positioning;
+        dialogTitle.textContent = '编辑竞品';
+        saveButton.textContent = '保存修改';
+        dialog.showModal();
+      }
+
+      if (action === 'delete') {
+        const evidenceCount = evidenceItems.filter(
+          item => item.competitorId === competitor.id
+        ).length;
+        const message = evidenceCount > 0
+          ? `确定删除“${competitor.name}”及其 ${evidenceCount} 条证据吗？`
+          : `确定删除“${competitor.name}”吗？`;
+
+        if (!window.confirm(message)) {
+          return;
+        }
+
+        competitors.splice(index, 1);
+        evidenceItems = evidenceItems.filter(
+          item => item.competitorId !== competitor.id
+        );
+        persistCompetitors();
+        persistEvidence();
+        render();
+      }
+    });
+
+    /* ==============================
+       打开新增竞品弹窗
+       ============================== */
+    document
+      .querySelector('#addButton')
+      .addEventListener('click', () => {
+        editingIndex = null;
+        form.reset();
+        dialogTitle.textContent = '添加竞品';
+        saveButton.textContent = '保存竞品';
+        dialog.showModal();
+      });
+
+    /* ==============================
+       取消新增或编辑竞品
+       ============================== */
+    document
+      .querySelector('#cancelButton')
+      .addEventListener('click', () => {
+        editingIndex = null;
+        form.reset();
+        dialog.close();
+      });
+
+    /* ==============================
+       保存新增或编辑后的竞品
+       编辑时保留原有唯一编号和证据关联
+       ============================== */
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+
+      const competitor = {
+        id:
+          editingIndex === null
+            ? createId()
+            : competitors[editingIndex].id,
+        name: document.querySelector('#name').value.trim(),
+        website:
+          document.querySelector('#website').value.trim(),
+        positioning:
+          document.querySelector('#positioning').value.trim()
+      };
+
+      if (editingIndex === null) {
+        competitors.push(competitor);
+      } else {
+        competitors[editingIndex] = competitor;
+      }
+
+      persistCompetitors();
+      editingIndex = null;
+      form.reset();
+      dialog.close();
+      render();
+    });
+
+    /* ==============================
+       打开指定竞品的证据上传弹窗
+       ============================== */
+    function openEvidenceDialog(competitorId) {
+      const competitor = competitors.find(
+        item => item.id === competitorId
+      );
+
+      if (!competitor) {
+        window.alert('没有找到对应竞品。');
+        return;
+      }
+
+      resetEvidenceForm();
+      selectedEvidenceCompetitorId = competitorId;
+      evidenceCompetitorName.textContent = competitor.name;
+      evidenceDialog.showModal();
+    }
+
+    /* ==============================
+       添加本地选择或剪贴板粘贴的多张图片
+       ============================== */
+    function addPendingFiles(files) {
+      const validFiles = [];
+      let oversizedCount = 0;
+      let invalidCount = 0;
+
+      files.forEach(file => {
+        if (!file.type.startsWith('image/')) {
+          invalidCount += 1;
+          return;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+          oversizedCount += 1;
+          return;
+        }
+
+        validFiles.push(file);
+      });
+
+      pendingEvidenceFiles.push(...validFiles);
+      renderPendingPreviews();
+
+      if (oversizedCount > 0) {
+        window.alert(
+          `${oversizedCount} 张图片超过 10MB，已跳过。`
+        );
+      }
+
+      if (invalidCount > 0) {
+        window.alert(
+          `${invalidCount} 个文件不是图片，已跳过。`
+        );
+      }
+    }
+
+    /* 文件选择框支持一次选择多张图片 */
+    evidenceImage.addEventListener('change', () => {
+      addPendingFiles(Array.from(evidenceImage.files));
+      evidenceImage.value = '';
+    });
+
+    /* ==============================
+       支持把剪贴板截图粘贴到当前证据
+       ============================== */
+    pasteArea.addEventListener('paste', event => {
+      const imageFiles = Array.from(
+        event.clipboardData.items
+      )
+        .filter(item => item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+
+      if (imageFiles.length === 0) {
+        window.alert('剪贴板中没有可用的图片。');
+        return;
+      }
+
+      event.preventDefault();
+      addPendingFiles(imageFiles);
+    });
+
+    /* ==============================
+       渲染所有待保存图片的缩略图
+       每张图片都可以单独移除
+       ============================== */
+    function renderPendingPreviews() {
+      revokePreviewUrls();
+
+      previewObjectUrls = pendingEvidenceFiles.map(file =>
+        URL.createObjectURL(file)
+      );
+
+      evidencePreviewList.innerHTML = previewObjectUrls
+        .map((url, index) => `
+          <div class="preview-item">
+            <img
+              src="${escapeHtml(url)}"
+              alt="待保存图片 ${index + 1}">
+            <button
+              class="preview-remove-button"
+              data-preview-index="${index}"
+              type="button"
+              title="移除图片">
+              ×
+            </button>
+          </div>
+        `)
+        .join('');
+    }
+
+    evidencePreviewList.addEventListener('click', event => {
+      const button = event.target.closest(
+        'button[data-preview-index]'
+      );
+
+      if (!button) {
+        return;
+      }
+
+      pendingEvidenceFiles.splice(
+        Number(button.dataset.previewIndex),
+        1
+      );
+      renderPendingPreviews();
+    });
+
+    /* ==============================
+       保存包含多张图片和文字记录的证据
+       ============================== */
+    evidenceForm.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      if (pendingEvidenceFiles.length === 0) {
+        window.alert('请至少选择或粘贴一张证据图片。');
+        return;
+      }
+
+      saveEvidenceButton.disabled = true;
+
+      try {
+        const compressedImages = [];
+
+        for (
+          let index = 0;
+          index < pendingEvidenceFiles.length;
+          index += 1
+        ) {
+          saveEvidenceButton.textContent =
+            `正在处理 ${index + 1}/${pendingEvidenceFiles.length}…`;
+          compressedImages.push(
+            await compressImage(pendingEvidenceFiles[index])
+          );
+        }
+
+        const evidence = {
+          id: createId(),
+          competitorId: selectedEvidenceCompetitorId,
+          images: compressedImages,
+          comment:
+            document.querySelector('#evidenceComment')
+              .value
+              .trim(),
+          createdAt: new Date().toISOString()
+        };
+
+        evidenceItems.push(evidence);
+
+        try {
+          persistEvidence();
+        } catch (storageError) {
+          evidenceItems.pop();
+          throw new Error(
+            '浏览器存储空间不足，请减少图片数量或删除旧证据。'
+          );
+        }
+
+        evidenceDialog.close();
+        resetEvidenceForm();
+        render();
+      } catch (error) {
+        window.alert(error.message);
+        saveEvidenceButton.disabled = false;
+        saveEvidenceButton.textContent = '保存证据';
+      }
+    });
+
+    /* ==============================
+       取消添加证据并清空临时图片
+       ============================== */
+    document
+      .querySelector('#cancelEvidenceButton')
+      .addEventListener('click', () => {
+        evidenceDialog.close();
+        resetEvidenceForm();
+      });
+
+    /* ==============================
+       打开证据详情
+       完整展示所有图片和文字记录
+       ============================== */
+    function openEvidenceDetail(evidenceIndex) {
+      const evidence = evidenceItems[evidenceIndex];
+      if (!evidence) {
+        return;
+      }
+
+      const competitor = competitors.find(
+        item => item.id === evidence.competitorId
+      );
+
+      detailCompetitorName.textContent = competitor
+        ? competitor.name
+        : '已删除的竞品';
+      detailCreatedDate.textContent =
+        formatDate(evidence.createdAt);
+      detailImages.innerHTML = evidence.images
+        .map((image, index) => `
+          <img
+            src="${escapeHtml(image)}"
+            alt="证据图片 ${index + 1}">
+        `)
+        .join('');
+      detailComment.textContent = evidence.comment;
+      evidenceDetailDialog.showModal();
+    }
+
+    document
+      .querySelector('#closeDetailButton')
+      .addEventListener('click', () => {
+        evidenceDetailDialog.close();
+      });
+
+    /* ==============================
+       删除单条证据
+       删除按钮独立于详情点击操作
+       ============================== */
+    function deleteEvidence(evidenceIndex) {
+      if (!window.confirm('确定删除这条调研证据吗？')) {
+        return;
+      }
+
+      evidenceItems.splice(evidenceIndex, 1);
+      persistEvidence();
+      render();
+    }
+
+    /* ==============================
+       重置证据表单和图片预览
+       ============================== */
+    function resetEvidenceForm() {
+      evidenceForm.reset();
+      selectedEvidenceCompetitorId = null;
+      pendingEvidenceFiles = [];
+      revokePreviewUrls();
+      evidencePreviewList.innerHTML = '';
+      evidenceCompetitorName.textContent = '';
+      saveEvidenceButton.disabled = false;
+      saveEvidenceButton.textContent = '保存证据';
+    }
+
+    function revokePreviewUrls() {
+      previewObjectUrls.forEach(url =>
+        URL.revokeObjectURL(url)
+      );
+      previewObjectUrls = [];
+    }
+
+    /* ==============================
+       压缩单张证据图片
+       最长边限制为 1600 像素并输出 JPEG
        ============================== */
     function compressImage(file) {
       return new Promise((resolve, reject) => {
@@ -763,302 +1335,75 @@
           };
 
           image.onerror = () => {
-            reject(new Error('无法读取所选图片'));
+            reject(new Error('无法读取所选图片。'));
           };
-
           image.src = reader.result;
         };
 
         reader.onerror = () => {
-          reject(new Error('无法读取所选文件'));
+          reject(new Error('无法读取所选文件。'));
         };
-
         reader.readAsDataURL(file);
       });
     }
 
     /* ==============================
-       内容安全处理
-       避免用户输入被浏览器当作 HTML 执行
+       数据读写和通用辅助函数
        ============================== */
-    function escapeHtml(value) {
-      const div = document.createElement('div');
-      div.textContent = value;
-      return div.innerHTML;
+    function readStoredArray(key) {
+      try {
+        const value = JSON.parse(
+          localStorage.getItem(key) || '[]'
+        );
+        return Array.isArray(value) ? value : [];
+      } catch (error) {
+        return [];
+      }
     }
 
-    /* ==============================
-       打开“添加竞品”弹窗
-       清空表单并切换到新增模式
-       ============================== */
-    document
-      .querySelector('#addButton')
-      .addEventListener('click', () => {
-        editingIndex = null;
-        form.reset();
-        dialogTitle.textContent = '添加竞品';
-        saveButton.textContent = '保存竞品';
-        dialog.showModal();
-      });
-
-    /* ==============================
-       关闭弹窗
-       点击“取消”后不保存本次修改
-       ============================== */
-    document
-      .querySelector('#cancelButton')
-      .addEventListener('click', () => {
-        editingIndex = null;
-        form.reset();
-        dialog.close();
-      });
-
-    /* ==============================
-       处理竞品卡片操作
-       根据按钮类型执行编辑或删除
-       ============================== */
-    list.addEventListener('click', event => {
-      const button = event.target.closest('button[data-action]');
-
-      /* 点击的不是编辑或删除按钮时，不执行后续操作 */
-      if (!button) {
-        return;
-      }
-
-      const index = Number(button.dataset.index);
-      const action = button.dataset.action;
-      const competitor = competitors[index];
-
-      /* 编辑竞品：把已有内容填入表单 */
-      if (action === 'edit') {
-        editingIndex = index;
-        document.querySelector('#name').value = competitor.name;
-        document.querySelector('#website').value = competitor.website;
-        document.querySelector('#positioning').value =
-          competitor.positioning;
-        dialogTitle.textContent = '编辑竞品';
-        saveButton.textContent = '保存修改';
-        dialog.showModal();
-      }
-
-      /* 删除竞品：确认后删除并保存最新数据 */
-      if (action === 'delete') {
-        const confirmed = window.confirm(
-          `确定删除“${competitor.name}”吗？`
-        );
-
-        if (!confirmed) {
-          return;
-        }
-
-        competitors.splice(index, 1);
-        localStorage.setItem(
-          storageKey,
-          JSON.stringify(competitors)
-        );
-        render();
-      }
-    });
-
-    /* ==============================
-       保存竞品
-       新增模式会添加数据，编辑模式会更新数据
-       ============================== */
-    form.addEventListener('submit', event => {
-      /* 阻止浏览器刷新页面 */
-      event.preventDefault();
-
-      /* 从表单中读取最新竞品信息 */
-      const competitor = {
-        id:
-          editingIndex === null
-            ? createId()
-            : competitors[editingIndex].id,
-
-        name:
-          document.querySelector('#name')
-            .value
-            .trim(),
-
-        website:
-          document.querySelector('#website')
-            .value
-            .trim(),
-
-        positioning:
-          document.querySelector('#positioning')
-            .value
-            .trim()
-      };
-
-      /* 根据当前模式新增或更新竞品 */
-      if (editingIndex === null) {
-        competitors.push(competitor);
-      } else {
-        competitors[editingIndex] = competitor;
-      }
-
-      /* 保存到浏览器 localStorage */
+    function persistCompetitors() {
       localStorage.setItem(
         storageKey,
         JSON.stringify(competitors)
       );
+    }
 
-      /* 保存完成后退出编辑模式并清空表单 */
-      editingIndex = null;
-      form.reset();
-
-      /* 关闭添加弹窗 */
-      dialog.close();
-
-      /* 重新显示最新竞品列表 */
-      render();
-    });
-
-    /* ==============================
-       打开添加证据弹窗
-       没有竞品时先提醒用户创建竞品
-       ============================== */
-    document
-      .querySelector('#addEvidenceButton')
-      .addEventListener('click', () => {
-        if (competitors.length === 0) {
-          window.alert('请先添加至少一个竞品。');
-          return;
-        }
-
-        resetEvidenceForm();
-        evidenceDialog.showModal();
-      });
-
-    /* ==============================
-       预览待上传图片
-       同时检查原始文件是否超过 10MB
-       ============================== */
-    evidenceImage.addEventListener('change', () => {
-      const file = evidenceImage.files[0];
-
-      if (!file) {
-        evidencePreview.removeAttribute('src');
-        evidencePreview.style.display = 'none';
-        return;
-      }
-
-      if (file.size > 10 * 1024 * 1024) {
-        window.alert('图片不能超过 10MB，请选择较小的图片。');
-        evidenceImage.value = '';
-        evidencePreview.removeAttribute('src');
-        evidencePreview.style.display = 'none';
-        return;
-      }
-
-      const previewUrl = URL.createObjectURL(file);
-      evidencePreview.onload = () => {
-        URL.revokeObjectURL(previewUrl);
-      };
-      evidencePreview.src = previewUrl;
-      evidencePreview.style.display = 'block';
-    });
-
-    /* ==============================
-       取消添加证据
-       关闭弹窗并清空临时内容
-       ============================== */
-    document
-      .querySelector('#cancelEvidenceButton')
-      .addEventListener('click', () => {
-        resetEvidenceForm();
-        evidenceDialog.close();
-      });
-
-    /* ==============================
-       保存调研证据
-       压缩图片后与评论一起保存到浏览器
-       ============================== */
-    evidenceForm.addEventListener('submit', async event => {
-      event.preventDefault();
-      const file = evidenceImage.files[0];
-
-      if (!file) {
-        window.alert('请选择一张证据图片。');
-        return;
-      }
-
-      saveEvidenceButton.disabled = true;
-      saveEvidenceButton.textContent = '正在保存…';
-
-      try {
-        const compressedImage = await compressImage(file);
-        const evidence = {
-          id: createId(),
-          competitorId: evidenceCompetitor.value,
-          image: compressedImage,
-          comment:
-            document.querySelector('#evidenceComment')
-              .value
-              .trim(),
-          createdAt: new Date().toISOString()
-        };
-
-        evidenceItems.push(evidence);
-
-        try {
-          localStorage.setItem(
-            evidenceStorageKey,
-            JSON.stringify(evidenceItems)
-          );
-        } catch (storageError) {
-          /* 保存失败时撤销刚才加入数组的数据 */
-          evidenceItems.pop();
-          throw new Error(
-            '浏览器存储空间不足，请删除部分证据或选择更小的图片。'
-          );
-        }
-
-        resetEvidenceForm();
-        evidenceDialog.close();
-        renderEvidence();
-      } catch (error) {
-        window.alert(error.message);
-        saveEvidenceButton.disabled = false;
-        saveEvidenceButton.textContent = '保存证据';
-      }
-    });
-
-    /* ==============================
-       删除调研证据
-       确认后从浏览器中永久移除
-       ============================== */
-    evidenceList.addEventListener('click', event => {
-      const button = event.target.closest(
-        'button[data-evidence-action]'
-      );
-
-      if (!button) {
-        return;
-      }
-
-      const index = Number(button.dataset.index);
-      const confirmed = window.confirm(
-        '确定删除这条调研证据吗？'
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
-      evidenceItems.splice(index, 1);
+    function persistEvidence() {
       localStorage.setItem(
         evidenceStorageKey,
         JSON.stringify(evidenceItems)
       );
-      renderEvidence();
-    });
+    }
 
-    /* ==============================
-       页面初始化
-       第一次打开页面时显示已有数据
-       ============================== */
+    function createId() {
+      if (
+        window.crypto &&
+        typeof window.crypto.randomUUID === 'function'
+      ) {
+        return window.crypto.randomUUID();
+      }
+      return `${Date.now()}-${Math.random()}`;
+    }
+
+    function formatDate(value) {
+      return new Date(value).toLocaleDateString('zh-CN');
+    }
+
+    function formatShortDate(value) {
+      return new Date(value).toLocaleDateString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric'
+      });
+    }
+
+    /* 避免用户输入被浏览器当作 HTML 执行 */
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = String(value ?? '');
+      return div.innerHTML;
+    }
+
+    /* 页面初始化 */
     render();
   </script>
 </body>
