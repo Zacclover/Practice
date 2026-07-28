@@ -1567,6 +1567,20 @@
       right: 4px;
     }
 
+    /* 键盘焦点：浅色 Tab 用黑色外轮廓，黑色 Active Tab 用橙色实体边框 */
+    .workspace-tab-select:focus-visible,
+    .workspace-tab-action:focus-visible {
+      border: 1px solid var(--orange);
+    }
+
+    .workspace-tab-action:focus-visible {
+      color: var(--black);
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-action:focus-visible {
+      color: var(--white);
+    }
+
     .workspace-tab-item.is-drop-target {
       border-left: 3px solid var(--orange);
       box-shadow: none;
@@ -1804,6 +1818,10 @@
       height: 40px;
       min-height: 40px;
       border-radius: 0;
+    }
+
+    .evidence-count {
+      top: 54px;
     }
 
     .evidence-edit-button {
