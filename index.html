@@ -3476,11 +3476,19 @@
 
     /* 洞察关联以证据为主选择，竞品和维度仅显示自动派生结果 */
     .insight-evidence-option {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      position: relative;
+      display: flex;
+      min-height: 48px;
       align-items: center;
-      gap: 8px;
+      padding-right: 48px;
       border-bottom: 1px solid var(--line-subtle);
+    }
+
+    .insight-evidence-option > label {
+      width: 100%;
+      min-width: 0;
+      min-height: 48px;
+      align-items: center;
     }
 
     .insight-evidence-option:last-child {
@@ -3488,6 +3496,9 @@
     }
 
     .insight-evidence-view {
+      position: absolute;
+      top: 50%;
+      right: 4px;
       width: 40px;
       height: 40px;
       min-height: 40px;
@@ -3498,13 +3509,20 @@
       clip-path: none;
       opacity: 0;
       pointer-events: none;
-      transition: color .16s ease, background .16s ease, opacity .16s ease, transform .16s ease;
+      transform: translateY(-50%);
+      transition: color .16s ease, background .16s ease, opacity .16s ease;
     }
 
     .insight-evidence-option:hover .insight-evidence-view,
     .insight-evidence-option:focus-within .insight-evidence-view {
       opacity: 1;
       pointer-events: auto;
+      transform: translateY(-50%);
+    }
+
+    .insight-evidence-view:hover,
+    .insight-evidence-view:focus-visible {
+      transform: translateY(-50%);
     }
 
     /* 触屏没有 Hover，眼睛入口保持可见以避免功能不可达 */
