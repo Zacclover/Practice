@@ -1356,6 +1356,7 @@
       background: var(--black);
       border: 1px solid var(--line-strong);
       border-radius: 0;
+      font-size: 14px;
       font-weight: 700;
       line-height: 1.2;
       transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
@@ -1413,6 +1414,7 @@
     #addWorkspaceTabButton,
     #addButton,
     #addDimensionButton,
+    #addInsightButton,
     #closeSystemIntroductionButton,
     #saveTabButton,
     #confirmExportTabsButton,
@@ -1420,7 +1422,8 @@
     #saveButton,
     #saveDimensionButton,
     #saveInlineDimensionButton,
-    #saveEvidenceButton {
+    #saveEvidenceButton,
+    #saveInsightButton {
       color: var(--black);
       background: var(--orange);
       border-color: transparent;
@@ -1433,6 +1436,8 @@
     #addButton:focus-visible,
     #addDimensionButton:hover,
     #addDimensionButton:focus-visible,
+    #addInsightButton:hover,
+    #addInsightButton:focus-visible,
     #closeSystemIntroductionButton:hover,
     #closeSystemIntroductionButton:focus-visible,
     #saveTabButton:hover,
@@ -1448,7 +1453,9 @@
     #saveInlineDimensionButton:hover,
     #saveInlineDimensionButton:focus-visible,
     #saveEvidenceButton:hover,
-    #saveEvidenceButton:focus-visible {
+    #saveEvidenceButton:focus-visible,
+    #saveInsightButton:hover,
+    #saveInsightButton:focus-visible {
       color: var(--white);
       background: var(--black);
     }
@@ -1708,6 +1715,7 @@
       font-size: 20px;
       font-weight: 900;
       letter-spacing: -.035em;
+      line-height: 1.25;
     }
 
     .comparison-header h2::before {
@@ -2118,7 +2126,6 @@
     .comparison-table tbody .dimension-column {
       background: #efeee9;
     }
-
     .matrix-input {
       color: var(--ink);
       background: var(--white);
@@ -2795,12 +2802,14 @@
 
     /* 中英文区块标题：中文负责识别，英文只做技术注释 */
     .section-title > span,
-    .comparison-header h2 > span {
+    .comparison-header h2 > span,
+    .insights-header h2 > span {
       white-space: nowrap;
     }
 
     .section-title small,
-    .comparison-header h2 small {
+    .comparison-header h2 small,
+    .insights-header h2 small {
       color: var(--gray-500);
       font-family: var(--font-mono);
       font-size: 9px;
@@ -2817,10 +2826,16 @@
       order: 3;
     }
 
-    .comparison-header h2 {
+    .comparison-header h2,
+    .insights-header h2 {
       display: flex;
       align-items: baseline;
       gap: 10px;
+      font-family: var(--font-body);
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+      line-height: 1.25;
     }
 
     /* 数据图像优化：统一裁切与拼图边界，只使用克制的 Hover 缩放 */
@@ -3081,7 +3096,8 @@
 
       /* 移动端内容层级：收紧区块、卡片和矩阵文字，不压缩操作热区 */
       .section-title,
-      .comparison-header {
+      .comparison-header,
+      .insights-header {
         gap: 10px;
         margin: 24px 0 12px;
       }
@@ -3091,20 +3107,24 @@
       }
 
       .section-title::before,
-      .comparison-header h2::before {
+      .comparison-header h2::before,
+      .insights-header h2::before {
         font-size: 10px;
       }
 
-      .comparison-section {
+      .comparison-section,
+      .insights-section {
         margin-top: 28px;
       }
 
-      .comparison-header {
+      .comparison-header,
+      .insights-header {
         gap: 8px;
         padding-bottom: 9px;
       }
 
-      .comparison-header h2 {
+      .comparison-header h2,
+      .insights-header h2 {
         font-size: 17px;
       }
 
@@ -3130,7 +3150,8 @@
       }
 
       .section-title small,
-      .comparison-header h2 small {
+      .comparison-header h2 small,
+      .insights-header h2 small {
         white-space: normal;
       }
 
@@ -3182,26 +3203,31 @@
 
     }
 
-    /* 洞察结论：五阶段平面链、可追溯引用与低噪声筛选 */
+    /* 洞察结论：标题复用横向对比层级，内容使用五阶段平面链 */
     .insights-section {
-      margin-top: 48px;
+      margin-top: 40px;
     }
 
     .insights-header {
       display: flex;
-      align-items: flex-end;
+      align-items: center;
       justify-content: space-between;
       gap: 16px;
-      margin-bottom: 16px;
+      margin: 34px 0 16px;
       padding-bottom: 12px;
       border-bottom: 2px solid var(--line-strong);
     }
 
     .insights-header h2 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
       margin: 0;
-      font-family: var(--font-display);
-      font-size: 26px;
-      line-height: 1.1;
+      font-family: var(--font-body);
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -.035em;
+      line-height: 1.25;
     }
 
     .insights-header h2::before {
@@ -3214,12 +3240,12 @@
     }
 
     .insights-header h2 small {
-      display: block;
-      margin-top: 6px;
-      color: var(--line-medium);
+      color: var(--gray-500);
       font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: .12em;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      white-space: nowrap;
     }
 
     .insight-filters {
@@ -3420,7 +3446,7 @@
     }
 
     .insight-reference-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: minmax(320px, 1.45fr) repeat(2, minmax(0, .8fr));
     }
 
     .insight-reference-grid fieldset {
@@ -3452,6 +3478,76 @@
       flex: 0 0 auto;
     }
 
+    /* 洞察关联以证据为主选择，竞品和维度仅显示自动派生结果 */
+    .insight-evidence-option {
+      position: relative;
+      display: flex;
+      min-height: 48px;
+      align-items: center;
+      padding-right: 48px;
+      border-bottom: 1px solid var(--line-subtle);
+    }
+
+    .insight-evidence-option > label {
+      width: 100%;
+      min-width: 0;
+      min-height: 48px;
+      align-items: center;
+    }
+
+    .insight-evidence-option:last-child {
+      border-bottom: 0;
+    }
+
+    .insight-evidence-view {
+      position: absolute;
+      top: 50%;
+      right: 4px;
+      width: 40px;
+      height: 40px;
+      min-height: 40px;
+      padding: 0;
+      color: var(--black);
+      background: var(--white);
+      border: 1px solid var(--line-strong);
+      clip-path: none;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%);
+      transition: color .16s ease, background .16s ease, opacity .16s ease;
+    }
+
+    .insight-evidence-option:hover .insight-evidence-view,
+    .insight-evidence-option:focus-within .insight-evidence-view {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(-50%);
+    }
+
+    .insight-evidence-view:hover,
+    .insight-evidence-view:focus-visible {
+      color: var(--white);
+      background: var(--black);
+      border-color: var(--black);
+      transform: translateY(-50%);
+    }
+
+    .insight-derived-fieldset {
+      background: var(--gray-100);
+    }
+
+    .insight-derived-fieldset input:disabled {
+      opacity: 1;
+      accent-color: var(--orange);
+    }
+
+    .insight-reference-help {
+      grid-column: 1 / -1;
+      margin: 0;
+      color: var(--line-medium);
+      font-size: 12px;
+    }
+
     .insight-reference-empty {
       color: var(--line-medium);
       font-size: 12px;
@@ -3460,14 +3556,16 @@
     @media (max-width: 760px) {
       /* 洞察在移动端改为纵向推导链，避免整页横向溢出 */
       .insights-section {
-        margin-top: 32px;
+        margin-top: 28px;
       }
 
+      .comparison-header,
       .insights-header {
         align-items: stretch;
         flex-direction: column;
       }
 
+      .comparison-header h2,
       .insights-header h2 {
         font-size: 17px;
       }
@@ -3785,18 +3883,20 @@
         </label>
       </div>
 
+      <!-- 关联选择以证据为主体，竞品和维度由所选证据自动派生 -->
       <div class="insight-reference-grid">
-        <fieldset>
-          <legend>关联竞品</legend>
+        <p class="insight-reference-help">选择证据后，系统将自动关联对应竞品与分析维度。</p>
+        <fieldset class="insight-evidence-fieldset">
+          <legend>选择证据</legend>
+          <div id="insightEvidenceOptions" class="insight-reference-options"></div>
+        </fieldset>
+        <fieldset class="insight-derived-fieldset">
+          <legend>自动关联竞品</legend>
           <div id="insightCompetitorOptions" class="insight-reference-options"></div>
         </fieldset>
-        <fieldset>
-          <legend>关联分析维度</legend>
+        <fieldset class="insight-derived-fieldset">
+          <legend>自动关联分析维度</legend>
           <div id="insightDimensionOptions" class="insight-reference-options"></div>
-        </fieldset>
-        <fieldset>
-          <legend>关联证据</legend>
-          <div id="insightEvidenceOptions" class="insight-reference-options"></div>
         </fieldset>
       </div>
 
@@ -5501,26 +5601,37 @@
 
     /* ==============================
        洞察表单引用选项
-       支持关联当前 Tab 的竞品、分析维度和证据
+       证据是唯一选择主体，竞品与分析维度由证据自动派生
        ============================== */
-    function renderInsightReferenceOptions(selectedInsight = {}) {
-      const selectedCompetitorIds = new Set(
-        selectedInsight.competitorIds || []
-      );
-      const selectedDimensionIds = new Set(
-        selectedInsight.dimensionIds || []
-      );
-      const selectedEvidenceIds = new Set(
-        selectedInsight.evidenceIds || []
-      );
+    function getInsightDerivedReferenceIds(evidenceIds) {
+      const selectedEvidenceIds = new Set(evidenceIds || []);
+      const competitorIds = new Set();
+      const dimensionIds = new Set();
 
+      evidenceItems.forEach(evidence => {
+        if (!selectedEvidenceIds.has(evidence.id)) {
+          return;
+        }
+        if (evidence.competitorId) {
+          competitorIds.add(evidence.competitorId);
+        }
+        evidence.dimensionIds.forEach(id => dimensionIds.add(id));
+      });
+
+      return { competitorIds, dimensionIds };
+    }
+
+    function renderInsightDerivedReferenceOptions(selectedEvidenceIds) {
+      const derivedIds = getInsightDerivedReferenceIds(selectedEvidenceIds);
       insightCompetitorOptions.innerHTML = competitors.length > 0
         ? competitors.map(item => `
             <label>
               <input
                 data-insight-competitor-id="${escapeHtml(item.id)}"
+                data-insight-derived
                 type="checkbox"
-                ${selectedCompetitorIds.has(item.id) ? 'checked' : ''}>
+                disabled
+                ${derivedIds.competitorIds.has(item.id) ? 'checked' : ''}>
               <span>${escapeHtml(item.name)}</span>
             </label>
           `).join('')
@@ -5530,30 +5641,50 @@
             <label>
               <input
                 data-insight-dimension-id="${escapeHtml(item.id)}"
+                data-insight-derived
                 type="checkbox"
-                ${selectedDimensionIds.has(item.id) ? 'checked' : ''}>
+                disabled
+                ${derivedIds.dimensionIds.has(item.id) ? 'checked' : ''}>
               <span>${escapeHtml(item.name)}</span>
             </label>
           `).join('')
         : '<span class="insight-reference-empty">暂无分析维度</span>';
+    }
+
+    function renderInsightReferenceOptions(selectedInsight = {}) {
+      const selectedEvidenceIds = new Set(
+        selectedInsight.evidenceIds || []
+      );
+
       insightEvidenceOptions.innerHTML = evidenceItems.length > 0
         ? evidenceItems.map(item => {
             const competitorName = competitors.find(
               competitor => competitor.id === item.competitorId
             )?.name || '未知竞品';
             return `
-              <label>
-                <input
-                  data-insight-evidence-id="${escapeHtml(item.id)}"
-                  type="checkbox"
-                  ${selectedEvidenceIds.has(item.id) ? 'checked' : ''}>
-                <span>
-                  ${escapeHtml(item.title)} · ${escapeHtml(competitorName)}
-                </span>
-              </label>
+              <div class="insight-evidence-option">
+                <label>
+                  <input
+                    data-insight-evidence-id="${escapeHtml(item.id)}"
+                    type="checkbox"
+                    ${selectedEvidenceIds.has(item.id) ? 'checked' : ''}>
+                  <span>
+                    ${escapeHtml(item.title)} · ${escapeHtml(competitorName)}
+                  </span>
+                </label>
+                <button
+                  class="insight-evidence-view"
+                  data-insight-evidence-view="${escapeHtml(item.id)}"
+                  type="button"
+                  aria-label="查看原证据：${escapeHtml(item.title)}"
+                  title="查看原证据">
+                  <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-eye"></use></svg>
+                </button>
+              </div>
             `;
           }).join('')
         : '<span class="insight-reference-empty">暂无调研证据</span>';
+      renderInsightDerivedReferenceOptions(selectedEvidenceIds);
     }
 
     function resetInsightForm() {
@@ -5589,6 +5720,33 @@
         .map(input => input.dataset[datasetKey]);
     }
 
+    /* 勾选证据时立即回显由证据自动关联的竞品与分析维度 */
+    insightEvidenceOptions.addEventListener('change', event => {
+      if (!event.target.matches('[data-insight-evidence-id]')) {
+        return;
+      }
+      const selectedEvidenceIds = collectInsightReferenceIds(
+        insightEvidenceOptions,
+        '[data-insight-evidence-id]',
+        'insightEvidenceId'
+      );
+      renderInsightDerivedReferenceOptions(selectedEvidenceIds);
+    });
+
+    /* 每条候选证据都可复用证据详情弹窗查看原始内容 */
+    insightEvidenceOptions.addEventListener('click', event => {
+      const viewButton = event.target.closest('[data-insight-evidence-view]');
+      if (!viewButton) {
+        return;
+      }
+      const evidenceIndex = evidenceItems.findIndex(
+        item => item.id === viewButton.dataset.insightEvidenceView
+      );
+      if (evidenceIndex >= 0) {
+        openEvidenceDetail(evidenceIndex);
+      }
+    });
+
     addInsightButton.addEventListener('click', () => {
       openInsightDialog();
     });
@@ -5604,6 +5762,14 @@
         item => item.id === editingInsightId
       );
       const now = new Date().toISOString();
+      const selectedEvidenceIds = collectInsightReferenceIds(
+        insightEvidenceOptions,
+        '[data-insight-evidence-id]',
+        'insightEvidenceId'
+      );
+      const derivedReferenceIds = getInsightDerivedReferenceIds(
+        selectedEvidenceIds
+      );
       const candidate = normalizeInsightItem({
         id: existingInsight?.id || createId(),
         title: insightTitle.value,
@@ -5612,21 +5778,9 @@
         keyDifference: insightKeyDifference.value,
         opportunityHypothesis: insightOpportunityHypothesis.value,
         actionRecommendation: insightActionRecommendation.value,
-        competitorIds: collectInsightReferenceIds(
-          insightCompetitorOptions,
-          '[data-insight-competitor-id]',
-          'insightCompetitorId'
-        ),
-        dimensionIds: collectInsightReferenceIds(
-          insightDimensionOptions,
-          '[data-insight-dimension-id]',
-          'insightDimensionId'
-        ),
-        evidenceIds: collectInsightReferenceIds(
-          insightEvidenceOptions,
-          '[data-insight-evidence-id]',
-          'insightEvidenceId'
-        ),
+        competitorIds: Array.from(derivedReferenceIds.competitorIds),
+        dimensionIds: Array.from(derivedReferenceIds.dimensionIds),
+        evidenceIds: selectedEvidenceIds,
         createdAt: existingInsight?.createdAt || now,
         updatedAt: now
       }, {
@@ -6057,8 +6211,24 @@
         dialog.showModal();
       });
 
+    /* 关闭竞品弹窗后清除触发卡片的焦点和触屏上下文态 */
+    function resetCompetitorCardInteractionState() {
+      requestAnimationFrame(() => {
+        const focusedCard = document.activeElement?.closest('.card');
+        if (focusedCard) {
+          document.activeElement.blur();
+        }
+        list.querySelectorAll('.card.is-context-active').forEach(card => {
+          card.classList.remove('is-context-active');
+        });
+      });
+    }
+
+    dialog.addEventListener('close', resetCompetitorCardInteractionState);
+
     /* ==============================
        取消新增或编辑竞品
+       关闭后卡片恢复初始态，重新 Hover 或聚焦才显示反转态
        ============================== */
     document
       .querySelector('#cancelButton')
