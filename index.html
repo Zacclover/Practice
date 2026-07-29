@@ -1387,10 +1387,33 @@
       stroke-linejoin: miter;
     }
 
+    /* 统一 Icon：文字按钮固定 16px，图标精确对齐文字基线 */
+    .icon-sprite {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .button-icon {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 16px;
+    }
+
+    .row-action-icon {
+      width: 18px;
+      height: 18px;
+      margin-left: auto;
+      flex: 0 0 18px;
+      color: var(--line-medium);
+    }
+
     /* Primary Button：橙底黑字、无黑边、左上和右下 9px 斜切 */
     #addWorkspaceTabButton,
     #addButton,
     #addDimensionButton,
+    #closeSystemIntroductionButton,
     #saveTabButton,
     #confirmExportTabsButton,
     #confirmImportModeButton,
@@ -1410,6 +1433,8 @@
     #addButton:focus-visible,
     #addDimensionButton:hover,
     #addDimensionButton:focus-visible,
+    #closeSystemIntroductionButton:hover,
+    #closeSystemIntroductionButton:focus-visible,
     #saveTabButton:hover,
     #saveTabButton:focus-visible,
     #confirmExportTabsButton:hover,
@@ -1460,6 +1485,20 @@
       background: var(--danger);
       border-color: var(--danger);
       clip-path: none;
+    }
+
+    /* 危险操作：Hover 与键盘焦点继续保持红色，不被通用反色覆盖 */
+    .delete-button:hover,
+    .delete-button:focus-visible,
+    .matrix-delete-button:hover,
+    .matrix-delete-button:focus-visible,
+    .evidence-delete-button:hover,
+    .evidence-delete-button:focus-visible,
+    .preview-remove-button:hover,
+    .preview-remove-button:focus-visible {
+      color: var(--white);
+      background: var(--danger);
+      border-color: var(--danger);
     }
 
     /* 洞察空间：全宽实色结构面和等宽工业 Tab */
@@ -1863,6 +1902,92 @@
       border-color: var(--line-strong);
       outline: 2px solid var(--orange);
       outline-offset: 2px;
+    }
+
+    /* ================================================================
+       上下文操作：桌面 Hover / Focus Reveal，触屏始终可见
+       编辑使用黑白 Secondary，删除使用 Danger；Icon 保持 40px 热区
+       ================================================================ */
+    .card {
+      position: relative;
+    }
+
+    .card h3 {
+      padding-right: 96px;
+    }
+
+    .card-context-actions {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 3;
+      display: flex;
+      gap: 6px;
+    }
+
+    .card-context-actions,
+    .evidence-tile-actions,
+    .dimension-actions {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .14s ease;
+    }
+
+    .preview-remove-button {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .14s ease;
+    }
+
+    .contextual-action {
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      min-height: 40px;
+      padding: 0;
+      transform: none;
+    }
+
+    .contextual-action svg,
+    .preview-remove-button svg,
+    .workspace-tab-action svg {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 16px;
+    }
+
+    .card:hover .card-context-actions,
+    .card:focus-within .card-context-actions,
+    .evidence-tile:hover .evidence-tile-actions,
+    .evidence-tile:focus-within .evidence-tile-actions,
+    .comparison-table tr:hover .dimension-actions,
+    .comparison-table tr:focus-within .dimension-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .preview-item:hover .preview-remove-button,
+    .preview-remove-button:focus-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .card:hover .edit-button,
+    .card:focus-within .edit-button {
+      color: var(--black);
+      background: var(--white);
+      border-color: var(--white);
+    }
+
+    @media (hover: none), (pointer: coarse) {
+      .card-context-actions,
+      .evidence-tile-actions,
+      .dimension-actions,
+      .workspace-tab-action,
+      .preview-remove-button {
+        opacity: 1;
+        pointer-events: auto;
+      }
     }
 
     /* 对比矩阵：Strong 外框、Subtle 单元格，不使用 Sticky 阴影 */
@@ -2998,6 +3123,28 @@
 </head>
 
 <body>
+  <!-- ================================================================
+       统一按钮 Icon 资产
+       通过页面内 SVG Symbol 复用，避免字符图标和外部图标依赖
+       ================================================================ -->
+  <svg class="icon-sprite" aria-hidden="true" focusable="false">
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"></path></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"></path></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"></path></symbol>
+    <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"></path></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"></path><circle cx="12" cy="12" r="2.5"></circle></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v11M8 10l4 4 4-4M4 13v7h16v-7"></path></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 14V3M8 7l4-4 4 4M4 13v7h16v-7"></path></symbol>
+    <symbol id="icon-paragraph" viewBox="0 0 24 24"><path d="M10 4H8a4 4 0 0 0 0 8h2M10 4h7M13 4v16M17 4v16M10 20h7"></path></symbol>
+    <symbol id="icon-heading" viewBox="0 0 24 24"><path d="M4 5v14M4 12h9M13 5v14M17 10h2a2 2 0 0 1 0 4h-2l4 5"></path></symbol>
+    <symbol id="icon-bold" viewBox="0 0 24 24"><path d="M7 4h6a4 4 0 0 1 0 8H7V4zm0 8h7a4 4 0 0 1 0 8H7v-8z"></path></symbol>
+    <symbol id="icon-italic" viewBox="0 0 24 24"><path d="M10 4h8M6 20h8M15 4L9 20"></path></symbol>
+    <symbol id="icon-underline" viewBox="0 0 24 24"><path d="M6 4v7a6 6 0 0 0 12 0V4M4 20h16"></path></symbol>
+    <symbol id="icon-strikethrough" viewBox="0 0 24 24"><path d="M7 7c1-2 3-3 5-3 3 0 5 1 6 3M6 17c1 2 3 3 6 3s5-1 6-3M4 12h16"></path></symbol>
+  </svg>
+
   <!-- ==============================
        顶部导航栏
        展示当前产品名称
@@ -3044,18 +3191,14 @@
           class="backup-button"
           id="exportDataButton"
           type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M12 14V3M8 7l4-4 4 4M4 13v7h16v-7"></path>
-          </svg>
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-upload"></use></svg>
           导出数据
         </button>
         <button
           class="backup-button"
           id="importDataButton"
           type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M12 3v11M8 10l4 4 4-4M4 13v7h16v-7"></path>
-          </svg>
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-download"></use></svg>
           导入数据
         </button>
         <input
@@ -3067,9 +3210,7 @@
           id="addWorkspaceTabButton"
           class="workspace-tab-add"
           type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M3 5h18v14H3zM12 8v8M8 12h8"></path>
-          </svg>
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
           添加 Tab
         </button>
       </div>
@@ -3104,9 +3245,7 @@
         <!-- 竞品管理和数据备份操作 -->
         <div class="hero-actions">
           <button id="addButton">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M4 4h16v16H4zM12 8v8M8 12h8"></path>
-            </svg>
+            <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
             添加竞品
           </button>
         </div>
@@ -3146,7 +3285,8 @@
           <span>竞品横向对比</span>
           <small>COMPARISON MATRIX</small>
         </h2>
-        <button id="addDimensionButton">
+        <button id="addDimensionButton" type="button">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
           添加对比维度
         </button>
       </div>
@@ -3178,9 +3318,7 @@
         class="introduction-dialog-close"
         type="button"
         aria-label="关闭系统介绍">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M5 5l14 14M19 5L5 19"></path>
-        </svg>
+        <svg aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
       </button>
     </div>
 
@@ -3216,6 +3354,7 @@
 
     <div class="introduction-dialog-actions">
       <button id="closeSystemIntroductionButton" type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
         开始使用
       </button>
     </div>
@@ -3240,10 +3379,12 @@
           id="cancelTabButton"
           class="secondary"
           type="button">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
           取消
         </button>
         <button id="saveTabButton" type="submit">
-          保存 Tab
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-check"></use></svg>
+          <span class="button-label">保存 Tab</span>
         </button>
       </div>
     </form>
@@ -3265,9 +3406,11 @@
         id="cancelExportTabsButton"
         class="secondary"
         type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
         取消
       </button>
       <button id="confirmExportTabsButton" type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-upload"></use></svg>
         导出所选 Tab
       </button>
     </div>
@@ -3306,9 +3449,11 @@
         id="cancelImportModeButton"
         class="secondary"
         type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
         取消
       </button>
       <button id="confirmImportModeButton" type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-download"></use></svg>
         确认导入
       </button>
     </div>
@@ -3355,11 +3500,13 @@
           class="secondary"
           id="cancelButton"
           type="button">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
           取消
         </button>
 
         <button id="saveButton" type="submit">
-          保存竞品
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-check"></use></svg>
+          <span class="button-label">保存竞品</span>
         </button>
       </div>
     </form>
@@ -3385,11 +3532,13 @@
           class="secondary"
           id="cancelDimensionButton"
           type="button">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
           取消
         </button>
 
         <button id="saveDimensionButton" type="submit">
-          保存维度
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-check"></use></svg>
+          <span class="button-label">保存维度</span>
         </button>
       </div>
     </form>
@@ -3417,6 +3566,7 @@
             id="showInlineDimensionButton"
             class="matrix-button"
             type="button">
+            <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
             新增维度
           </button>
         </div>
@@ -3434,12 +3584,14 @@
             id="inlineDimensionName"
             placeholder="输入新维度名称">
           <button id="saveInlineDimensionButton" type="button">
+            <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
             添加
           </button>
           <button
             id="cancelInlineDimensionButton"
             class="secondary"
             type="button">
+            <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
             取消
           </button>
         </div>
@@ -3496,10 +3648,10 @@
           <!-- 段落结构：仅显示图标，名称通过 Tooltip 和 aria-label 提供 -->
           <div class="rich-toolbar-group" role="group" aria-label="段落结构">
             <button type="button" data-rich-command="formatBlock" data-rich-value="p" data-block-value="p" data-tooltip="正文" aria-label="正文" aria-pressed="false">
-              <span class="toolbar-letter toolbar-paragraph" aria-hidden="true">¶</span>
+              <svg aria-hidden="true"><use href="#icon-paragraph"></use></svg>
             </button>
             <button type="button" data-rich-command="formatBlock" data-rich-value="h3" data-block-value="h3" data-tooltip="小标题" aria-label="小标题" aria-pressed="false">
-              <span class="toolbar-heading" aria-hidden="true">H<small>3</small></span>
+              <svg aria-hidden="true"><use href="#icon-heading"></use></svg>
             </button>
             <button type="button" data-rich-command="formatBlock" data-rich-value="blockquote" data-block-value="blockquote" data-tooltip="引用" aria-label="引用" aria-pressed="false">
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 7h5v5H8c0 2 1 3 3 4v2c-4-1-6-3-6-7V7h1Zm9 0h5v5h-3c0 2 1 3 3 4v2c-4-1-6-3-6-7V7h1Z"/></svg>
@@ -3510,16 +3662,16 @@
           <!-- 行内文字格式 -->
           <div class="rich-toolbar-group" role="group" aria-label="文字格式">
             <button type="button" data-rich-command="bold" data-state-command="bold" data-tooltip="粗体" aria-label="粗体" aria-pressed="false">
-              <strong class="toolbar-letter" aria-hidden="true">B</strong>
+              <svg aria-hidden="true"><use href="#icon-bold"></use></svg>
             </button>
             <button type="button" data-rich-command="italic" data-state-command="italic" data-tooltip="斜体" aria-label="斜体" aria-pressed="false">
-              <em class="toolbar-letter" aria-hidden="true">I</em>
+              <svg aria-hidden="true"><use href="#icon-italic"></use></svg>
             </button>
             <button type="button" data-rich-command="underline" data-state-command="underline" data-tooltip="下划线" aria-label="下划线" aria-pressed="false">
-              <u class="toolbar-letter" aria-hidden="true">U</u>
+              <svg aria-hidden="true"><use href="#icon-underline"></use></svg>
             </button>
             <button type="button" data-rich-command="strikeThrough" data-state-command="strikeThrough" data-tooltip="删除线" aria-label="删除线" aria-pressed="false">
-              <s class="toolbar-letter" aria-hidden="true">S</s>
+              <svg aria-hidden="true"><use href="#icon-strikethrough"></use></svg>
             </button>
           </div>
           <span class="rich-toolbar-divider" aria-hidden="true"></span>
@@ -3579,11 +3731,13 @@
           class="secondary"
           id="cancelEvidenceButton"
           type="button">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
           取消
         </button>
 
         <button id="saveEvidenceButton" type="submit">
-          保存证据
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-check"></use></svg>
+          <span class="button-label">保存证据</span>
         </button>
       </div>
     </form>
@@ -3618,7 +3772,8 @@
     </div>
 
     <div class="actions">
-      <button id="closeDetailButton" type="button">
+      <button id="closeDetailButton" class="secondary" type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
         关闭
       </button>
     </div>
@@ -3636,7 +3791,8 @@
     </div>
 
     <div class="actions">
-      <button id="closeLinkedEvidenceButton" type="button">
+      <button id="closeLinkedEvidenceButton" class="secondary" type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
         关闭
       </button>
     </div>
@@ -3893,7 +4049,7 @@
                 type="button"
                 aria-label="重命名 ${escapeHtml(tab.name)}"
                 title="重命名 Tab">
-                ✎
+                <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
               </button>
               <button
                 class="workspace-tab-action delete"
@@ -3902,7 +4058,7 @@
                 type="button"
                 aria-label="删除 ${escapeHtml(tab.name)}"
                 title="删除 Tab">
-                ×
+                <svg aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
               </button>
             </div>
           `;
@@ -4057,7 +4213,7 @@
       editingWorkspaceTabId = tabId;
       const tab = workspaceState.tabs.find(item => item.id === tabId);
       tabDialogTitle.textContent = tab ? '重命名 Tab' : '添加 Tab';
-      saveTabButton.textContent = tab ? '保存名称' : '添加 Tab';
+      setButtonLabel(saveTabButton, tab ? '保存名称' : '添加 Tab');
       tabName.value = tab?.name || '';
       tabDialog.showModal();
       tabName.focus();
@@ -4286,19 +4442,25 @@
               }
 
               <!-- 竞品档案基础操作 -->
-              <div class="card-actions">
+              <div class="card-context-actions">
                 <button
-                  class="edit-button"
+                  class="edit-button contextual-action"
                   data-action="edit"
-                  data-index="${index}">
-                  编辑
+                  data-index="${index}"
+                  type="button"
+                  aria-label="编辑竞品"
+                  title="编辑竞品">
+                  <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
                 </button>
 
                 <button
-                  class="delete-button"
+                  class="delete-button contextual-action"
                   data-action="delete"
-                  data-index="${index}">
-                  删除
+                  data-index="${index}"
+                  type="button"
+                  aria-label="删除竞品"
+                  title="删除竞品">
+                  <svg aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
                 </button>
               </div>
 
@@ -4312,7 +4474,9 @@
                   <button
                     class="small-button"
                     data-action="add-evidence"
-                    data-competitor-id="${escapeHtml(item.id)}">
+                    data-competitor-id="${escapeHtml(item.id)}"
+                    type="button">
+                    <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
                     添加证据
                   </button>
                 </div>
@@ -4400,6 +4564,7 @@
                               data-linked-dimension-id="${escapeHtml(dimension.id)}"
                               data-linked-competitor-id="${escapeHtml(competitor.id)}"
                               type="button">
+                              <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-eye"></use></svg>
                               查看全部
                             </button>
                           </div>
@@ -4433,19 +4598,23 @@
 
                 <div class="dimension-actions">
                   <button
-                    class="matrix-button"
+                    class="matrix-button contextual-action"
                     data-dimension-action="edit"
                     data-dimension-id="${escapeHtml(dimension.id)}"
-                    type="button">
-                    编辑
+                    type="button"
+                    aria-label="编辑对比维度"
+                    title="编辑对比维度">
+                    <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
                   </button>
 
                   <button
-                    class="matrix-button matrix-delete-button"
+                    class="matrix-button matrix-delete-button contextual-action"
                     data-dimension-action="delete"
                     data-dimension-id="${escapeHtml(dimension.id)}"
-                    type="button">
-                    删除
+                    type="button"
+                    aria-label="删除对比维度"
+                    title="删除对比维度">
+                    <svg aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
                   </button>
                 </div>
               </td>
@@ -4535,7 +4704,7 @@
         editingDimensionId = dimensionId;
         dimensionName.value = dimension.name;
         dimensionDialogTitle.textContent = '编辑对比维度';
-        saveDimensionButton.textContent = '保存修改';
+        setButtonLabel(saveDimensionButton, '保存修改');
         dimensionDialog.showModal();
       }
 
@@ -4573,7 +4742,7 @@
         editingDimensionId = null;
         dimensionForm.reset();
         dimensionDialogTitle.textContent = '添加对比维度';
-        saveDimensionButton.textContent = '保存维度';
+        setButtonLabel(saveDimensionButton, '保存维度');
         dimensionDialog.showModal();
       });
 
@@ -4776,21 +4945,23 @@
           <!-- 编辑和删除证据的独立按钮 -->
           <div class="evidence-tile-actions">
             <button
-              class="evidence-edit-button"
+              class="evidence-edit-button contextual-action"
               data-evidence-action="edit"
               data-index="${evidenceIndex}"
               type="button"
+              aria-label="编辑证据"
               title="编辑证据">
-              ✎
+              <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
             </button>
 
             <button
-              class="evidence-delete-button"
+              class="evidence-delete-button contextual-action"
               data-evidence-action="delete"
               data-index="${evidenceIndex}"
               type="button"
+              aria-label="删除证据"
               title="删除证据">
-              ×
+              <svg aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
             </button>
           </div>
 
@@ -4872,7 +5043,7 @@
         document.querySelector('#positioning').value =
           competitor.positioning;
         dialogTitle.textContent = '编辑竞品';
-        saveButton.textContent = '保存修改';
+        setButtonLabel(saveButton, '保存修改');
         dialog.showModal();
       }
 
@@ -4954,7 +5125,7 @@
         editingIndex = null;
         form.reset();
         dialogTitle.textContent = '添加竞品';
-        saveButton.textContent = '保存竞品';
+        setButtonLabel(saveButton, '保存竞品');
         dialog.showModal();
       });
 
@@ -5257,7 +5428,7 @@
       evidenceTitle.value = evidence.title;
       evidenceContentEditor.innerHTML = evidence.contentHtml;
       evidenceDialogTitle.textContent = '编辑调研证据';
-      saveEvidenceButton.textContent = '保存修改';
+      setButtonLabel(saveEvidenceButton, '保存修改');
       renderEvidenceDimensionOptions();
       renderPendingPreviews();
       evidenceDialog.showModal();
@@ -5349,11 +5520,12 @@
               src="${escapeHtml(url)}"
               alt="待保存图片 ${index + 1}">
             <button
-              class="preview-remove-button"
+              class="preview-remove-button contextual-action"
               data-preview-index="${index}"
               type="button"
+              aria-label="移除图片"
               title="移除图片">
-              ×
+              <svg aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
             </button>
           </div>
         `)
@@ -5418,8 +5590,10 @@
           index < pendingEvidenceFiles.length;
           index += 1
         ) {
-          saveEvidenceButton.textContent =
-            `正在处理 ${index + 1}/${pendingEvidenceFiles.length}…`;
+          setButtonLabel(
+            saveEvidenceButton,
+            `正在处理 ${index + 1}/${pendingEvidenceFiles.length}…`
+          );
           compressedImages.push(
             await compressImage(pendingEvidenceFiles[index])
           );
@@ -5470,10 +5644,10 @@
       } catch (error) {
         window.alert(error.message);
         saveEvidenceButton.disabled = false;
-        saveEvidenceButton.textContent =
-          editingEvidenceIndex === null
-            ? '保存证据'
-            : '保存修改';
+        setButtonLabel(
+          saveEvidenceButton,
+          editingEvidenceIndex === null ? '保存证据' : '保存修改'
+        );
       }
     });
 
@@ -5587,6 +5761,7 @@
               </strong>
               <p>${escapeHtml(formatDate(entry.evidence.createdAt))}</p>
             </div>
+            <svg class="row-action-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
           </button>
         `)
         .join('');
@@ -5649,7 +5824,7 @@
       inlineDimensionCreator.classList.remove('visible');
       evidenceDialogTitle.textContent = '添加调研证据';
       saveEvidenceButton.disabled = false;
-      saveEvidenceButton.textContent = '保存证据';
+      setButtonLabel(saveEvidenceButton, '保存证据');
     }
 
     function revokePreviewUrls() {
@@ -6327,6 +6502,16 @@
         month: 'numeric',
         day: 'numeric'
       });
+    }
+
+    /* 更新带 Icon 按钮的文字，不覆盖按钮内 SVG；测试桩缺少子节点时安全回退 */
+    function setButtonLabel(button, label) {
+      const labelElement = button.querySelector?.('.button-label');
+      if (labelElement) {
+        labelElement.textContent = label;
+        return;
+      }
+      button.textContent = label;
     }
 
     /* 避免用户输入被浏览器当作 HTML 执行 */
