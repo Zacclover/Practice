@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>竞品洞察台组合预览</title>
+  <style>
+    /* ==============================
+       预览控制台：与正式应用隔离，仅管理当前预览域的示例数据
+       ============================== */
+    :root {
+      --black: #111111;
+      --white: #ffffff;
+      --orange: #ff5a00;
+      --line: #595959;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: Inter, "Noto Sans SC", "PingFang SC", sans-serif;
+      background: var(--white);
+    }
+
+    .preview-toolbar {
+      display: flex;
+      min-height: 58px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 8px 18px;
+      color: var(--white);
+      background: var(--black);
+      border-bottom: 2px solid var(--orange);
+    }
+
+    .preview-copy {
+      min-width: 0;
+    }
+
+    .preview-copy strong,
+    .preview-copy span {
+      display: block;
+    }
+
+    .preview-copy strong {
+      font-size: 14px;
+      letter-spacing: .04em;
+    }
+
+    .preview-copy span {
+      margin-top: 2px;
+      color: #c8c8c8;
+      font-size: 11px;
+    }
+
+    .preview-actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 8px;
+    }
+
+    .preview-button {
+      min-height: 40px;
+      padding: 8px 14px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      border: 1px solid var(--white);
+      border-radius: 0;
+    }
+
+    .preview-button.clear {
+      color: var(--white);
+      background: transparent;
+    }
+
+    .preview-button.restore {
+      color: var(--black);
+      background: var(--orange);
+      border-color: var(--orange);
+    }
+
+    .preview-button:focus-visible {
+      outline: 2px solid var(--orange);
+      outline-offset: 2px;
+    }
+
+    #previewFrame {
+      display: block;
+      width: 100%;
+      height: calc(100% - 58px);
+      border: 0;
+    }
+
+    @media (max-width: 640px) {
+      .preview-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .preview-actions,
+      .preview-button {
+        width: 100%;
+      }
+
+      #previewFrame {
+        height: calc(100% - 126px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- ==============================
+       预览数据控制：可清空示例，也可一键恢复，不写入正式站点
+       ============================== -->
+  <header class="preview-toolbar">
+    <div class="preview-copy">
+      <strong>布局与洞察功能组合预览</strong>
+      <span>示例数据只保存在当前预览域，不影响正式版本</span>
+    </div>
+    <div class="preview-actions">
+      <button id="clearPreviewDataButton" class="preview-button clear" type="button">清空示例</button>
+      <button id="restorePreviewDataButton" class="preview-button restore" type="button">恢复示例</button>
+    </div>
+  </header>
+
+  <iframe
+    id="previewFrame"
+    title="竞品洞察台候选版本"
+    src="./index.html?preview=combined-layout-insights">
+  </iframe>
+
+  <script>
+    /* ==============================
+       示例工作空间：覆盖卡片横向滚动、矩阵固定列及证据关联
+       ============================== */
+    const workspaceStorageKey = 'competitor-insights-workspaces-v2';
+    const introductionSeenKey =
+      'competitor-insights-system-introduction-seen-v1';
+    const previewStateKey =
+      'competitor-insights-preview-seed-state';
+    const legacyStorageKeys = [
+      'competitor-insights-items',
+      'competitor-insights-evidence',
+      'competitor-insights-comparison'
+    ];
+    const previewFrame = document.querySelector('#previewFrame');
+
+    const previewWorkspace = {
+      version: 3,
+      activeTabId: 'preview-tab',
+      tabs: [{
+        id: 'preview-tab',
+        name: '布局预览',
+        competitors: [
+          { id: 'competitor-1', name: '协作云', website: 'https://example.com/1', positioning: '面向中大型团队的一体化协同工作平台' },
+          { id: 'competitor-2', name: '智能办公', website: 'https://example.com/2', positioning: '以 AI 助手驱动的知识与任务协作工具' },
+          { id: 'competitor-3', name: '团队空间', website: 'https://example.com/3', positioning: '强调跨部门项目推进和信息透明' },
+          { id: 'competitor-4', name: '轻量协同', website: 'https://example.com/4', positioning: '服务成长型团队的快速协作工作台' },
+          { id: 'competitor-5', name: '企业连接', website: 'https://example.com/5', positioning: '连接流程、知识和组织沟通的企业平台' }
+        ],
+        evidenceItems: [
+          { id: 'evidence-1', competitorId: 'competitor-1', dimensionIds: ['dimension-1'], title: '一体化工作台', contentHtml: '<p>首页集中呈现消息、文档、任务和会议入口。</p>', images: [], createdAt: '2026-07-29T00:00:00.000Z' },
+          { id: 'evidence-2', competitorId: 'competitor-2', dimensionIds: ['dimension-2'], title: 'AI 助手入口', contentHtml: '<p>AI 能力覆盖搜索、总结与内容生成。</p>', images: [], createdAt: '2026-07-29T00:00:00.000Z' },
+          { id: 'evidence-3', competitorId: 'competitor-3', dimensionIds: ['dimension-3'], title: '项目进度视图', contentHtml: '<p>支持跨团队共享里程碑和风险状态。</p>', images: [], createdAt: '2026-07-29T00:00:00.000Z' },
+          { id: 'evidence-4', competitorId: 'competitor-4', dimensionIds: ['dimension-4'], title: '轻量模板中心', contentHtml: '<p>通过模板降低新团队的上手成本。</p>', images: [], createdAt: '2026-07-29T00:00:00.000Z' },
+          { id: 'evidence-5', competitorId: 'competitor-5', dimensionIds: ['dimension-1'], title: '企业流程连接', contentHtml: '<p>可连接审批、知识库和组织通讯录。</p>', images: [], createdAt: '2026-07-29T00:00:00.000Z' }
+        ],
+        insights: [],
+        comparisonData: {
+          dimensions: [
+            { id: 'dimension-1', name: '产品定位' },
+            { id: 'dimension-2', name: 'AI 能力' },
+            { id: 'dimension-3', name: '项目协作' },
+            { id: 'dimension-4', name: '上手成本' }
+          ],
+          values: {
+            'dimension-1': { 'competitor-1': '一体化协同工作台', 'competitor-2': 'AI 原生办公助手', 'competitor-3': '跨部门项目空间', 'competitor-4': '成长团队轻协同', 'competitor-5': '企业流程连接平台' },
+            'dimension-2': { 'competitor-1': '会议与文档总结', 'competitor-2': '搜索、总结、生成', 'competitor-3': '项目风险提示', 'competitor-4': '模板内容生成', 'competitor-5': '企业知识问答' },
+            'dimension-3': { 'competitor-1': '任务和会议联动', 'competitor-2': 'AI 辅助拆解任务', 'competitor-3': '里程碑和风险视图', 'competitor-4': '看板与模板', 'competitor-5': '流程驱动协作' },
+            'dimension-4': { 'competitor-1': '功能完整，学习成本中等', 'competitor-2': '自然语言交互降低门槛', 'competitor-3': '需先建立项目规范', 'competitor-4': '模板化快速启动', 'competitor-5': '需要企业级配置' }
+          }
+        }
+      }]
+    };
+
+    const emptyWorkspace = {
+      version: 3,
+      activeTabId: 'preview-empty-tab',
+      tabs: [{
+        id: 'preview-empty-tab',
+        name: '空白空间',
+        competitors: [],
+        evidenceItems: [],
+        insights: [],
+        comparisonData: { dimensions: [], values: {} }
+      }]
+    };
+
+    function persistPreviewWorkspace(workspace) {
+      legacyStorageKeys.forEach(key => localStorage.removeItem(key));
+      localStorage.setItem(
+        workspaceStorageKey,
+        JSON.stringify(workspace)
+      );
+      localStorage.setItem(introductionSeenKey, '1');
+    }
+
+    function reloadCandidate() {
+      previewFrame.contentWindow.location.reload();
+    }
+
+    document
+      .querySelector('#clearPreviewDataButton')
+      .addEventListener('click', () => {
+        localStorage.setItem(previewStateKey, 'cleared');
+        localStorage.setItem(
+          workspaceStorageKey,
+          JSON.stringify(emptyWorkspace)
+        );
+        legacyStorageKeys.forEach(key => localStorage.removeItem(key));
+        reloadCandidate();
+      });
+
+    document
+      .querySelector('#restorePreviewDataButton')
+      .addEventListener('click', () => {
+        localStorage.setItem(previewStateKey, 'seeded');
+        persistPreviewWorkspace(previewWorkspace);
+        reloadCandidate();
+      });
+
+    if (localStorage.getItem(previewStateKey) !== 'cleared') {
+      persistPreviewWorkspace(previewWorkspace);
+    }
+  </script>
+</body>
+</html>
