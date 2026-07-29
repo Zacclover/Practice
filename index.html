@@ -149,7 +149,7 @@
     }
 
     .delete-button {
-      background: #dc2626;
+      background: transparent;
     }
 
     /* ==============================
@@ -332,7 +332,7 @@
     }
 
     .evidence-delete-button {
-      background: rgba(220, 38, 38, .92);
+      background: transparent;
     }
 
     /* ==============================
@@ -391,7 +391,7 @@
       width: 26px;
       height: 26px;
       padding: 0;
-      background: rgba(220, 38, 38, .9);
+      background: transparent;
       border-radius: 50%;
     }
 
@@ -698,7 +698,7 @@
     }
 
     .matrix-delete-button {
-      background: #dc2626;
+      background: transparent;
     }
 
     .matrix-input {
@@ -886,8 +886,8 @@
     }
 
     .workspace-tab-action.delete:hover {
-      color: #b91c1c;
-      background: #fee2e2;
+      color: var(--black);
+      background: var(--orange);
     }
 
     .workspace-tab-add {
@@ -1285,7 +1285,7 @@
       --paper: #f7f6f1;
       --white: #ffffff;
       --orange: #ff5a1f;
-      --danger: #b42318;
+      --danger: #ff5a1f;
       --cross-grid-size: 44px;
       --font-display: "Archivo Black", "Noto Sans SC", "Arial Black", sans-serif;
       --font-body: "Noto Sans SC", Arial, sans-serif;
@@ -1477,30 +1477,6 @@
       background: var(--black);
     }
 
-    .delete-button,
-    .matrix-delete-button,
-    .evidence-delete-button,
-    .preview-remove-button {
-      color: var(--white);
-      background: var(--danger);
-      border-color: var(--danger);
-      clip-path: none;
-    }
-
-    /* 危险操作：Hover 与键盘焦点继续保持红色，不被通用反色覆盖 */
-    .delete-button:hover,
-    .delete-button:focus-visible,
-    .matrix-delete-button:hover,
-    .matrix-delete-button:focus-visible,
-    .evidence-delete-button:hover,
-    .evidence-delete-button:focus-visible,
-    .preview-remove-button:hover,
-    .preview-remove-button:focus-visible {
-      color: var(--white);
-      background: var(--danger);
-      border-color: var(--danger);
-    }
-
     /* 洞察空间：全宽实色结构面和等宽工业 Tab */
     .workspace-tabs-section {
       padding: 0;
@@ -1593,8 +1569,8 @@
     }
 
     .workspace-tab-action.delete:hover {
-      color: var(--white);
-      background: var(--danger);
+      color: var(--black);
+      background: var(--orange);
       transform: translateY(-50%);
     }
 
@@ -1979,12 +1955,57 @@
       border-color: var(--white);
     }
 
+    /* 破坏性上下文操作：复用弹窗 X 的橙色描边与橙色实底 Hover */
+    .delete-button,
+    .matrix-delete-button,
+    .evidence-delete-button,
+    .preview-remove-button,
+    .workspace-tab-action.delete {
+      color: var(--orange);
+      background: transparent;
+      border: 1px solid var(--orange);
+      clip-path: none;
+    }
+
+    .delete-button:hover,
+    .delete-button:focus-visible,
+    .matrix-delete-button:hover,
+    .matrix-delete-button:focus-visible,
+    .evidence-delete-button:hover,
+    .evidence-delete-button:focus-visible,
+    .preview-remove-button:hover,
+    .preview-remove-button:focus-visible,
+    .workspace-tab-action.delete:hover,
+    .workspace-tab-action.delete:focus-visible {
+      color: var(--black);
+      background: var(--orange);
+      border-color: var(--orange);
+    }
+
+    .workspace-tab-action.delete:disabled {
+      color: var(--line-medium);
+      background: transparent;
+      border-color: var(--line-medium);
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-action.delete:not(:disabled) {
+      color: var(--orange);
+      background: transparent;
+      border-color: var(--orange);
+    }
+
+    .workspace-tab-item.is-active .workspace-tab-action.delete:hover,
+    .workspace-tab-item.is-active .workspace-tab-action.delete:focus-visible {
+      color: var(--black);
+      background: var(--orange);
+    }
+
     @media (hover: none), (pointer: coarse) {
-      .card-context-actions,
-      .evidence-tile-actions,
-      .dimension-actions,
-      .workspace-tab-action,
-      .preview-remove-button {
+      .card.is-context-active .card-context-actions,
+      .evidence-tile.is-context-active .evidence-tile-actions,
+      .comparison-table tr.is-context-active .dimension-actions,
+      .workspace-tab-item.is-context-active .workspace-tab-action,
+      .preview-item.is-context-active .preview-remove-button {
         opacity: 1;
         pointer-events: auto;
       }
@@ -4266,6 +4287,10 @@
     });
 
     workspaceTabs.addEventListener('click', event => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
       const button = event.target.closest('[data-tab-action]');
       if (!button) {
         return;
@@ -6541,6 +6566,76 @@
         return '';
       }
     }
+
+    /* ================================================================
+       触屏上下文操作
+       第一次点按原信息区只展开编辑/删除；再次点按才继续原内容操作
+       链接、表单和既有主按钮保持直接执行，键盘 click 不被拦截
+       ================================================================ */
+    function clearTouchContexts(exceptSurface = null) {
+      document.querySelectorAll('.is-context-active').forEach(surface => {
+        if (surface !== exceptSurface) {
+          surface.classList.remove('is-context-active');
+        }
+      });
+    }
+
+    function getTouchContextSurface(target) {
+      const dimensionCell = target.closest?.('.dimension-column');
+      if (dimensionCell) {
+        const row = dimensionCell.closest('tr');
+        return row?.querySelector('.dimension-actions') ? row : null;
+      }
+
+      return target.closest?.(
+        '.card, .evidence-tile, .workspace-tab-item, .preview-item'
+      ) || null;
+    }
+
+    function revealTouchContext(event) {
+      const coarsePointer = window.matchMedia?.(
+        '(hover: none), (pointer: coarse)'
+      );
+      if (!coarsePointer?.matches || event.detail === 0) {
+        return;
+      }
+
+      const target = event.target;
+      const contextAction = target.closest?.(
+        '.contextual-action, .workspace-tab-action, .preview-remove-button'
+      );
+      if (contextAction) {
+        return;
+      }
+
+      const surface = getTouchContextSurface(target);
+      if (!surface) {
+        clearTouchContexts();
+        return;
+      }
+
+      const directControl = target.closest?.(
+        'a, button, input, textarea, select, label, [contenteditable="true"]'
+      );
+      if (directControl && !directControl.matches('.workspace-tab-select')) {
+        clearTouchContexts(surface);
+        return;
+      }
+
+      const alreadyActive = surface.classList.contains(
+        'is-context-active'
+      );
+      clearTouchContexts(surface);
+      if (alreadyActive) {
+        return;
+      }
+
+      surface.classList.add('is-context-active');
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    document.addEventListener?.('click', revealTouchContext, true);
 
     /* 页面初始化 */
     render();

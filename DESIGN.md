@@ -13,7 +13,6 @@ colors:
   paper: "#F7F6F1"
   white: "#FFFFFF"
   orange: "#FF5A1F"
-  danger: "#B42318"
 typography:
   display:
     fontFamily: Archivo Black, Noto Sans SC, Arial Black, sans-serif
@@ -82,9 +81,6 @@ components:
   button-dark:
     backgroundColor: "{colors.graphite}"
     textColor: "{colors.white}"
-  button-danger:
-    backgroundColor: "{colors.danger}"
-    textColor: "{colors.white}"
   content-surface:
     backgroundColor: "{colors.white}"
     textColor: "{colors.ink}"
@@ -128,8 +124,7 @@ components:
 - **Line Subtle / #C9C8C3：** 矩阵内部、轴线和十字底纹。
 - **Paper / #F7F6F1：** 页面底色。
 - **White / #FFFFFF：** Hero、卡片、弹窗、表单和数据表面。
-- **Orange / #FF5A1F：** 最高优先级按钮与少量定位信号；橙底必须使用黑字。
-- **Danger / #B42318：** 仅用于删除、覆盖等破坏性动作，不得取代橙色品牌强调。
+- **Orange / #FF5A1F：** 最高优先级按钮、少量定位信号及破坏性上下文操作的描边；橙底必须使用黑字。
 
 禁止使用渐变。不得将橙色铺满普通卡片、矩阵、正文区或次级按钮。
 
@@ -209,17 +204,17 @@ components:
 - **Primary Hover：** 黑底白字。
 - **键盘焦点：** 使用 `2px` 黑色外轮廓确保在白色与浅灰表面达到至少 `3:1`，并用橙色边框或局部状态保留品牌提示；不得只依赖低对比橙色外轮廓。
 - **Secondary：** 白底黑字、`1px` Strong 边框、完整矩形。
-- **Danger：** 深红底白字，仅用于明确破坏性动作；Hover 不得变为橙色，且仍需二次确认。
+- **Destructive Context Action：** 默认透明底、橙色 Icon 与 `1px` 橙色描边，复用弹窗关闭 `X` 的视觉语言；Hover 与 Focus 使用橙色实底、黑色 Icon。破坏性语义仍须通过垃圾桶/关闭 Icon、可访问名称和二次确认共同表达。
 - 顶层操作、创建、保存、确认、取消和关闭按钮使用 `16px` 线性 SVG Icon：`1.7px` 线宽、square linecap、miter join；Icon 与文字间距统一为 `8px`。不得使用 Emoji、`×`、`✎` 或字母字符模拟正式图标。
-- 竞品、证据和矩阵维度的编辑/删除属于上下文操作：桌面端默认隐藏，仅在父容器 Hover 或 `focus-within` 时显示；键盘聚焦按钮自身时也必须可见。触屏或粗指针设备必须常驻显示，不得依赖 Hover。
-- 上下文编辑使用黑白 Secondary 语义；上下文删除使用 Danger 语义。Danger 在 Hover、Focus 和 Graphite 卡片反转状态下都必须保持深红底白字。
+- 竞品、证据、矩阵维度、Tab 与图片的编辑/删除属于上下文操作：桌面端默认隐藏，仅在父信息区 Hover 或 `focus-within` 时显示；键盘聚焦按钮自身时也必须可见。触屏或粗指针设备第一次点按信息区后显示，第二次点按原内容继续原操作；不得默认常驻，也不得变成触屏不可达。
+- 上下文编辑使用黑白 Secondary 语义；上下文删除和移除使用 Destructive Context Action 的橙色描边语义。Graphite 反转卡片内仍保持橙色描边，不能退回红色或低对比灰色。
 - 所有 Icon Button 的实际点击区域不得小于 `40px × 40px`，包括 Tab 编辑/关闭、卡片编辑/删除、矩阵维度编辑/删除、富文本工具、证据编辑/删除和图片移除。
 
 ### Tabs
 
 - 当前 Tab 使用黑底白字和 `3px` 橙色底线。
 - 未选中 Tab 使用浅灰底、深灰文字与 Medium 分隔线。
-- 编辑和关闭在桌面默认隐藏，只在 Hover 或键盘聚焦时出现；触屏或粗指针设备必须常驻显示，不能依赖 Hover。
+- 编辑和关闭在桌面默认隐藏，只在 Hover 或键盘聚焦时出现；触屏或粗指针设备点按 Tab 信息区后显示，再次点按操作按钮执行动作。
 - 不显示左右移动按钮；键盘排序使用 `Alt + ArrowLeft / ArrowRight`，必须复用拖拽排序逻辑、恢复焦点，并通过 `aria-posinset` / `aria-setsize` 表达位置。边界按键必须阻止浏览器历史导航，同时保持顺序和焦点不变。
 - 完整名称必须通过 `title` 或可访问名称发现。
 
