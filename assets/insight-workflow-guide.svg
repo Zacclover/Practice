@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">竞品洞察台操作路径</title>
-  <desc id="desc">从竞品档案、调研证据、横向对比到洞察结论的四步工作流，以及事实信号到行动建议的洞察推导链。</desc>
+  <desc id="desc">从竞品档案、调研证据、横向对比到洞察结论的四步工作流；洞察由人工整理五阶段推导链形成，并可回链证据、关联竞品和对比维度。</desc>
   <defs>
     <pattern id="crossGrid" width="44" height="44" patternUnits="userSpaceOnUse">
       <path d="M22 19v6M19 22h6" fill="none" stroke="#C9C8C3" stroke-width="0.6"/>
@@ -169,15 +169,16 @@
       <path d="M190 53V87M173 70H207" stroke="#111111" stroke-width="3"/>
       <path d="M240 70H276" stroke="#FF5A1F" stroke-width="5" marker-end="url(#arrowOrange)"/>
       <path d="M268 30V10H248M268 110V130H248" fill="none" stroke="#C9C8C3" stroke-width="1"/>
-      <text x="0" y="150" class="mono" fill="#C9C8C3" font-size="8">SIGNAL PROCESSOR / DECISION OUTPUT</text>
+      <text x="0" y="150" class="mono" fill="#C9C8C3" font-size="8">MANUAL SYNTHESIS / TRACEABLE OUTPUT</text>
       <text x="275" y="20" text-anchor="end" class="mono" fill="#8B8B88" font-size="7">OUT·01</text>
     </g>
 
     <text x="24" y="275" class="heading white" font-size="26">洞察结论</text>
     <text x="24" y="301" class="mono orange" font-size="10">INSIGHT FINDINGS</text>
-    <text x="24" y="338" class="body" fill="#C9C8C3" font-size="15">把证据与差异转化为产品行动</text>
-    <rect x="24" y="358" width="96" height="2" fill="#FF5A1F"/>
-    <text x="24" y="381" class="mono white" font-size="10">回答：意味着什么？怎么做？</text>
+    <text x="24" y="330" class="body" fill="#C9C8C3" font-size="13">人工串联事实、模式与差异</text>
+    <text x="24" y="349" class="body" fill="#C9C8C3" font-size="13">形成机会假设与行动建议</text>
+    <rect x="24" y="361" width="96" height="2" fill="#FF5A1F"/>
+    <text x="24" y="383" class="mono white" font-size="10">回答：证据意味着什么？下一步怎么做？</text>
   </g>
 
   <!-- 洞察推导链 -->
@@ -185,9 +186,10 @@
     <rect width="1472" height="154" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
     <rect width="244" height="154" fill="#111111"/>
     <text x="24" y="37" class="mono orange" font-size="10">INSIGHT PIPELINE / 05</text>
-    <text x="24" y="75" class="heading white" font-size="24">洞察如何形成</text>
-    <text x="24" y="106" class="body" fill="#C9C8C3" font-size="13">从客观事实到明确行动</text>
-    <path d="M24 127H196" stroke="#FF5A1F" stroke-width="4"/>
+    <text x="24" y="70" class="heading white" font-size="22">人工五阶段推导链</text>
+    <text x="24" y="99" class="body" fill="#C9C8C3" font-size="11">逐步人工整理 · 回链证据</text>
+    <text x="24" y="119" class="body" fill="#C9C8C3" font-size="11">关联竞品与分析维度</text>
+    <path d="M24 134H196" stroke="#FF5A1F" stroke-width="4"/>
 
     <g transform="translate(282 26)">
       <path d="M0 52H1144" stroke="#C9C8C3" stroke-width="2"/>
@@ -221,6 +223,6 @@
   </g>
 
   <!-- 页脚坐标与版本信息 -->
-  <text x="64" y="878" class="mono muted" font-size="9">GUIDE / V1 · SINGLE-SOURCE RESEARCH FLOW</text>
+  <text x="64" y="878" class="mono muted" font-size="9">GUIDE / V2 · TRACEABLE INSIGHT WORKFLOW</text>
   <text x="1536" y="878" text-anchor="end" class="mono muted" font-size="9">1600×900 · GRID 44 · ORANGE #FF5A1F</text>
 </svg>

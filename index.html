@@ -1903,7 +1903,8 @@
 
     .card-context-actions,
     .evidence-tile-actions,
-    .dimension-actions {
+    .dimension-actions,
+    .insight-card-actions {
       opacity: 0;
       pointer-events: none;
       transition: opacity .14s ease;
@@ -1937,7 +1938,9 @@
     .evidence-tile:hover .evidence-tile-actions,
     .evidence-tile:focus-within .evidence-tile-actions,
     .comparison-table tr:hover .dimension-actions,
-    .comparison-table tr:focus-within .dimension-actions {
+    .comparison-table tr:focus-within .dimension-actions,
+    .insight-card:hover .insight-card-actions,
+    .insight-card:focus-within .insight-card-actions {
       opacity: 1;
       pointer-events: auto;
     }
@@ -1949,7 +1952,9 @@
     }
 
     .card:hover .edit-button,
-    .card:focus-within .edit-button {
+    .card:focus-within .edit-button,
+    .insight-card:hover .edit-button,
+    .insight-card:focus-within .edit-button {
       color: var(--black);
       background: var(--white);
       border-color: var(--white);
@@ -2005,6 +2010,7 @@
       .evidence-tile.is-context-active .evidence-tile-actions,
       .comparison-table tr.is-context-active .dimension-actions,
       .workspace-tab-item.is-context-active .workspace-tab-action,
+      .insight-card.is-context-active .insight-card-actions,
       .preview-item.is-context-active .preview-remove-button {
         opacity: 1;
         pointer-events: auto;
@@ -3112,7 +3118,335 @@
       .introduction-image-scroll {
         padding: 8px;
       }
+
+
     }
+
+    /* 洞察结论：五阶段平面链、可追溯引用与低噪声筛选 */
+    .insights-section {
+      margin-top: 48px;
+    }
+
+    .insights-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    .insights-header h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 26px;
+      line-height: 1.1;
+    }
+
+    .insights-header h2::before {
+      margin-right: 10px;
+      color: var(--orange);
+      content: "03 /";
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+
+    .insights-header h2 small {
+      display: block;
+      margin-top: 6px;
+      color: var(--line-medium);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .12em;
+    }
+
+    .insight-filters {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 240px));
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 12px;
+      background: var(--paper);
+      border: 1px solid var(--line-subtle);
+    }
+
+    .insight-filters label {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .04em;
+    }
+
+    .insight-filters select {
+      margin-top: 6px;
+      background: var(--white);
+    }
+
+    .insight-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .insight-empty {
+      display: grid;
+      min-height: 112px;
+      place-items: center;
+      padding: 28px;
+      color: var(--line-medium);
+      background: var(--white);
+      border: 1px dashed var(--line-medium);
+      text-align: center;
+    }
+
+    .insight-card {
+      position: relative;
+      padding: 20px;
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+    }
+
+    .insight-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 40px;
+      margin-bottom: 14px;
+      padding-right: 88px;
+    }
+
+    .insight-card-header h3 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    .insight-card-actions {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 2;
+      display: flex;
+      gap: 6px;
+    }
+
+    .insight-associations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .insight-association {
+      padding: 4px 7px;
+      color: var(--ink);
+      background: var(--gray-100);
+      border: 1px solid var(--line-subtle);
+      font-family: var(--font-mono);
+      font-size: 10px;
+    }
+
+    .insight-chain {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      border: 1px solid var(--line-strong);
+    }
+
+    .insight-stage {
+      min-width: 0;
+      padding: 14px;
+      border-right: 1px solid var(--line-subtle);
+    }
+
+    .insight-stage:last-child {
+      color: var(--black);
+      background: var(--orange);
+      border-right: 0;
+    }
+
+    .insight-stage-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--line-medium);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    .insight-stage:last-child .insight-stage-label {
+      color: var(--black);
+    }
+
+    .insight-stage p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .insight-stage-empty {
+      color: var(--line-medium);
+    }
+
+    .insight-evidence-links {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line-subtle);
+    }
+
+    .insight-evidence-links > span {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .insight-evidence-link {
+      min-height: 40px;
+      padding: 7px 9px;
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--line-strong);
+      clip-path: none;
+      font-size: 12px;
+      text-decoration: underline;
+      text-decoration-color: var(--orange);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+
+    .insight-dialog {
+      width: min(1120px, calc(100% - 32px));
+    }
+
+    .insight-form-chain,
+    .insight-reference-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .insight-form-chain {
+      margin: 14px 0;
+    }
+
+    .insight-form-chain label,
+    .insight-reference-grid fieldset {
+      margin: 0;
+    }
+
+    .insight-form-chain label > span,
+    .insight-reference-grid legend {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .insight-form-chain b {
+      color: var(--orange);
+    }
+
+    .insight-form-chain textarea {
+      min-height: 112px;
+      resize: vertical;
+    }
+
+    .insight-reference-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .insight-reference-grid fieldset {
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--line-subtle);
+    }
+
+    .insight-reference-options {
+      display: grid;
+      gap: 6px;
+      max-height: 176px;
+      overflow: auto;
+    }
+
+    .insight-reference-options label {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin: 0;
+      padding: 6px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .insight-reference-options input {
+      width: auto;
+      margin: 2px 0 0;
+      flex: 0 0 auto;
+    }
+
+    .insight-reference-empty {
+      color: var(--line-medium);
+      font-size: 12px;
+    }
+
+    @media (max-width: 760px) {
+      /* 洞察在移动端改为纵向推导链，避免整页横向溢出 */
+      .insights-section {
+        margin-top: 32px;
+      }
+
+      .insights-header {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .insights-header h2 {
+        font-size: 17px;
+      }
+
+      .insight-filters,
+      .insight-chain,
+      .insight-form-chain,
+      .insight-reference-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .insight-card {
+        padding: 16px;
+      }
+
+      .insight-card-header {
+        padding-right: 88px;
+      }
+
+      .insight-card-header h3 {
+        font-size: 19px;
+      }
+
+      .insight-stage {
+        border-right: 0;
+        border-bottom: 1px solid var(--line-subtle);
+      }
+
+      .insight-stage:last-child {
+        border-bottom: 0;
+      }
+
+      .insight-empty {
+        min-height: 72px;
+        padding: 20px;
+        font-size: 13px;
+      }
+    }
+
 
     /* 减少动态：保留状态变化，但移除所有非必要位移与过渡 */
     @media (prefers-reduced-motion: reduce) {
@@ -3318,7 +3652,106 @@
         class="comparison-scroll">
       </div>
     </section>
+
+    <!-- ==============================
+         洞察结论模块
+         将事实信号、共性、差异、机会与行动连接为可追溯结论
+         ============================== -->
+    <section class="insights-section" aria-labelledby="insightsSectionTitle">
+      <div class="insights-header">
+        <h2 id="insightsSectionTitle">
+          <span>洞察结论</span>
+          <small>INSIGHT FINDINGS</small>
+        </h2>
+        <button id="addInsightButton" type="button">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
+          添加洞察
+        </button>
+      </div>
+
+      <!-- 洞察筛选只影响当前视图，不改变保存的数据 -->
+      <div class="insight-filters" aria-label="筛选洞察结论">
+        <label>
+          竞品
+          <select id="insightCompetitorFilter">
+            <option value="">全部竞品</option>
+          </select>
+        </label>
+        <label>
+          分析维度
+          <select id="insightDimensionFilter">
+            <option value="">全部维度</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="insightList" class="insight-list"></div>
+    </section>
   </main>
+
+  <!-- ==============================
+       洞察新增与编辑弹窗
+       五阶段内容与竞品、维度、证据引用在同一表单维护
+       ============================== -->
+  <dialog id="insightDialog" class="insight-dialog">
+    <form id="insightForm">
+      <h2 id="insightDialogTitle">添加洞察</h2>
+
+      <label>
+        洞察标题
+        <input id="insightTitle" maxlength="40" required placeholder="例如：移动端任务创建仍有降本空间">
+      </label>
+
+      <div class="insight-form-chain">
+        <label>
+          <span><b>01</b> 事实信号</span>
+          <textarea id="insightFactSignals" maxlength="800" rows="3" placeholder="从证据中观察到的客观事实"></textarea>
+        </label>
+        <label>
+          <span><b>02</b> 共性模式</span>
+          <textarea id="insightCommonPattern" maxlength="800" rows="3" placeholder="多个竞品共同采用的模式"></textarea>
+        </label>
+        <label>
+          <span><b>03</b> 关键差异</span>
+          <textarea id="insightKeyDifference" maxlength="800" rows="3" placeholder="真正影响体验或策略的差异"></textarea>
+        </label>
+        <label>
+          <span><b>04</b> 机会假设</span>
+          <textarea id="insightOpportunityHypothesis" maxlength="800" rows="3" placeholder="值得进一步验证的产品机会"></textarea>
+        </label>
+        <label>
+          <span><b>05</b> 行动建议</span>
+          <textarea id="insightActionRecommendation" maxlength="800" rows="3" placeholder="下一步可执行的验证或产品动作"></textarea>
+        </label>
+      </div>
+
+      <div class="insight-reference-grid">
+        <fieldset>
+          <legend>关联竞品</legend>
+          <div id="insightCompetitorOptions" class="insight-reference-options"></div>
+        </fieldset>
+        <fieldset>
+          <legend>关联分析维度</legend>
+          <div id="insightDimensionOptions" class="insight-reference-options"></div>
+        </fieldset>
+        <fieldset>
+          <legend>关联证据</legend>
+          <div id="insightEvidenceOptions" class="insight-reference-options"></div>
+        </fieldset>
+      </div>
+
+      <div class="actions">
+        <button id="cancelInsightButton" class="secondary" type="button">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
+          取消
+        </button>
+        <button id="saveInsightButton" type="submit">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-check"></use></svg>
+          <span class="button-label">保存洞察</span>
+        </button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- ================================================================
        系统介绍弹窗
@@ -3363,14 +3796,14 @@
     </section>
 
     <p id="systemIntroductionSummary" class="introduction-summary">
-      竞品提供研究范围，证据提供事实基础，矩阵提供比较结构，洞察把差异转化为机会与行动。
+      竞品提供研究范围，证据提供事实基础，矩阵提供比较结构；在洞察结论中人工串联事实、模式、差异、机会与行动，并随时回到支撑证据。
     </p>
 
     <div class="introduction-image-scroll" tabindex="0" aria-label="系统操作引导图，可横向滚动查看">
       <img
         id="systemIntroductionImage"
         src="assets/insight-workflow-guide.svg"
-        alt="从竞品档案、调研证据、横向对比到洞察结论的四步操作路径，以及事实信号、共性模式、关键差异、机会假设和行动建议的洞察推导链">
+        alt="从竞品档案、调研证据、横向对比到洞察结论的四步操作路径；洞察通过人工五阶段推导形成，并可回链证据、关联竞品和分析维度">
     </div>
 
     <div class="introduction-dialog-actions">
@@ -3899,6 +4332,39 @@
     const saveDimensionButton =
       document.querySelector('#saveDimensionButton');
 
+    /* 获取洞察结论、筛选和编辑表单相关页面元素 */
+    const insightList = document.querySelector('#insightList');
+    const addInsightButton = document.querySelector('#addInsightButton');
+    const insightCompetitorFilter =
+      document.querySelector('#insightCompetitorFilter');
+    const insightDimensionFilter =
+      document.querySelector('#insightDimensionFilter');
+    const insightDialog = document.querySelector('#insightDialog');
+    const insightForm = document.querySelector('#insightForm');
+    const insightDialogTitle =
+      document.querySelector('#insightDialogTitle');
+    const insightTitle = document.querySelector('#insightTitle');
+    const insightFactSignals =
+      document.querySelector('#insightFactSignals');
+    const insightCommonPattern =
+      document.querySelector('#insightCommonPattern');
+    const insightKeyDifference =
+      document.querySelector('#insightKeyDifference');
+    const insightOpportunityHypothesis =
+      document.querySelector('#insightOpportunityHypothesis');
+    const insightActionRecommendation =
+      document.querySelector('#insightActionRecommendation');
+    const insightCompetitorOptions =
+      document.querySelector('#insightCompetitorOptions');
+    const insightDimensionOptions =
+      document.querySelector('#insightDimensionOptions');
+    const insightEvidenceOptions =
+      document.querySelector('#insightEvidenceOptions');
+    const cancelInsightButton =
+      document.querySelector('#cancelInsightButton');
+    const saveInsightButton =
+      document.querySelector('#saveInsightButton');
+
     /* 获取数据导入与导出相关页面元素 */
     const exportDataButton =
       document.querySelector('#exportDataButton');
@@ -3997,10 +4463,11 @@
     ) || workspaceState.tabs[0];
     workspaceState.activeTabId = activeWorkspaceTab.id;
 
-    /* 以下三个变量始终指向当前激活 Tab 的完整数据 */
+    /* 以下变量始终指向当前激活 Tab 的完整数据 */
     let competitors = activeWorkspaceTab.competitors;
     let evidenceItems = activeWorkspaceTab.evidenceItems;
     let comparisonData = activeWorkspaceTab.comparisonData;
+    let insights = activeWorkspaceTab.insights;
 
     /* 首次迁移成功后使用统一存储，避免图片数据重复占用空间 */
     initializeWorkspaceStorage();
@@ -4035,6 +4502,9 @@
     /* 待保存的新图片文件和预览地址 */
     let pendingEvidenceFiles = [];
     let previewObjectUrls = [];
+
+    /* 当前正在编辑的洞察 ID；null 表示新增洞察 */
+    let editingInsightId = null;
 
     /* ==============================
        多 Tab 洞察空间管理
@@ -4100,9 +4570,11 @@
       competitors = targetTab.competitors;
       evidenceItems = targetTab.evidenceItems;
       comparisonData = targetTab.comparisonData;
+      insights = targetTab.insights;
       editingIndex = null;
       editingDimensionId = null;
       resetEvidenceForm();
+      resetInsightForm();
       persistWorkspaceState();
       render();
     }
@@ -4115,6 +4587,7 @@
       competitors = newTab.competitors;
       evidenceItems = newTab.evidenceItems;
       comparisonData = newTab.comparisonData;
+      insights = newTab.insights;
       persistWorkspaceState();
       render();
       return newTab;
@@ -4135,7 +4608,7 @@
 
       const tab = workspaceState.tabs[tabIndex];
       const confirmed = window.confirm(
-        `确定删除 Tab“${tab.name}”吗？其中的竞品、证据和横向对比数据都会被删除。`
+        `确定删除 Tab“${tab.name}”吗？其中的竞品、证据、横向对比和洞察数据都会被删除。`
       );
       if (!confirmed) {
         return false;
@@ -4151,6 +4624,7 @@
         competitors = nextTab.competitors;
         evidenceItems = nextTab.evidenceItems;
         comparisonData = nextTab.comparisonData;
+        insights = nextTab.insights;
       }
       persistWorkspaceState();
       render();
@@ -4406,8 +4880,9 @@
     function render() {
       renderWorkspaceTabs();
 
-      /* 竞品名称或数量变化时同步更新矩阵 */
+      /* 竞品名称或数量变化时同步更新矩阵与洞察筛选 */
       renderComparison();
+      renderInsights();
 
       if (competitors.length === 0) {
         list.innerHTML = `
@@ -4753,6 +5228,12 @@
             id => id !== dimensionId
           )
         }));
+        insights = insights.map(insight => ({
+          ...insight,
+          dimensionIds: insight.dimensionIds.filter(
+            id => id !== dimensionId
+          )
+        }));
 
         persistComparison();
         persistEvidence();
@@ -4804,6 +5285,354 @@
       dimensionForm.reset();
       dimensionDialog.close();
       renderComparison();
+    });
+
+    /* ==============================
+       洞察结论渲染、筛选与证据回链
+       五阶段内容保持纯文本输出，所有引用均从当前 Tab 解析
+       ============================== */
+    function renderInsights() {
+      const selectedCompetitorId = insightCompetitorFilter.value;
+      const selectedDimensionId = insightDimensionFilter.value;
+
+      insightCompetitorFilter.innerHTML = `
+        <option value="">全部竞品</option>
+        ${competitors.map(item => `
+          <option value="${escapeHtml(item.id)}">
+            ${escapeHtml(item.name)}
+          </option>
+        `).join('')}
+      `;
+      insightDimensionFilter.innerHTML = `
+        <option value="">全部维度</option>
+        ${comparisonData.dimensions.map(item => `
+          <option value="${escapeHtml(item.id)}">
+            ${escapeHtml(item.name)}
+          </option>
+        `).join('')}
+      `;
+      insightCompetitorFilter.value = competitors.some(
+        item => item.id === selectedCompetitorId
+      ) ? selectedCompetitorId : '';
+      insightDimensionFilter.value = comparisonData.dimensions.some(
+        item => item.id === selectedDimensionId
+      ) ? selectedDimensionId : '';
+
+      renderInsightCards();
+    }
+
+    function renderInsightCards() {
+      const competitorFilterId = insightCompetitorFilter.value;
+      const dimensionFilterId = insightDimensionFilter.value;
+      const filteredInsights = insights.filter(item =>
+        (!competitorFilterId ||
+          item.competitorIds.includes(competitorFilterId)) &&
+        (!dimensionFilterId ||
+          item.dimensionIds.includes(dimensionFilterId))
+      );
+
+      if (insights.length === 0) {
+        insightList.innerHTML = `
+          <div class="insight-empty">
+            还没有洞察结论。可以从矩阵差异和调研证据中提炼第一条洞察。
+          </div>
+        `;
+        return;
+      }
+
+      if (filteredInsights.length === 0) {
+        insightList.innerHTML = `
+          <div class="insight-empty">
+            没有符合筛选条件的洞察。
+          </div>
+        `;
+        return;
+      }
+
+      insightList.innerHTML = filteredInsights
+        .map(item => renderInsightCard(item))
+        .join('');
+    }
+
+    function renderInsightCard(item) {
+      const competitorNames = item.competitorIds
+        .map(id => competitors.find(competitor => competitor.id === id)?.name)
+        .filter(Boolean);
+      const dimensionNames = item.dimensionIds
+        .map(id => comparisonData.dimensions.find(
+          dimension => dimension.id === id
+        )?.name)
+        .filter(Boolean);
+      const linkedEvidence = item.evidenceIds
+        .map(id => evidenceItems.find(evidence => evidence.id === id))
+        .filter(Boolean);
+      const associations = [
+        ...competitorNames.map(name => `竞品 / ${name}`),
+        ...dimensionNames.map(name => `维度 / ${name}`)
+      ];
+      const stages = [
+        ['01 / SIGNAL', '事实信号', item.factSignals],
+        ['02 / PATTERN', '共性模式', item.commonPattern],
+        ['03 / DIFF', '关键差异', item.keyDifference],
+        ['04 / CHANCE', '机会假设', item.opportunityHypothesis],
+        ['05 / ACTION', '行动建议', item.actionRecommendation]
+      ];
+
+      return `
+        <article class="insight-card">
+          <div class="insight-card-header">
+            <h3>${escapeHtml(item.title)}</h3>
+          </div>
+          <div class="insight-card-actions">
+            <button
+              class="secondary contextual-action edit-button"
+              data-insight-action="edit"
+              data-insight-id="${escapeHtml(item.id)}"
+              type="button"
+              aria-label="编辑洞察 ${escapeHtml(item.title)}"
+              title="编辑洞察">
+              <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+            </button>
+            <button
+              class="contextual-action delete-button"
+              data-insight-action="delete"
+              data-insight-id="${escapeHtml(item.id)}"
+              type="button"
+              aria-label="删除洞察 ${escapeHtml(item.title)}"
+              title="删除洞察">
+              <svg aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+            </button>
+          </div>
+          ${associations.length > 0 ? `
+            <div class="insight-associations">
+              ${associations.map(label => `
+                <span class="insight-association">${escapeHtml(label)}</span>
+              `).join('')}
+            </div>
+          ` : ''}
+          <div class="insight-chain">
+            ${stages.map(([code, label, content]) => `
+              <section class="insight-stage">
+                <span class="insight-stage-label">
+                  ${escapeHtml(code)} · ${escapeHtml(label)}
+                </span>
+                <p class="${content ? '' : 'insight-stage-empty'}">
+                  ${escapeHtml(content || '待补充')}
+                </p>
+              </section>
+            `).join('')}
+          </div>
+          ${linkedEvidence.length > 0 ? `
+            <div class="insight-evidence-links">
+              <span>EVIDENCE / ${linkedEvidence.length}</span>
+              ${linkedEvidence.map(evidence => `
+                <button
+                  class="insight-evidence-link"
+                  data-insight-evidence-id="${escapeHtml(evidence.id)}"
+                  type="button">
+                  ${escapeHtml(evidence.title)}
+                </button>
+              `).join('')}
+            </div>
+          ` : ''}
+        </article>
+      `;
+    }
+
+    /* ==============================
+       洞察表单引用选项
+       支持关联当前 Tab 的竞品、分析维度和证据
+       ============================== */
+    function renderInsightReferenceOptions(selectedInsight = {}) {
+      const selectedCompetitorIds = new Set(
+        selectedInsight.competitorIds || []
+      );
+      const selectedDimensionIds = new Set(
+        selectedInsight.dimensionIds || []
+      );
+      const selectedEvidenceIds = new Set(
+        selectedInsight.evidenceIds || []
+      );
+
+      insightCompetitorOptions.innerHTML = competitors.length > 0
+        ? competitors.map(item => `
+            <label>
+              <input
+                data-insight-competitor-id="${escapeHtml(item.id)}"
+                type="checkbox"
+                ${selectedCompetitorIds.has(item.id) ? 'checked' : ''}>
+              <span>${escapeHtml(item.name)}</span>
+            </label>
+          `).join('')
+        : '<span class="insight-reference-empty">暂无竞品</span>';
+      insightDimensionOptions.innerHTML = comparisonData.dimensions.length > 0
+        ? comparisonData.dimensions.map(item => `
+            <label>
+              <input
+                data-insight-dimension-id="${escapeHtml(item.id)}"
+                type="checkbox"
+                ${selectedDimensionIds.has(item.id) ? 'checked' : ''}>
+              <span>${escapeHtml(item.name)}</span>
+            </label>
+          `).join('')
+        : '<span class="insight-reference-empty">暂无分析维度</span>';
+      insightEvidenceOptions.innerHTML = evidenceItems.length > 0
+        ? evidenceItems.map(item => {
+            const competitorName = competitors.find(
+              competitor => competitor.id === item.competitorId
+            )?.name || '未知竞品';
+            return `
+              <label>
+                <input
+                  data-insight-evidence-id="${escapeHtml(item.id)}"
+                  type="checkbox"
+                  ${selectedEvidenceIds.has(item.id) ? 'checked' : ''}>
+                <span>
+                  ${escapeHtml(item.title)} · ${escapeHtml(competitorName)}
+                </span>
+              </label>
+            `;
+          }).join('')
+        : '<span class="insight-reference-empty">暂无调研证据</span>';
+    }
+
+    function resetInsightForm() {
+      insightForm.reset();
+      editingInsightId = null;
+      insightDialogTitle.textContent = '添加洞察';
+      setButtonLabel(saveInsightButton, '保存洞察');
+      insightCompetitorOptions.innerHTML = '';
+      insightDimensionOptions.innerHTML = '';
+      insightEvidenceOptions.innerHTML = '';
+    }
+
+    function openInsightDialog(item = null) {
+      resetInsightForm();
+      if (item) {
+        editingInsightId = item.id;
+        insightDialogTitle.textContent = '编辑洞察';
+        setButtonLabel(saveInsightButton, '保存修改');
+        insightTitle.value = item.title;
+        insightFactSignals.value = item.factSignals;
+        insightCommonPattern.value = item.commonPattern;
+        insightKeyDifference.value = item.keyDifference;
+        insightOpportunityHypothesis.value = item.opportunityHypothesis;
+        insightActionRecommendation.value = item.actionRecommendation;
+      }
+      renderInsightReferenceOptions(item || {});
+      insightDialog.showModal();
+      insightTitle.focus();
+    }
+
+    function collectInsightReferenceIds(container, selector, datasetKey) {
+      return Array.from(container.querySelectorAll(`${selector}:checked`))
+        .map(input => input.dataset[datasetKey]);
+    }
+
+    addInsightButton.addEventListener('click', () => {
+      openInsightDialog();
+    });
+
+    cancelInsightButton.addEventListener('click', () => {
+      insightDialog.close();
+      resetInsightForm();
+    });
+
+    insightForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const existingInsight = insights.find(
+        item => item.id === editingInsightId
+      );
+      const now = new Date().toISOString();
+      const candidate = normalizeInsightItem({
+        id: existingInsight?.id || createId(),
+        title: insightTitle.value,
+        factSignals: insightFactSignals.value,
+        commonPattern: insightCommonPattern.value,
+        keyDifference: insightKeyDifference.value,
+        opportunityHypothesis: insightOpportunityHypothesis.value,
+        actionRecommendation: insightActionRecommendation.value,
+        competitorIds: collectInsightReferenceIds(
+          insightCompetitorOptions,
+          '[data-insight-competitor-id]',
+          'insightCompetitorId'
+        ),
+        dimensionIds: collectInsightReferenceIds(
+          insightDimensionOptions,
+          '[data-insight-dimension-id]',
+          'insightDimensionId'
+        ),
+        evidenceIds: collectInsightReferenceIds(
+          insightEvidenceOptions,
+          '[data-insight-evidence-id]',
+          'insightEvidenceId'
+        ),
+        createdAt: existingInsight?.createdAt || now,
+        updatedAt: now
+      }, {
+        competitorIds: new Set(competitors.map(item => item.id)),
+        dimensionIds: new Set(
+          comparisonData.dimensions.map(item => item.id)
+        ),
+        evidenceIds: new Set(evidenceItems.map(item => item.id))
+      });
+
+      if (existingInsight) {
+        const insightIndex = insights.findIndex(
+          item => item.id === existingInsight.id
+        );
+        insights[insightIndex] = candidate;
+      } else {
+        insights.unshift(candidate);
+      }
+
+      persistWorkspaceState();
+      insightDialog.close();
+      resetInsightForm();
+      renderInsights();
+    });
+
+    insightCompetitorFilter.addEventListener('change', renderInsightCards);
+    insightDimensionFilter.addEventListener('change', renderInsightCards);
+
+    insightList.addEventListener('click', event => {
+      const evidenceButton = event.target.closest(
+        '[data-insight-evidence-id]'
+      );
+      if (evidenceButton) {
+        const evidenceIndex = evidenceItems.findIndex(
+          item => item.id === evidenceButton.dataset.insightEvidenceId
+        );
+        if (evidenceIndex >= 0) {
+          openEvidenceDetail(evidenceIndex);
+        }
+        return;
+      }
+
+      const actionButton = event.target.closest('[data-insight-action]');
+      if (!actionButton) {
+        return;
+      }
+      const insight = insights.find(
+        item => item.id === actionButton.dataset.insightId
+      );
+      if (!insight) {
+        return;
+      }
+
+      if (actionButton.dataset.insightAction === 'edit') {
+        openInsightDialog(insight);
+        return;
+      }
+
+      if (
+        actionButton.dataset.insightAction === 'delete' &&
+        window.confirm(`确定删除洞察“${insight.title}”吗？`)
+      ) {
+        insights = insights.filter(item => item.id !== insight.id);
+        persistWorkspaceState();
+        renderInsights();
+      }
     });
 
     /* ==============================
@@ -5100,10 +5929,24 @@
           return;
         }
 
+        const removedEvidenceIds = new Set(
+          evidenceItems
+            .filter(item => item.competitorId === competitor.id)
+            .map(item => item.id)
+        );
         competitors.splice(index, 1);
         evidenceItems = evidenceItems.filter(
           item => item.competitorId !== competitor.id
         );
+        insights = insights.map(insight => ({
+          ...insight,
+          competitorIds: insight.competitorIds.filter(
+            id => id !== competitor.id
+          ),
+          evidenceIds: insight.evidenceIds.filter(
+            id => !removedEvidenceIds.has(id)
+          )
+        }));
 
         /* 同步删除该竞品在所有矩阵维度中的内容 */
         comparisonData.dimensions.forEach(dimension => {
@@ -5823,7 +6666,14 @@
         return;
       }
 
+      const deletedEvidenceId = evidenceItems[evidenceIndex]?.id;
       evidenceItems.splice(evidenceIndex, 1);
+      insights = insights.map(insight => ({
+        ...insight,
+        evidenceIds: insight.evidenceIds.filter(
+          id => id !== deletedEvidenceId
+        )
+      }));
       persistEvidence();
       render();
     }
@@ -5970,7 +6820,7 @@
     function downloadWorkspaceBackup(selectedTabs) {
       const backup = {
         format: 'competitor-insights-backup',
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
         data: {
           tabs: selectedTabs
@@ -6114,18 +6964,21 @@
         (mode === 'append' ? workspaceState.tabs : [])
           .map(tab => tab.name.toLowerCase())
       );
-      const preparedTabs = importedTabs.map(tab => ({
-        ...tab,
-        id: createId(),
-        name: createUniqueTabName(tab.name, usedNames)
-      }));
+      const preparedTabs = importedTabs.map((tab, index) => {
+        const normalizedTab = normalizeWorkspaceTab(tab, index);
+        return {
+          ...normalizedTab,
+          id: createId(),
+          name: createUniqueTabName(normalizedTab.name, usedNames)
+        };
+      });
 
       try {
         const nextTabs = mode === 'replace'
           ? preparedTabs
           : [...workspaceState.tabs, ...preparedTabs];
         workspaceState = {
-          version: 2,
+          version: 3,
           activeTabId: preparedTabs[0].id,
           tabs: nextTabs
         };
@@ -6133,6 +6986,7 @@
         competitors = activeWorkspaceTab.competitors;
         evidenceItems = activeWorkspaceTab.evidenceItems;
         comparisonData = activeWorkspaceTab.comparisonData;
+        insights = activeWorkspaceTab.insights;
         persistWorkspaceState();
       } catch (error) {
         workspaceState = previousState;
@@ -6142,6 +6996,7 @@
         competitors = activeWorkspaceTab.competitors;
         evidenceItems = activeWorkspaceTab.evidenceItems;
         comparisonData = activeWorkspaceTab.comparisonData;
+        insights = activeWorkspaceTab.insights;
         restoreStorageValue(workspaceStorageKey, previousStored);
         throw new Error(
           '浏览器存储空间不足，当前全部 Tab 已自动恢复。'
@@ -6196,6 +7051,7 @@
           .join(''),
         competitors: [],
         evidenceItems: [],
+        insights: [],
         comparisonData: createDefaultComparisonData()
       };
     }
@@ -6255,6 +7111,18 @@
               )
             }))
         : [];
+      const evidenceIds = new Set(
+        evidenceItems.map(item => item.id)
+      );
+      const insights = Array.isArray(tab.insights)
+        ? tab.insights
+            .filter(item => item && typeof item === 'object')
+            .map(item => normalizeInsightItem(item, {
+              competitorIds,
+              dimensionIds,
+              evidenceIds
+            }))
+        : [];
 
       return {
         id: tab.id || createId(),
@@ -6263,6 +7131,7 @@
         ).slice(0, 20).join('') || `洞察空间 ${index + 1}`,
         competitors,
         evidenceItems,
+        insights,
         comparisonData: {
           dimensions,
           values
@@ -6270,9 +7139,54 @@
       };
     }
 
+    /* ==============================
+       洞察数据归一化与引用完整性保护
+       导入时清理无效、重复的竞品、维度和证据引用
+       ============================== */
+    function normalizeInsightItem(item = {}, validReferences = {}) {
+      const normalizeText = (value, maxLength) =>
+        Array.from(String(value || '').trim())
+          .slice(0, maxLength)
+          .join('');
+      const normalizeReferences = (values, validIds) =>
+        Array.from(new Set(Array.isArray(values) ? values : []))
+          .filter(id => validIds?.has(id));
+      const now = new Date().toISOString();
+
+      return {
+        id: item.id || createId(),
+        title: normalizeText(item.title, 40) || '未命名洞察',
+        factSignals: normalizeText(item.factSignals, 800),
+        commonPattern: normalizeText(item.commonPattern, 800),
+        keyDifference: normalizeText(item.keyDifference, 800),
+        opportunityHypothesis: normalizeText(
+          item.opportunityHypothesis,
+          800
+        ),
+        actionRecommendation: normalizeText(
+          item.actionRecommendation,
+          800
+        ),
+        competitorIds: normalizeReferences(
+          item.competitorIds,
+          validReferences.competitorIds
+        ),
+        dimensionIds: normalizeReferences(
+          item.dimensionIds,
+          validReferences.dimensionIds
+        ),
+        evidenceIds: normalizeReferences(
+          item.evidenceIds,
+          validReferences.evidenceIds
+        ),
+        createdAt: item.createdAt || now,
+        updatedAt: item.updatedAt || item.createdAt || now
+      };
+    }
+
     function migrateLegacyWorkspaceData() {
       return {
-        version: 2,
+        version: 3,
         activeTabId: null,
         tabs: [normalizeWorkspaceTab({
           id: createId(),
@@ -6302,7 +7216,7 @@
         : tabs[0].id;
 
       return {
-        version: 2,
+        version: 3,
         activeTabId,
         tabs
       };
@@ -6353,6 +7267,7 @@
       activeWorkspaceTab.competitors = competitors;
       activeWorkspaceTab.evidenceItems = evidenceItems;
       activeWorkspaceTab.comparisonData = comparisonData;
+      activeWorkspaceTab.insights = insights;
       localStorage.setItem(
         workspaceStorageKey,
         JSON.stringify(workspaceState)
@@ -6588,7 +7503,7 @@
       }
 
       return target.closest?.(
-        '.card, .evidence-tile, .workspace-tab-item, .preview-item'
+        '.card, .evidence-tile, .workspace-tab-item, .preview-item, .insight-card'
       ) || null;
     }
 
