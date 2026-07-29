@@ -979,6 +979,11 @@
       margin-top: 20px;
     }
 
+    /* 当前空间没有系统示例时彻底隐藏清空入口 */
+    #clearSampleButton[hidden] {
+      display: none;
+    }
+
     .backup-button {
       color: #4338ca;
       background: #eef2ff;
@@ -3761,6 +3766,14 @@
             <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
             添加竞品
           </button>
+          <button
+            id="clearSampleButton"
+            class="secondary"
+            type="button"
+            hidden>
+            <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+            清空示例
+          </button>
         </div>
       </div>
 
@@ -4422,6 +4435,8 @@
     const comparisonStorageKey = 'competitor-insights-comparison';
     const workspaceStorageKey =
       'competitor-insights-workspaces-v2';
+    const sampleWorkspaceTabsStorageKey =
+      'competitor-insights-sample-tabs-v1';
     const systemIntroductionSeenKey =
       'competitor-insights-system-introduction-seen-v1';
 
@@ -4471,6 +4486,7 @@
        获取竞品管理相关页面元素
        ============================== */
     const list = document.querySelector('#competitorList');
+    const clearSampleButton = document.querySelector('#clearSampleButton');
     const dialog = document.querySelector('#competitorDialog');
     const form = document.querySelector('#competitorForm');
     const dialogTitle = document.querySelector('#dialogTitle');
@@ -4618,6 +4634,9 @@
     ];
 
     let workspaceState = loadWorkspaceState();
+    let sampleWorkspaceTabIds = new Set(
+      readStoredArray(sampleWorkspaceTabsStorageKey)
+    );
     let activeWorkspaceTab = workspaceState.tabs.find(
       tab => tab.id === workspaceState.activeTabId
     ) || workspaceState.tabs[0];
@@ -5037,8 +5056,34 @@
        渲染竞品档案
        每张竞品卡片内包含自己的证据横向列表
        ============================== */
+    /* 当前空间只有被标记为首次示例空间且仍有内容时才显示清空操作 */
+    function currentWorkspaceHasSampleData() {
+      if (!sampleWorkspaceTabIds.has(activeWorkspaceTab.id)) {
+        return false;
+      }
+
+      const matrixValueCount = Object.values(
+        comparisonData.values || {}
+      ).reduce((total, row) => total + Object.values(row || {})
+        .filter(value => String(value || '').trim()).length, 0);
+
+      return competitors.length +
+        evidenceItems.length +
+        comparisonData.dimensions.length +
+        insights.length +
+        matrixValueCount > 0;
+    }
+
+    function persistSampleWorkspaceTabIds() {
+      localStorage.setItem(
+        sampleWorkspaceTabsStorageKey,
+        JSON.stringify(Array.from(sampleWorkspaceTabIds))
+      );
+    }
+
     function render() {
       renderWorkspaceTabs();
+      clearSampleButton.hidden = !currentWorkspaceHasSampleData();
 
       /* 竞品名称或数量变化时同步更新矩阵与洞察筛选 */
       renderComparison();
@@ -6240,6 +6285,25 @@
         setButtonLabel(saveButton, '保存竞品');
         dialog.showModal();
       });
+
+    /* 清空当前首次示例空间；普通手动新增空间不会出现此按钮 */
+    clearSampleButton.addEventListener('click', () => {
+      const confirmed = window.confirm(
+        '确认清空当前空间的示例数据吗？这会删除其中的竞品、证据、对比维度、矩阵内容和洞察，且无法撤销。'
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      sampleWorkspaceTabIds.delete(activeWorkspaceTab.id);
+      competitors = [];
+      evidenceItems = [];
+      comparisonData = { dimensions: [], values: {} };
+      insights = [];
+      persistSampleWorkspaceTabIds();
+      persistWorkspaceState();
+      render();
+    });
 
     /* 关闭竞品弹窗后清除触发卡片的焦点和触屏上下文态 */
     function resetCompetitorCardInteractionState() {
