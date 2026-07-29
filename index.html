@@ -3522,15 +3522,10 @@
 
     .insight-evidence-view:hover,
     .insight-evidence-view:focus-visible {
+      color: var(--white);
+      background: var(--black);
+      border-color: var(--black);
       transform: translateY(-50%);
-    }
-
-    /* 触屏没有 Hover，眼睛入口保持可见以避免功能不可达 */
-    @media (hover: none), (pointer: coarse) {
-      .insight-evidence-view {
-        opacity: 1;
-        pointer-events: auto;
-      }
     }
 
     .insight-derived-fieldset {
