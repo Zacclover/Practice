@@ -1719,7 +1719,7 @@
       letter-spacing: .04em;
     }
 
-    /* 竞品档案横向轨道：卡片保持 360px 正方形，超出工作区后仅在轨道内左右滚动 */
+    /* 竞品档案横向轨道：卡片保持 480px 正方形，完整展示常规纵向内容，超出工作区后仅在轨道内左右滚动 */
     .grid {
       display: flex;
       max-width: 100%;
@@ -1736,9 +1736,9 @@
     }
 
     .card {
-      flex: 0 0 360px;
-      width: 360px;
-      height: 360px;
+      flex: 0 0 480px;
+      width: 480px;
+      height: 480px;
       padding: 22px;
       overflow-x: hidden;
       overflow-y: auto;
@@ -2112,6 +2112,11 @@
 
     .comparison-table th.dimension-column {
       z-index: 3;
+    }
+
+    /* 横向对比正文固定列：使用用户指定的暖灰实底，表头继续保持黑色层级 */
+    .comparison-table tbody .dimension-column {
+      background: #efeee9;
     }
 
     .matrix-input {
