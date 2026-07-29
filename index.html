@@ -1719,17 +1719,36 @@
       letter-spacing: .04em;
     }
 
-    /* 竞品卡片：无圆角、无阴影，以 Medium 边界和黑白反转表达层级 */
+    /* 竞品档案横向轨道：卡片保持 360px 正方形，超出工作区后仅在轨道内左右滚动 */
     .grid {
-      gap: 0;
+      display: flex;
+      max-width: 100%;
+      gap: 12px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 2px 2px 12px;
+      scroll-snap-type: x proximity;
+      scrollbar-width: thin;
+    }
+
+    .grid > .empty {
+      flex: 1 0 100%;
     }
 
     .card {
+      flex: 0 0 360px;
+      width: 360px;
+      height: 360px;
       padding: 22px;
+      overflow-x: hidden;
+      overflow-y: auto;
       color: var(--ink);
       background: var(--white);
       border: 1px solid var(--line-medium);
       border-radius: 0;
+      box-sizing: border-box;
+      scroll-snap-align: start;
+      scrollbar-width: thin;
       transition: color .16s ease, background .16s ease, transform .16s ease;
     }
 
@@ -2057,6 +2076,42 @@
 
     .comparison-table th.dimension-column {
       background: var(--graphite);
+    }
+
+    /* 横向对比定宽列：维度首列持续吸附，竞品列过多时只在矩阵内部左右滚动 */
+    .comparison-scroll {
+      max-width: 100%;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
+    }
+
+    .comparison-table {
+      width: max-content;
+      min-width: 0;
+      table-layout: fixed;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      width: 280px;
+      min-width: 280px;
+      max-width: 280px;
+    }
+
+    .dimension-column {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      width: 160px !important;
+      min-width: 160px !important;
+      max-width: 160px;
+      background: var(--white);
+      box-shadow: none;
+    }
+
+    .comparison-table th.dimension-column {
+      z-index: 3;
     }
 
     .matrix-input {
