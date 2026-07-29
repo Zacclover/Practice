@@ -2663,20 +2663,22 @@
     /* 响应式：保留固定 Tab 宽度，同时降低移动端装饰尺度 */
     @media (max-width: 640px) {
       header {
-        min-height: 72px;
-        padding: 18px 16px;
+        min-height: 64px;
+        padding: 12px;
       }
 
       header span {
-        font-size: 9px;
+        font-size: 8px;
       }
 
       .workspace-tabs-header {
-        padding: 10px 16px;
+        padding: 8px 12px;
       }
 
       .workspace-tabs-tools button {
         min-height: 40px;
+        padding: 7px 6px;
+        font-size: 11px;
       }
 
       /* 触屏可用性：Tab 编辑/关闭和富文本工具保持至少 40px 点击区域 */
@@ -2707,18 +2709,18 @@
       }
 
       main {
-        margin-top: 20px;
-        padding: 0 16px;
+        margin-top: 14px;
+        padding: 0 12px;
       }
 
       .hero {
-        min-height: 220px;
-        padding: 28px 22px;
+        min-height: 0;
+        padding: 0;
       }
 
       .hero h2 {
-        max-width: 92%;
-        font-size: clamp(34px, 11vw, 48px);
+        max-width: 100%;
+        font-size: clamp(30px, 9.5vw, 38px);
       }
 
       .hero::before {
@@ -2735,8 +2737,8 @@
 
     @media (max-width: 760px) {
       header {
-        padding-right: 16px;
-        padding-left: 16px;
+        min-height: 64px;
+        padding: 12px;
       }
 
       .header-meta {
@@ -2744,9 +2746,58 @@
       }
 
       .brand-mark {
-        width: 30px;
-        height: 30px;
-        flex-basis: 30px;
+        width: 28px;
+        height: 28px;
+        flex-basis: 28px;
+      }
+
+      .brand-lockup {
+        gap: 9px;
+      }
+
+      .brand-title-row {
+        gap: 6px;
+      }
+
+      .brand-lockup h1 {
+        font-size: 18px;
+      }
+
+      .brand-lockup p {
+        margin-top: 4px;
+        font-size: 8px;
+      }
+
+      /* 移动端工作区工具压缩为同一紧凑行，按钮触控高度仍保持 40px */
+      .workspace-tabs-header {
+        min-height: 0;
+        gap: 8px;
+        padding: 8px 12px;
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .workspace-tabs-header h2 {
+        font-size: 12px;
+      }
+
+      .workspace-tabs-header h2 .workspace-code {
+        font-size: 9px;
+      }
+
+      .workspace-tabs-tools {
+        display: grid;
+        width: 100%;
+        gap: 6px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .workspace-tabs-tools button {
+        width: 100%;
+        min-width: 0;
+        min-height: 40px;
+        padding: 7px 6px;
+        font-size: 11px;
       }
 
       .workspace-tabs-header h2 small {
@@ -2760,40 +2811,110 @@
       }
 
       .type-poster {
-        padding: 28px 22px 30px;
+        padding: 20px 18px 22px;
         border-right: 0;
         border-bottom: 1px solid var(--line-medium);
       }
 
       .type-poster h2 {
         max-width: 100%;
-        font-size: clamp(36px, 12vw, 48px);
+        font-size: clamp(30px, 9.5vw, 38px);
+      }
+
+      .system-line {
+        gap: 8px;
+        margin-bottom: 12px;
+        font-size: 8px;
+      }
+
+      .system-line::before {
+        width: 24px;
+      }
+
+      .type-poster .description {
+        margin-top: 14px;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .hero-actions {
+        margin-top: 18px;
       }
 
       .object-board {
-        min-height: 230px;
+        min-height: 180px;
       }
 
       .disc {
-        width: 142px;
-        height: 142px;
+        width: 116px;
+        height: 116px;
       }
 
       .disc::before {
-        top: 19px;
-        left: 20px;
-        width: 58px;
-        height: 58px;
+        top: 16px;
+        left: 16px;
+        width: 48px;
+        height: 48px;
       }
 
       .plate {
-        width: 118px;
-        height: 66px;
+        width: 96px;
+        height: 54px;
       }
 
       .orbit {
-        width: 200px;
-        height: 64px;
+        width: 164px;
+        height: 52px;
+      }
+
+      /* 移动端内容层级：收紧区块、卡片和矩阵文字，不压缩操作热区 */
+      .section-title,
+      .comparison-header {
+        gap: 10px;
+        margin: 24px 0 12px;
+      }
+
+      .section-title {
+        font-size: 17px;
+      }
+
+      .section-title::before,
+      .comparison-header h2::before {
+        font-size: 10px;
+      }
+
+      .comparison-section {
+        margin-top: 28px;
+      }
+
+      .comparison-header {
+        gap: 8px;
+        padding-bottom: 9px;
+      }
+
+      .comparison-header h2 {
+        font-size: 17px;
+      }
+
+      .card {
+        padding: 16px;
+      }
+
+      .card h3 {
+        margin-bottom: 7px;
+        font-size: 19px;
+      }
+
+      .card p,
+      .evidence-empty,
+      .evidence-title,
+      .matrix-auto-content,
+      .matrix-manual-content {
+        font-size: 13px;
+      }
+
+      .card-actions {
+        padding-top: 10px;
       }
 
       .section-title small,
@@ -2804,26 +2925,46 @@
       /* 窄屏空状态保持同一实际高度，避免较长文案单独换行 */
       .empty,
       .comparison-empty {
-        font-size: 14px;
+        min-height: 72px;
+        padding: 20px;
+        font-size: 13px;
       }
 
       /* 窄屏介绍弹窗保留欢迎层级，并让高密度流程图在自身容器内滚动 */
+      .system-introduction-dialog {
+        width: min(100% - 16px, 1120px);
+      }
+
       .introduction-dialog-header {
-        padding: 14px 16px;
+        padding: 10px 12px;
+      }
+
+      .introduction-dialog-header h2 {
+        font-size: 18px;
       }
 
       .introduction-welcome {
-        min-height: 160px;
-        padding: 22px 150px 22px 18px;
+        min-height: 132px;
+        padding: 18px 124px 18px 14px;
+      }
+
+      .introduction-welcome h3 {
+        font-size: 20px;
+      }
+
+      .introduction-welcome p,
+      .introduction-summary {
+        font-size: 12px;
+        line-height: 1.55;
       }
 
       .introduction-confetti {
-        width: 170px;
-        height: 160px;
+        width: 142px;
+        height: 132px;
       }
 
       .introduction-image-scroll {
-        padding: 12px;
+        padding: 8px;
       }
     }
 
