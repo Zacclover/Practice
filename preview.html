@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>洞察关联交互预览</title>
+</head>
+<body>
+  <p>正在准备洞察关联演示数据……</p>
+  <script>
+    /* ==============================
+       预览入口
+       仅在预览域写入演示数据后进入正式页面代码
+       ============================== */
+    const previewState = {
+      version: 3,
+      activeTabId: 'preview-tab',
+      tabs: [{
+        id: 'preview-tab',
+        name: '洞察关联预览',
+        competitors: [
+          {
+            id: 'competitor-a',
+            name: 'A 竞品',
+            website: 'https://example.com/a',
+            positioning: '面向团队协作的项目管理产品'
+          },
+          {
+            id: 'competitor-b',
+            name: 'B 竞品',
+            website: 'https://example.com/b',
+            positioning: '强调快速任务流转的协同工具'
+          }
+        ],
+        evidenceItems: [
+          {
+            id: 'evidence-a-b',
+            competitorId: 'competitor-a',
+            images: [],
+            dimensionIds: ['dimension-b'],
+            title: 'A 竞品的任务创建路径',
+            contentHtml: '<h3>原证据内容</h3><p>A 竞品将任务创建入口固定在工作区顶部，用户可以在当前上下文直接补充负责人和截止时间。</p><blockquote>该证据关联 A 竞品，并关联“B 维度：任务创建效率”。</blockquote>',
+            createdAt: '2026-07-29T08:00:00.000Z'
+          },
+          {
+            id: 'evidence-b-a',
+            competitorId: 'competitor-b',
+            images: [],
+            dimensionIds: ['dimension-a'],
+            title: 'B 竞品的协同编辑反馈',
+            contentHtml: '<h3>原证据内容</h3><p>B 竞品在多人编辑时提供逐字段状态提示，并保留最近一次同步时间。</p>',
+            createdAt: '2026-07-29T08:10:00.000Z'
+          }
+        ],
+        insights: [],
+        comparisonData: {
+          dimensions: [
+            { id: 'dimension-a', name: 'A 维度：协同反馈' },
+            { id: 'dimension-b', name: 'B 维度：任务创建效率' }
+          ],
+          values: {}
+        }
+      }]
+    };
+
+    localStorage.setItem(
+      'competitor-insights-workspaces-v2',
+      JSON.stringify(previewState)
+    );
+    localStorage.setItem(
+      'competitor-insights-system-introduction-seen-v1',
+      'true'
+    );
+    window.location.replace('./index.html?preview=insight-evidence-associations');
+  </script>
+</body>
+</html>
