@@ -5603,22 +5603,56 @@
        洞察表单引用选项
        证据是唯一选择主体，竞品与分析维度由证据自动派生
        ============================== */
-    function getInsightDerivedReferenceIds(evidenceIds) {
+    function getInsightDerivedReferenceIds(
+      evidenceIds,
+      sourceEvidenceItems = evidenceItems
+    ) {
       const selectedEvidenceIds = new Set(evidenceIds || []);
       const competitorIds = new Set();
       const dimensionIds = new Set();
 
-      evidenceItems.forEach(evidence => {
+      sourceEvidenceItems.forEach(evidence => {
         if (!selectedEvidenceIds.has(evidence.id)) {
           return;
         }
         if (evidence.competitorId) {
           competitorIds.add(evidence.competitorId);
         }
-        evidence.dimensionIds.forEach(id => dimensionIds.add(id));
+        (evidence.dimensionIds || []).forEach(
+          id => dimensionIds.add(id)
+        );
       });
 
       return { competitorIds, dimensionIds };
+    }
+
+    /* 证据是洞察关联的唯一真源：清理失效证据并重新派生竞品和维度 */
+    function synchronizeInsightReferences(
+      sourceInsights = [],
+      sourceEvidenceItems = evidenceItems
+    ) {
+      const validEvidenceIds = new Set(
+        sourceEvidenceItems.map(item => item.id)
+      );
+
+      return sourceInsights.map(insight => {
+        const normalizedEvidenceIds = Array.from(new Set(
+          Array.isArray(insight.evidenceIds)
+            ? insight.evidenceIds
+            : []
+        )).filter(id => validEvidenceIds.has(id));
+        const derivedIds = getInsightDerivedReferenceIds(
+          normalizedEvidenceIds,
+          sourceEvidenceItems
+        );
+
+        return {
+          ...insight,
+          evidenceIds: normalizedEvidenceIds,
+          competitorIds: Array.from(derivedIds.competitorIds),
+          dimensionIds: Array.from(derivedIds.dimensionIds)
+        };
+      });
     }
 
     function renderInsightDerivedReferenceOptions(selectedEvidenceIds) {
@@ -5767,9 +5801,6 @@
         '[data-insight-evidence-id]',
         'insightEvidenceId'
       );
-      const derivedReferenceIds = getInsightDerivedReferenceIds(
-        selectedEvidenceIds
-      );
       const candidate = normalizeInsightItem({
         id: existingInsight?.id || createId(),
         title: insightTitle.value,
@@ -5778,8 +5809,6 @@
         keyDifference: insightKeyDifference.value,
         opportunityHypothesis: insightOpportunityHypothesis.value,
         actionRecommendation: insightActionRecommendation.value,
-        competitorIds: Array.from(derivedReferenceIds.competitorIds),
-        dimensionIds: Array.from(derivedReferenceIds.dimensionIds),
         evidenceIds: selectedEvidenceIds,
         createdAt: existingInsight?.createdAt || now,
         updatedAt: now
@@ -5788,7 +5817,8 @@
         dimensionIds: new Set(
           comparisonData.dimensions.map(item => item.id)
         ),
-        evidenceIds: new Set(evidenceItems.map(item => item.id))
+        evidenceIds: new Set(evidenceItems.map(item => item.id)),
+        evidenceItems
       });
 
       if (existingInsight) {
@@ -6720,6 +6750,10 @@
         } else {
           evidenceItems[editingEvidenceIndex] = evidence;
         }
+        insights = synchronizeInsightReferences(
+          insights,
+          evidenceItems
+        );
 
         try {
           persistEvidence();
@@ -6730,6 +6764,10 @@
             evidenceItems[editingEvidenceIndex] =
               previousEvidence;
           }
+          insights = synchronizeInsightReferences(
+            insights,
+            evidenceItems
+          );
 
           throw new Error(
             '浏览器存储空间不足，请减少图片数量或删除旧证据。'
@@ -6896,14 +6934,11 @@
         return;
       }
 
-      const deletedEvidenceId = evidenceItems[evidenceIndex]?.id;
       evidenceItems.splice(evidenceIndex, 1);
-      insights = insights.map(insight => ({
-        ...insight,
-        evidenceIds: insight.evidenceIds.filter(
-          id => id !== deletedEvidenceId
-        )
-      }));
+      insights = synchronizeInsightReferences(
+        insights,
+        evidenceItems
+      );
       persistEvidence();
       render();
     }
@@ -7350,7 +7385,8 @@
             .map(item => normalizeInsightItem(item, {
               competitorIds,
               dimensionIds,
-              evidenceIds
+              evidenceIds,
+              evidenceItems
             }))
         : [];
 
@@ -7381,6 +7417,14 @@
       const normalizeReferences = (values, validIds) =>
         Array.from(new Set(Array.isArray(values) ? values : []))
           .filter(id => validIds?.has(id));
+      const normalizedEvidenceIds = normalizeReferences(
+        item.evidenceIds,
+        validReferences.evidenceIds
+      );
+      const derivedIds = getInsightDerivedReferenceIds(
+        normalizedEvidenceIds,
+        validReferences.evidenceItems || []
+      );
       const now = new Date().toISOString();
 
       return {
@@ -7397,18 +7441,11 @@
           item.actionRecommendation,
           800
         ),
-        competitorIds: normalizeReferences(
-          item.competitorIds,
-          validReferences.competitorIds
-        ),
-        dimensionIds: normalizeReferences(
-          item.dimensionIds,
-          validReferences.dimensionIds
-        ),
-        evidenceIds: normalizeReferences(
-          item.evidenceIds,
-          validReferences.evidenceIds
-        ),
+        competitorIds: Array.from(derivedIds.competitorIds)
+          .filter(id => validReferences.competitorIds?.has(id)),
+        dimensionIds: Array.from(derivedIds.dimensionIds)
+          .filter(id => validReferences.dimensionIds?.has(id)),
+        evidenceIds: normalizedEvidenceIds,
         createdAt: item.createdAt || now,
         updatedAt: item.updatedAt || item.createdAt || now
       };
@@ -7494,6 +7531,10 @@
     }
 
     function persistWorkspaceState() {
+      insights = synchronizeInsightReferences(
+        insights,
+        evidenceItems
+      );
       activeWorkspaceTab.competitors = competitors;
       activeWorkspaceTab.evidenceItems = evidenceItems;
       activeWorkspaceTab.comparisonData = comparisonData;
