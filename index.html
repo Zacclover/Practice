@@ -3488,13 +3488,31 @@
     }
 
     .insight-evidence-view {
+      width: 40px;
+      height: 40px;
       min-height: 40px;
-      padding: 7px 9px;
+      padding: 0;
       color: var(--black);
       background: var(--white);
       border: 1px solid var(--line-strong);
       clip-path: none;
-      font-size: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: color .16s ease, background .16s ease, opacity .16s ease, transform .16s ease;
+    }
+
+    .insight-evidence-option:hover .insight-evidence-view,
+    .insight-evidence-option:focus-within .insight-evidence-view {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* 触屏没有 Hover，眼睛入口保持可见以避免功能不可达 */
+    @media (hover: none), (pointer: coarse) {
+      .insight-evidence-view {
+        opacity: 1;
+        pointer-events: auto;
+      }
     }
 
     .insight-derived-fieldset {
@@ -5641,9 +5659,9 @@
                   class="insight-evidence-view"
                   data-insight-evidence-view="${escapeHtml(item.id)}"
                   type="button"
-                  aria-label="查看原证据：${escapeHtml(item.title)}">
+                  aria-label="查看原证据：${escapeHtml(item.title)}"
+                  title="查看原证据">
                   <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-eye"></use></svg>
-                  查看原证据
                 </button>
               </div>
             `;
