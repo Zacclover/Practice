@@ -1992,7 +1992,7 @@
     .insight-card:focus-within .edit-button {
       color: var(--black);
       background: var(--white);
-      border-color: var(--white);
+      border-color: var(--line-strong);
     }
 
     /* 破坏性上下文操作：复用弹窗 X 的橙色描边与橙色实底 Hover */
@@ -3305,7 +3305,7 @@
 
     .insight-chain {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(var(--insight-stage-count, 5), minmax(0, 1fr));
       border: 1px solid var(--line-strong);
     }
 
@@ -3315,7 +3315,7 @@
       border-right: 1px solid var(--line-subtle);
     }
 
-    .insight-stage:last-child {
+    .insight-stage.is-action {
       color: var(--black);
       background: var(--orange);
       border-right: 0;
@@ -3331,7 +3331,7 @@
       letter-spacing: .06em;
     }
 
-    .insight-stage:last-child .insight-stage-label {
+    .insight-stage.is-action .insight-stage-label {
       color: var(--black);
     }
 
@@ -3477,14 +3477,6 @@
     .insight-evidence-option:focus-within .insight-evidence-view {
       opacity: 1;
       pointer-events: auto;
-    }
-
-    /* 触屏没有 Hover，眼睛入口保持可见以避免功能不可达 */
-    @media (hover: none), (pointer: coarse) {
-      .insight-evidence-view {
-        opacity: 1;
-        pointer-events: auto;
-      }
     }
 
     .insight-derived-fieldset {
@@ -5527,7 +5519,7 @@
         ['03 / DIFF', '关键差异', item.keyDifference],
         ['04 / CHANCE', '机会假设', item.opportunityHypothesis],
         ['05 / ACTION', '行动建议', item.actionRecommendation]
-      ];
+      ].filter(([, , content]) => content.trim());
 
       return `
         <article class="insight-card">
@@ -5561,14 +5553,14 @@
               `).join('')}
             </div>
           ` : ''}
-          <div class="insight-chain">
+          <div class="insight-chain" style="--insight-stage-count: ${stages.length}">
             ${stages.map(([code, label, content]) => `
-              <section class="insight-stage">
+              <section class="insight-stage${code === '05 / ACTION' ? ' is-action' : ''}">
                 <span class="insight-stage-label">
                   ${escapeHtml(code)} · ${escapeHtml(label)}
                 </span>
-                <p class="${content ? '' : 'insight-stage-empty'}">
-                  ${escapeHtml(content || '待补充')}
+                <p>
+                  ${escapeHtml(content)}
                 </p>
               </section>
             `).join('')}
