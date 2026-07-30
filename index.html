@@ -3242,7 +3242,21 @@
     .insight-filter-count { color: var(--orange); font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
     .insight-filter-placeholder { color: var(--line-medium); font-size: 12px; }
     .insight-filter-options { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: 100%; padding: 6px; background: var(--white); border: 1px solid var(--line-strong); box-shadow: 4px 4px 0 var(--black); }
-    .insight-filter-option { display: flex; align-items: center; gap: 7px; padding: 7px; font-size: 12px; }
+    .insight-filter-option {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 7px;
+      padding: 7px;
+      font-size: 12px;
+      text-align: left;
+    }
+    /* 覆盖通用 input 宽度，确保多选框与文字从同一左侧基线排列 */
+    .insight-filter-option input {
+      width: auto;
+      margin: 0;
+      flex: 0 0 auto;
+    }
     .insight-filter-option:hover { background: var(--paper); }
 
     .insight-list {
