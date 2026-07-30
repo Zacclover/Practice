@@ -42,6 +42,29 @@ class ResearchCoverageGuidanceContractTests(unittest.TestCase):
         self.assertIn('evidence.dimensionIds.includes(dimension.id)', coverage_function.group('body'))
         self.assertNotIn('comparisonData.values', coverage_function.group('body'))
 
+    def test_coverage_components_follow_the_industrial_design_tokens(self):
+        summary_rule = re.search(
+            r'\.research-coverage-summary\s*\{(?P<body>.*?)\n\s*\}',
+            self.source,
+            re.S,
+        )
+        gap_rule = re.search(
+            r'\.matrix-coverage-gap\s*\{(?P<body>.*?)\n\s*\}',
+            self.source,
+            re.S,
+        )
+        self.assertIsNotNone(summary_rule)
+        self.assertIsNotNone(gap_rule)
+        assert summary_rule is not None and gap_rule is not None
+        self.assertIn('var(--gray-100)', summary_rule.group('body'))
+        self.assertIn('var(--orange)', summary_rule.group('body'))
+        self.assertIn('var(--line-medium)', gap_rule.group('body'))
+        self.assertIn('border-radius: 0', gap_rule.group('body'))
+        self.assertNotRegex(
+            summary_rule.group('body') + gap_rule.group('body'),
+            r'#[0-9a-fA-F]{3,8}',
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
