@@ -3233,10 +3233,17 @@
       letter-spacing: .04em;
     }
 
-    .insight-filters select {
-      margin-top: 6px;
-      background: var(--white);
-    }
+    /* 洞察多选筛选：折叠 Tag + Tooltip，而非原生多选列表 */
+    .insight-filter-control { min-width: 0; }
+    .insight-filter-select { position: relative; margin-top: 6px; }
+    .insight-filter-select summary { min-height: 38px; display: flex; align-items: center; gap: 6px; padding: 5px 9px; list-style: none; cursor: pointer; background: var(--white); border: 1px solid var(--line-subtle); }
+    .insight-filter-select summary::-webkit-details-marker { display: none; }
+    .insight-filter-tag { display: inline-flex; padding: 4px 7px; color: var(--white); background: var(--black); font-family: var(--font-mono); font-size: 10px; clip-path: polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px); }
+    .insight-filter-count { color: var(--orange); font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+    .insight-filter-placeholder { color: var(--line-medium); font-size: 12px; }
+    .insight-filter-options { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: 100%; padding: 6px; background: var(--white); border: 1px solid var(--line-strong); box-shadow: 4px 4px 0 var(--black); }
+    .insight-filter-option { display: flex; align-items: center; gap: 7px; padding: 7px; font-size: 12px; }
+    .insight-filter-option:hover { background: var(--paper); }
 
     .insight-list {
       display: grid;
@@ -3948,13 +3955,15 @@
       <!-- 洞察筛选只影响当前视图，不改变保存的数据 -->
       <div class="insight-filters" aria-label="筛选洞察结论">
         <p id="insightFilterHelp" hidden>可按住 Ctrl 或 Command 键选择多个筛选项；不选择时显示全部。</p>
-        <label>
+        <label class="insight-filter-control">
           竞品
-          <select id="insightCompetitorFilter" multiple size="4" aria-describedby="insightFilterHelp"></select>
+          <select id="insightCompetitorFilter" multiple hidden></select>
+          <div id="insightCompetitorFilterControl"></div>
         </label>
-        <label>
+        <label class="insight-filter-control">
           分析维度
-          <select id="insightDimensionFilter" multiple size="4" aria-describedby="insightFilterHelp"></select>
+          <select id="insightDimensionFilter" multiple hidden></select>
+          <div id="insightDimensionFilterControl"></div>
         </label>
       </div>
 
@@ -5589,6 +5598,22 @@
        洞察结论渲染、筛选与证据回链
        五阶段内容保持纯文本输出，所有引用均从当前 Tab 解析
        ============================== */
+
+    /* 折叠多选：首个选项以 Tag 呈现，其余通过 +N 和 title Tooltip 汇总 */
+    function renderInsightFilterControl(controlId, select, items, emptyLabel) {
+      const control = document.querySelector(controlId);
+      const selected = [...select.selectedOptions].map(option => option.textContent.trim());
+      const summary = selected.length
+        ? `<span class="insight-filter-tag">${escapeHtml(selected[0])}</span>${selected.length > 1 ? `<span class="insight-filter-count" title="${escapeHtml(selected.join('、'))}">+${selected.length - 1}</span>` : ''}`
+        : `<span class="insight-filter-placeholder">${escapeHtml(emptyLabel)}</span>`;
+      control.innerHTML = `<details class="insight-filter-select"><summary>${summary}</summary><div class="insight-filter-options">${items.map(item => `<label class="insight-filter-option"><input type="checkbox" value="${escapeHtml(item.id)}" ${[...select.selectedOptions].some(option => option.value === item.id) ? 'checked' : ''}>${escapeHtml(item.name)}</label>`).join('')}</div></details>`;
+    }
+
+    function renderInsightFilterControls() {
+      renderInsightFilterControl('#insightCompetitorFilterControl', insightCompetitorFilter, competitors, '全部竞品');
+      renderInsightFilterControl('#insightDimensionFilterControl', insightDimensionFilter, comparisonData.dimensions, '全部维度');
+    }
+
     function renderInsights() {
       const selectedCompetitorIds = [...insightCompetitorFilter.selectedOptions].map(option => option.value);
       const selectedDimensionIds = [...insightDimensionFilter.selectedOptions].map(option => option.value);
@@ -5614,6 +5639,7 @@
         option.selected = selectedDimensionIds.includes(option.value);
       });
 
+      renderInsightFilterControls();
       renderInsightCards();
     }
 
@@ -5947,8 +5973,17 @@
       renderInsights();
     });
 
-    insightCompetitorFilter.addEventListener('change', renderInsightCards);
-    insightDimensionFilter.addEventListener('change', renderInsightCards);
+    insightCompetitorFilter.addEventListener('change', () => { renderInsightFilterControls(); renderInsightCards(); });
+    insightDimensionFilter.addEventListener('change', () => { renderInsightFilterControls(); renderInsightCards(); });
+    document.querySelector('.insight-filters').addEventListener('change', event => {
+      const checkbox = event.target.closest('.insight-filter-option input');
+      if (!checkbox) return;
+      const select = checkbox.closest('#insightCompetitorFilterControl') ? insightCompetitorFilter : insightDimensionFilter;
+      const option = [...select.options].find(item => item.value === checkbox.value);
+      if (option) option.selected = checkbox.checked;
+      renderInsightFilterControls();
+      renderInsightCards();
+    });
 
     insightList.addEventListener('click', event => {
       const evidenceButton = event.target.closest(
