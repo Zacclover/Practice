@@ -3351,6 +3351,7 @@
 
     .insight-stage p {
       margin: 0;
+      text-align: left;
       text-indent: 0;
       font-size: 15px;
       font-weight: 600;
@@ -5700,7 +5701,14 @@
         ['03', '关键差异 / Difference', item.keyDifference],
         ['04', '机会假设 / Opportunity', item.opportunityHypothesis],
         ['05', '行动建议 / Action', item.actionRecommendation]
-      ].filter(([, , content]) => content.trim());
+      ]
+        .map(([code, label, content]) => [
+          code,
+          label,
+          /* 展示时去掉粘贴或模板带入的每行前导空白，防止首行缩进 */
+          content.replace(/^[ \t]+/gm, '').trim()
+        ])
+        .filter(([, , content]) => content);
 
       return `
         <article class="insight-card">
