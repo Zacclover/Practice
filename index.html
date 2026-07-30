@@ -1693,7 +1693,7 @@
       letter-spacing: -.035em;
     }
 
-    /* 一级区块内容图画：复用 Hero 的坐标、圆盘、轨道与橙色板件，形成语义化微型构图 */
+    /* 一级区块内容图画：以坐标轴、分层结构板与橙色板件形成语义化微型构图，不使用天体意象 */
     .section-heading-glyph {
       display: inline-flex;
       width: 60px;
@@ -1720,11 +1720,6 @@
       stroke-width: .7;
     }
 
-    .section-heading-glyph .glyph-orbit {
-      stroke: var(--line-medium);
-      stroke-width: 1;
-    }
-
     .section-heading-glyph .glyph-ink {
       fill: var(--black);
       stroke: none;
@@ -1739,11 +1734,6 @@
       fill: var(--orange);
       stroke: var(--black);
       stroke-width: 1.2;
-    }
-
-    .section-heading-glyph .glyph-accent,
-    .section-heading-glyph .glyph-panel-line {
-      stroke: var(--orange);
     }
 
     .section-heading-glyph .glyph-panel-line {
@@ -4012,13 +4002,12 @@
 
     <!-- 竞品档案列表区域 -->
     <h2 class="section-title">
-      <!-- 竞品档案图画：轨道上的分层资料卡，复用 Hero 工业几何语言 -->
+      <!-- 竞品档案图画：坐标轴上的分层资料卡与橙色档案板 -->
       <span class="section-heading-glyph" aria-hidden="true">
         <svg viewBox="0 0 60 42" focusable="false">
           <path class="glyph-axis" d="M2 21h56M30 2v38"></path>
-          <ellipse class="glyph-orbit" cx="30" cy="21" rx="27" ry="9" transform="rotate(-14 30 21)"></ellipse>
-          <circle class="glyph-ink" cx="27" cy="21" r="14"></circle>
-          <circle class="glyph-paper" cx="23" cy="16" r="5.7"></circle>
+          <path class="glyph-ink" d="M6 11h27v17H6zM11 6h28v17H11z"></path>
+          <path class="glyph-paper" d="M14 9h22v11H14z"></path>
           <g transform="rotate(-11 40 24)">
             <rect class="glyph-panel" x="27" y="17" width="27" height="15"></rect>
             <path class="glyph-panel-line" d="M31 21h12M31 24h18M31 27h10"></path>
@@ -4043,13 +4032,13 @@
     <section class="comparison-section">
       <div class="comparison-header">
         <h2>
-          <!-- 横向对比图画：圆盘坐标内的对齐矩阵板，复用 Hero 工业几何语言 -->
+          <!-- 横向对比图画：坐标轴上的框架矩阵与橙色对齐数据板 -->
           <span class="section-heading-glyph" aria-hidden="true">
             <svg viewBox="0 0 60 42" focusable="false">
               <path class="glyph-axis" d="M2 21h56M30 2v38"></path>
-              <ellipse class="glyph-orbit" cx="30" cy="21" rx="28" ry="8" transform="rotate(13 30 21)"></ellipse>
-              <circle class="glyph-ink" cx="29" cy="21" r="14"></circle>
-              <circle class="glyph-paper" cx="24" cy="16" r="5.5"></circle>
+              <path class="glyph-ink" d="M6 7h45v27H6z"></path>
+              <path class="glyph-paper" d="M9 10h39v21H9z"></path>
+              <path class="glyph-axis" d="M13 10v21M21 10v21M29 10v21M37 10v21M9 16h39M9 23h39"></path>
               <g transform="rotate(-8 40 24)">
                 <rect class="glyph-panel" x="25" y="16" width="29" height="16"></rect>
                 <path class="glyph-panel-line" d="M31 18v12M39 18v12M47 18v12M27 23h25M27 27h25"></path>
@@ -4080,20 +4069,17 @@
     <section class="insights-section" aria-labelledby="insightsSectionTitle">
       <div class="insights-header">
         <h2 id="insightsSectionTitle">
-          <!-- 洞察结论图画：轨道中的信号路径汇聚为方向板，复用 Hero 工业几何语言 -->
+          <!-- 洞察结论图画：分层结构板中的信号路径汇聚为方向板 -->
           <span class="section-heading-glyph" aria-hidden="true">
             <svg viewBox="0 0 60 42" focusable="false">
               <path class="glyph-axis" d="M2 21h56M30 2v38"></path>
-              <ellipse class="glyph-orbit" cx="30" cy="21" rx="27" ry="9" transform="rotate(-18 30 21)"></ellipse>
-              <circle class="glyph-ink" cx="27" cy="21" r="14"></circle>
-              <circle class="glyph-paper" cx="22" cy="16" r="5.6"></circle>
+              <path class="glyph-ink" d="M5 29 22 7l29 11-18 16z"></path>
+              <path class="glyph-paper" d="m12 28 12-15 18 7-12 11z"></path>
               <g transform="rotate(-10 40 24)">
                 <rect class="glyph-panel" x="27" y="17" width="27" height="15"></rect>
                 <path class="glyph-panel-line" d="M30 28h4l3-6 3 3 8-8"></path>
                 <path class="glyph-panel-line" d="M45 17h3v3"></path>
-                <circle class="glyph-paper" cx="30" cy="28" r="1.3"></circle>
-                <circle class="glyph-paper" cx="40" cy="25" r="1.3"></circle>
-                <circle class="glyph-paper" cx="48" cy="17" r="1.3"></circle>
+                <path class="glyph-paper" d="M29 27h3v3h-3zM39 24h3v3h-3zM47 16h3v3h-3z"></path>
               </g>
             </svg>
           </span>

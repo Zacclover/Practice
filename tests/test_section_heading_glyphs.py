@@ -13,9 +13,9 @@ class SectionHeadingGlyphContractTests(unittest.TestCase):
 
     def test_all_top_level_sections_have_a_decorative_content_glyph(self):
         sections = {
-            "竞品档案": "竞品档案图画：轨道上的分层资料卡，复用 Hero 工业几何语言",
-            "竞品横向对比": "横向对比图画：圆盘坐标内的对齐矩阵板，复用 Hero 工业几何语言",
-            "洞察结论": "洞察结论图画：轨道中的信号路径汇聚为方向板，复用 Hero 工业几何语言",
+            "竞品档案": "竞品档案图画：坐标轴上的分层资料卡与橙色档案板",
+            "竞品横向对比": "横向对比图画：坐标轴上的框架矩阵与橙色对齐数据板",
+            "洞察结论": "洞察结论图画：分层结构板中的信号路径汇聚为方向板",
         }
         for title, description in sections.items():
             with self.subTest(title=title):
@@ -38,8 +38,18 @@ class SectionHeadingGlyphContractTests(unittest.TestCase):
             r'\.section-heading-glyph svg\s*\{[^}]*fill: none;[^}]*stroke: currentColor;[^}]*stroke-width: 1\.35;',
         )
         self.assertIn(".section-heading-glyph .glyph-axis", self.source)
-        self.assertIn(".section-heading-glyph .glyph-orbit", self.source)
         self.assertIn(".section-heading-glyph .glyph-panel", self.source)
+
+    def test_glyphs_exclude_planetary_circles_and_orbits(self):
+        glyph_blocks = re.findall(
+            r'<span class="section-heading-glyph" aria-hidden="true">(?P<body>.*?)</span>',
+            self.source,
+            re.S,
+        )
+        self.assertEqual(len(glyph_blocks), 3)
+        for glyph in glyph_blocks:
+            self.assertNotRegex(glyph, r'<(?:circle|ellipse)\b')
+            self.assertNotIn("glyph-orbit", glyph)
 
     def test_numbered_title_pseudo_elements_are_removed(self):
         self.assertNotRegex(self.source, r'content:\s*"0[123]\s*/"')
