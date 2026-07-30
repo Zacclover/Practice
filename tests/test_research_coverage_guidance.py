@@ -22,14 +22,14 @@ class ResearchCoverageGuidanceContractTests(unittest.TestCase):
         self.assertIn('data-coverage-gap-dimension-id=', self.source)
         self.assertIn('补充证据', self.source)
 
-    def test_gap_entry_prefills_the_competitor_and_dimension_in_the_evidence_form(self):
+    def test_gap_entry_prefills_the_competitor_and_dimension_for_capture(self):
         self.assertRegex(
             self.source,
-            r'function openEvidenceDialog\(competitorId, dimensionId = null\)',
+            r'function openQuickEvidenceDialog\(competitorId, dimensionId = null\)',
         )
-        self.assertIn('selectedEvidenceDimensionIds = new Set([dimensionId]);', self.source)
-        self.assertIn("button[data-coverage-gap-competitor-id]", self.source)
-        self.assertIn('openEvidenceDialog(\n          gapButton.dataset.coverageGapCompetitorId,\n          gapButton.dataset.coverageGapDimensionId\n        );', self.source)
+        self.assertIn('selectedQuickEvidenceDimensionIds = dimensionId', self.source)
+        self.assertIn("button[data-quick-evidence-competitor-id]", self.source)
+        self.assertIn('openQuickEvidenceDialog(\n          gapButton.dataset.quickEvidenceCompetitorId,\n          gapButton.dataset.quickEvidenceDimensionId\n        );', self.source)
 
     def test_coverage_uses_evidence_associations_not_manual_matrix_notes(self):
         coverage_function = re.search(
