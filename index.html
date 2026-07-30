@@ -1677,7 +1677,7 @@
       margin-top: 28px;
     }
 
-    /* 区块标题：工业编号、粗体排版和一级黑线 */
+    /* 区块标题：内容图画、粗体排版和一级黑线 */
     .section-title,
     .comparison-header {
       display: flex;
@@ -1693,12 +1693,52 @@
       letter-spacing: -.035em;
     }
 
-    .section-title::before {
-      color: var(--orange);
-      content: "01 /";
-      font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: .04em;
+    /* 一级区块内容图画：以坐标轴、分层结构板与橙色板件形成语义化微型构图，不使用天体意象 */
+    .section-heading-glyph {
+      display: inline-flex;
+      width: 60px;
+      height: 42px;
+      flex: 0 0 60px;
+      align-items: center;
+      justify-content: center;
+      color: var(--line-strong);
+      align-self: center;
+    }
+
+    .section-heading-glyph svg {
+      width: 60px;
+      height: 42px;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
+      stroke-width: 1.35;
+    }
+
+    .section-heading-glyph .glyph-axis {
+      stroke: var(--line-subtle);
+      stroke-width: .7;
+    }
+
+    .section-heading-glyph .glyph-ink {
+      fill: var(--black);
+      stroke: none;
+    }
+
+    .section-heading-glyph .glyph-paper {
+      fill: var(--white);
+      stroke: none;
+    }
+
+    .section-heading-glyph .glyph-panel {
+      fill: var(--orange);
+      stroke: var(--black);
+      stroke-width: 1.2;
+    }
+
+    .section-heading-glyph .glyph-panel-line {
+      stroke: var(--black);
+      stroke-width: 1;
     }
 
     .section-title::after {
@@ -1726,14 +1766,6 @@
       line-height: 1.25;
     }
 
-    .comparison-header h2::before {
-      margin-right: 10px;
-      color: var(--orange);
-      content: "02 /";
-      font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: .04em;
-    }
 
     /* 竞品档案横向轨道：卡片保持 480px 正方形，完整展示常规纵向内容，超出工作区后仅在轨道内左右滚动 */
     .grid {
@@ -2044,6 +2076,7 @@
       .card.is-context-active .card-context-actions,
       .evidence-tile.is-context-active .evidence-tile-actions,
       .comparison-table tr.is-context-active .dimension-actions,
+      .comparison-table td.is-context-active .matrix-evidence-link,
       .workspace-tab-item.is-context-active .workspace-tab-action,
       .insight-card.is-context-active .insight-card-actions,
       .preview-item.is-context-active .preview-remove-button {
@@ -2116,10 +2149,35 @@
     }
 
     .matrix-evidence-link {
+      position: absolute;
+      top: 0;
+      right: 0;
       color: var(--black);
       background: var(--white);
       border: 1px solid var(--line-medium);
       border-radius: 0;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-2px);
+      transition: opacity .14s ease, transform .14s ease;
+    }
+
+    /* 矩阵证据查看：仅在当前单元格 Hover 或键盘焦点进入时显现 */
+    .matrix-auto-evidence {
+      position: relative;
+    }
+
+    .matrix-auto-header {
+      min-height: 40px;
+      padding-right: 106px;
+    }
+
+    .comparison-table td:hover .matrix-evidence-link,
+    .comparison-table td:focus-within .matrix-evidence-link,
+    .matrix-evidence-link:focus-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
     }
 
     /* 弹窗与表单：实色白面、Strong 外框和橙色键盘焦点 */
@@ -3074,10 +3132,15 @@
         font-size: 17px;
       }
 
-      .section-title::before,
-      .comparison-header h2::before,
-      .insights-header h2::before {
-        font-size: 10px;
+      .section-heading-glyph {
+        width: 48px;
+        height: 34px;
+        flex-basis: 48px;
+      }
+
+      .section-heading-glyph svg {
+        width: 48px;
+        height: 34px;
       }
 
       .comparison-section,
@@ -3198,14 +3261,6 @@
       line-height: 1.25;
     }
 
-    .insights-header h2::before {
-      margin-right: 10px;
-      color: var(--orange);
-      content: "03 /";
-      font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: .04em;
-    }
 
     .insights-header h2 small {
       color: var(--gray-500);
@@ -3973,6 +4028,19 @@
 
     <!-- 竞品档案列表区域 -->
     <h2 class="section-title">
+      <!-- 竞品档案图画：坐标轴上的分层资料卡与橙色档案板 -->
+      <span class="section-heading-glyph" aria-hidden="true">
+        <svg viewBox="0 0 60 42" focusable="false">
+          <path class="glyph-axis" d="M2 21h56M30 2v38"></path>
+          <path class="glyph-ink" d="M6 11h27v17H6zM11 6h28v17H11z"></path>
+          <path class="glyph-paper" d="M14 9h22v11H14z"></path>
+          <g transform="rotate(-11 40 24)">
+            <rect class="glyph-panel" x="27" y="17" width="27" height="15"></rect>
+            <path class="glyph-panel-line" d="M31 21h12M31 24h18M31 27h10"></path>
+            <path class="glyph-paper" d="M47 21h3v3h-3z"></path>
+          </g>
+        </svg>
+      </span>
       <span>竞品档案</span>
       <small>COMPETITOR PROFILES</small>
     </h2>
@@ -3990,6 +4058,20 @@
     <section class="comparison-section">
       <div class="comparison-header">
         <h2>
+          <!-- 横向对比图画：坐标轴上的框架矩阵与橙色对齐数据板 -->
+          <span class="section-heading-glyph" aria-hidden="true">
+            <svg viewBox="0 0 60 42" focusable="false">
+              <path class="glyph-axis" d="M2 21h56M30 2v38"></path>
+              <path class="glyph-ink" d="M6 7h45v27H6z"></path>
+              <path class="glyph-paper" d="M9 10h39v21H9z"></path>
+              <path class="glyph-axis" d="M13 10v21M21 10v21M29 10v21M37 10v21M9 16h39M9 23h39"></path>
+              <g transform="rotate(-8 40 24)">
+                <rect class="glyph-panel" x="25" y="16" width="29" height="16"></rect>
+                <path class="glyph-panel-line" d="M31 18v12M39 18v12M47 18v12M27 23h25M27 27h25"></path>
+                <path class="glyph-paper" d="M32 19h6v3h-6zM40 24h6v3h-6z"></path>
+              </g>
+            </svg>
+          </span>
           <span>竞品横向对比</span>
           <small>COMPARISON MATRIX</small>
         </h2>
@@ -4013,6 +4095,20 @@
     <section class="insights-section" aria-labelledby="insightsSectionTitle">
       <div class="insights-header">
         <h2 id="insightsSectionTitle">
+          <!-- 洞察结论图画：分层结构板中的信号路径汇聚为方向板 -->
+          <span class="section-heading-glyph" aria-hidden="true">
+            <svg viewBox="0 0 60 42" focusable="false">
+              <path class="glyph-axis" d="M2 21h56M30 2v38"></path>
+              <path class="glyph-ink" d="M5 29 22 7l29 11-18 16z"></path>
+              <path class="glyph-paper" d="m12 28 12-15 18 7-12 11z"></path>
+              <g transform="rotate(-10 40 24)">
+                <rect class="glyph-panel" x="27" y="17" width="27" height="15"></rect>
+                <path class="glyph-panel-line" d="M30 28h4l3-6 3 3 8-8"></path>
+                <path class="glyph-panel-line" d="M45 17h3v3"></path>
+                <path class="glyph-paper" d="M29 27h3v3h-3zM39 24h3v3h-3zM47 16h3v3h-3z"></path>
+              </g>
+            </svg>
+          </span>
           <span>洞察结论</span>
           <small>INSIGHT FINDINGS</small>
         </h2>
@@ -8284,6 +8380,11 @@
         return row?.querySelector('.dimension-actions') ? row : null;
       }
 
+      const evidenceCell = target.closest?.('td');
+      if (evidenceCell?.querySelector('.matrix-evidence-link')) {
+        return evidenceCell;
+      }
+
       return target.closest?.(
         '.card, .evidence-tile, .workspace-tab-item, .preview-item, .insight-card'
       ) || null;
@@ -8299,7 +8400,7 @@
 
       const target = event.target;
       const contextAction = target.closest?.(
-        '.contextual-action, .workspace-tab-action, .preview-remove-button'
+        '.contextual-action, .matrix-evidence-link, .workspace-tab-action, .preview-remove-button'
       );
       if (contextAction) {
         return;
