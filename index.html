@@ -2203,30 +2203,6 @@
       font-weight: 600;
     }
 
-    .matrix-coverage-gap {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 40px;
-      margin: 0 0 10px;
-      padding: 8px 10px;
-      color: var(--black);
-      background: var(--white);
-      border: 1px dashed var(--line-medium);
-      border-radius: 0;
-      font: 700 12px/1 var(--font-mono);
-    }
-
-    .matrix-coverage-gap:hover,
-    .matrix-coverage-gap:focus-visible {
-      color: var(--black);
-      background: var(--orange);
-      border-color: var(--orange);
-      outline: 2px solid var(--black);
-      outline-offset: 2px;
-      transform: none;
-    }
-
     @media (max-width: 720px) {
       .comparison-header,
       .comparison-actions {
@@ -5592,22 +5568,6 @@
                       : ''
                   }
 
-                  ${
-                    linkedEvidence.length === 0
-                      ? `
-                        <button
-                          class="matrix-coverage-gap"
-                          data-coverage-gap-competitor-id="${escapeHtml(competitor.id)}"
-                          data-coverage-gap-dimension-id="${escapeHtml(dimension.id)}"
-                          type="button"
-                          aria-label="为${escapeHtml(competitor.name)}的${escapeHtml(dimension.name)}补充证据">
-                          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
-                          补充证据
-                        </button>
-                      `
-                      : ''
-                  }
-
                   <label class="matrix-manual-label">
                     自主补充内容
                   </label>
@@ -5764,19 +5724,6 @@
         openLinkedEvidence(
           linkedButton.dataset.linkedDimensionId,
           linkedButton.dataset.linkedCompetitorId
-        );
-        return;
-      }
-
-      /* 点击缺口入口：直接带入当前竞品与对比维度创建证据 */
-      const gapButton = event.target.closest(
-        'button[data-coverage-gap-competitor-id]'
-      );
-
-      if (gapButton) {
-        openEvidenceDialog(
-          gapButton.dataset.coverageGapCompetitorId,
-          gapButton.dataset.coverageGapDimensionId
         );
         return;
       }
@@ -7077,9 +7024,8 @@
 
     /* ==============================
        打开指定竞品的证据上传弹窗
-       可选预选当前矩阵缺口所属维度，减少重复选择
        ============================== */
-    function openEvidenceDialog(competitorId, dimensionId = null) {
+    function openEvidenceDialog(competitorId) {
       const competitor = competitors.find(
         item => item.id === competitorId
       );
@@ -7091,9 +7037,6 @@
 
       resetEvidenceForm();
       selectedEvidenceCompetitorId = competitorId;
-      if (dimensionId) {
-        selectedEvidenceDimensionIds = new Set([dimensionId]);
-      }
       evidenceCompetitorName.textContent = competitor.name;
       renderEvidenceDimensionOptions();
       evidenceDialog.showModal();

@@ -14,22 +14,10 @@ class ResearchCoverageGuidanceContractTests(unittest.TestCase):
     def test_matrix_header_has_a_live_research_coverage_summary(self):
         self.assertIn('id="researchCoverageSummary"', self.source)
         self.assertIn('function getResearchCoverage()', self.source)
-        self.assertIn('已覆盖 ${coverage.coveredCellCount} / ${coverage.totalCellCount} 个比较点', self.source)
-
-    def test_uncovered_matrix_cells_offer_a_specific_evidence_capture_entry(self):
-        self.assertIn('class="matrix-coverage-gap"', self.source)
-        self.assertIn('data-coverage-gap-competitor-id=', self.source)
-        self.assertIn('data-coverage-gap-dimension-id=', self.source)
-        self.assertIn('补充证据', self.source)
-
-    def test_gap_entry_prefills_the_competitor_and_dimension_in_the_evidence_form(self):
-        self.assertRegex(
+        self.assertIn(
+            '已覆盖 ${coverage.coveredCellCount} / ${coverage.totalCellCount} 个比较点',
             self.source,
-            r'function openEvidenceDialog\(competitorId, dimensionId = null\)',
         )
-        self.assertIn('selectedEvidenceDimensionIds = new Set([dimensionId]);', self.source)
-        self.assertIn("button[data-coverage-gap-competitor-id]", self.source)
-        self.assertIn('openEvidenceDialog(\n          gapButton.dataset.coverageGapCompetitorId,\n          gapButton.dataset.coverageGapDimensionId\n        );', self.source)
 
     def test_coverage_uses_evidence_associations_not_manual_matrix_notes(self):
         coverage_function = re.search(
@@ -39,31 +27,31 @@ class ResearchCoverageGuidanceContractTests(unittest.TestCase):
         )
         self.assertIsNotNone(coverage_function)
         assert coverage_function is not None
-        self.assertIn('evidence.dimensionIds.includes(dimension.id)', coverage_function.group('body'))
+        self.assertIn(
+            'evidence.dimensionIds.includes(dimension.id)',
+            coverage_function.group('body'),
+        )
         self.assertNotIn('comparisonData.values', coverage_function.group('body'))
 
-    def test_coverage_components_follow_the_industrial_design_tokens(self):
+    def test_coverage_summary_follows_the_industrial_design_tokens(self):
         summary_rule = re.search(
             r'\.research-coverage-summary\s*\{(?P<body>.*?)\n\s*\}',
             self.source,
             re.S,
         )
-        gap_rule = re.search(
-            r'\.matrix-coverage-gap\s*\{(?P<body>.*?)\n\s*\}',
-            self.source,
-            re.S,
-        )
         self.assertIsNotNone(summary_rule)
-        self.assertIsNotNone(gap_rule)
-        assert summary_rule is not None and gap_rule is not None
+        assert summary_rule is not None
         self.assertIn('var(--gray-100)', summary_rule.group('body'))
         self.assertIn('var(--orange)', summary_rule.group('body'))
-        self.assertIn('var(--line-medium)', gap_rule.group('body'))
-        self.assertIn('border-radius: 0', gap_rule.group('body'))
-        self.assertNotRegex(
-            summary_rule.group('body') + gap_rule.group('body'),
-            r'#[0-9a-fA-F]{3,8}',
-        )
+        self.assertNotRegex(summary_rule.group('body'), r'#[0-9a-fA-F]{3,8}')
+
+    def test_coverage_branch_does_not_include_quick_capture_interactions(self):
+        self.assertNotIn('matrix-coverage-gap', self.source)
+        self.assertNotIn('data-coverage-gap-competitor-id', self.source)
+        self.assertNotIn('data-coverage-gap-dimension-id', self.source)
+        self.assertNotIn('coverageGapCompetitorId', self.source)
+        self.assertNotIn('coverageGapDimensionId', self.source)
+        self.assertIn('function openEvidenceDialog(competitorId)', self.source)
 
 
 if __name__ == '__main__':
