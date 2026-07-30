@@ -1677,7 +1677,7 @@
       margin-top: 28px;
     }
 
-    /* 区块标题：工业编号、粗体排版和一级黑线 */
+    /* 区块标题：内容图画、粗体排版和一级黑线 */
     .section-title,
     .comparison-header {
       display: flex;
@@ -1693,12 +1693,30 @@
       letter-spacing: -.035em;
     }
 
-    .section-title::before {
-      color: var(--orange);
-      content: "01 /";
-      font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: .04em;
+    /* 一级区块内容图画：用真实业务语义替代流程数字，保持工业制图线条语言 */
+    .section-heading-glyph {
+      display: inline-grid;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 38px;
+      place-items: center;
+      color: var(--line-strong);
+      border: 1px solid var(--orange);
+      background: var(--white);
+    }
+
+    .section-heading-glyph svg {
+      width: 26px;
+      height: 26px;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
+      stroke-width: 1.7;
+    }
+
+    .section-heading-glyph .glyph-accent {
+      stroke: var(--orange);
     }
 
     .section-title::after {
@@ -1726,14 +1744,6 @@
       line-height: 1.25;
     }
 
-    .comparison-header h2::before {
-      margin-right: 10px;
-      color: var(--orange);
-      content: "02 /";
-      font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: .04em;
-    }
 
     /* 竞品档案横向轨道：卡片保持 480px 正方形，完整展示常规纵向内容，超出工作区后仅在轨道内左右滚动 */
     .grid {
@@ -3074,10 +3084,15 @@
         font-size: 17px;
       }
 
-      .section-title::before,
-      .comparison-header h2::before,
-      .insights-header h2::before {
-        font-size: 10px;
+      .section-heading-glyph {
+        width: 32px;
+        height: 32px;
+        flex-basis: 32px;
+      }
+
+      .section-heading-glyph svg {
+        width: 22px;
+        height: 22px;
       }
 
       .comparison-section,
@@ -3198,14 +3213,6 @@
       line-height: 1.25;
     }
 
-    .insights-header h2::before {
-      margin-right: 10px;
-      color: var(--orange);
-      content: "03 /";
-      font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: .04em;
-    }
 
     .insights-header h2 small {
       color: var(--gray-500);
@@ -3973,6 +3980,15 @@
 
     <!-- 竞品档案列表区域 -->
     <h2 class="section-title">
+      <!-- 竞品档案图画：三张可归档的资料卡 -->
+      <span class="section-heading-glyph" aria-hidden="true">
+        <svg viewBox="0 0 32 32" focusable="false">
+          <path d="M7 8h14v17H7z"></path>
+          <path d="M11 5h14v17"></path>
+          <path d="M11 12h6M11 16h6M11 20h4"></path>
+          <path class="glyph-accent" d="M7 25h14"></path>
+        </svg>
+      </span>
       <span>竞品档案</span>
       <small>COMPETITOR PROFILES</small>
     </h2>
@@ -3990,6 +4006,14 @@
     <section class="comparison-section">
       <div class="comparison-header">
         <h2>
+          <!-- 横向对比图画：对齐列与比较连线 -->
+          <span class="section-heading-glyph" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M5 6h22M5 16h22M5 26h22"></path>
+              <path d="M8 4v24M16 4v24M24 4v24"></path>
+              <path class="glyph-accent" d="M5 11h22"></path>
+            </svg>
+          </span>
           <span>竞品横向对比</span>
           <small>COMPARISON MATRIX</small>
         </h2>
@@ -4013,6 +4037,16 @@
     <section class="insights-section" aria-labelledby="insightsSectionTitle">
       <div class="insights-header">
         <h2 id="insightsSectionTitle">
+          <!-- 洞察结论图画：事实信号汇聚为可行动的方向 -->
+          <span class="section-heading-glyph" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M5 23h6l4-7 4 4 8-11"></path>
+              <path d="M23 9h4v4"></path>
+              <circle cx="5" cy="23" r="1.5"></circle>
+              <circle cx="15" cy="16" r="1.5"></circle>
+              <circle class="glyph-accent" cx="27" cy="9" r="1.5"></circle>
+            </svg>
+          </span>
           <span>洞察结论</span>
           <small>INSIGHT FINDINGS</small>
         </h2>
