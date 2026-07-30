@@ -2076,6 +2076,7 @@
       .card.is-context-active .card-context-actions,
       .evidence-tile.is-context-active .evidence-tile-actions,
       .comparison-table tr.is-context-active .dimension-actions,
+      .comparison-table td.is-context-active .matrix-evidence-link,
       .workspace-tab-item.is-context-active .workspace-tab-action,
       .insight-card.is-context-active .insight-card-actions,
       .preview-item.is-context-active .preview-remove-button {
@@ -2148,10 +2149,35 @@
     }
 
     .matrix-evidence-link {
+      position: absolute;
+      top: 0;
+      right: 0;
       color: var(--black);
       background: var(--white);
       border: 1px solid var(--line-medium);
       border-radius: 0;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-2px);
+      transition: opacity .14s ease, transform .14s ease;
+    }
+
+    /* 矩阵证据查看：仅在当前单元格 Hover 或键盘焦点进入时显现 */
+    .matrix-auto-evidence {
+      position: relative;
+    }
+
+    .matrix-auto-header {
+      min-height: 40px;
+      padding-right: 106px;
+    }
+
+    .comparison-table td:hover .matrix-evidence-link,
+    .comparison-table td:focus-within .matrix-evidence-link,
+    .matrix-evidence-link:focus-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
     }
 
     /* 弹窗与表单：实色白面、Strong 外框和橙色键盘焦点 */
@@ -8354,6 +8380,11 @@
         return row?.querySelector('.dimension-actions') ? row : null;
       }
 
+      const evidenceCell = target.closest?.('td');
+      if (evidenceCell?.querySelector('.matrix-evidence-link')) {
+        return evidenceCell;
+      }
+
       return target.closest?.(
         '.card, .evidence-tile, .workspace-tab-item, .preview-item, .insight-card'
       ) || null;
@@ -8369,7 +8400,7 @@
 
       const target = event.target;
       const contextAction = target.closest?.(
-        '.contextual-action, .workspace-tab-action, .preview-remove-button'
+        '.contextual-action, .matrix-evidence-link, .workspace-tab-action, .preview-remove-button'
       );
       if (contextAction) {
         return;
