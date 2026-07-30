@@ -3643,6 +3643,24 @@
     }
     .insight-derived-fieldset .insight-reference-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 
+    /* 洞察关联 Tag 最终覆盖：白字、无描边，避免被通用表单样式回写 */
+    .insight-association,
+    .insight-derived-fieldset .insight-reference-options label {
+      color: var(--white) !important;
+      border: 0 !important;
+      outline: 0;
+      box-shadow: none;
+    }
+    .insight-association.is-competitor,
+    .insight-derived-fieldset.is-competitor .insight-reference-options label {
+      background: var(--orange) !important;
+    }
+    .insight-association.is-dimension,
+    .insight-derived-fieldset.is-dimension .insight-reference-options label {
+      background: var(--black) !important;
+    }
+    .insight-derived-fieldset .insight-reference-options label span { color: inherit; }
+
     @media (max-width: 760px) {
       /* 洞察在移动端改为纵向推导链，避免整页横向溢出 */
       .insights-section {
