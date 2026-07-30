@@ -2086,46 +2086,6 @@
       background: var(--graphite);
     }
 
-    /* 横向对比定宽列：维度首列持续吸附，竞品列过多时只在矩阵内部左右滚动 */
-    .comparison-scroll {
-      max-width: 100%;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-      scrollbar-width: thin;
-    }
-
-    .comparison-table {
-      width: max-content;
-      min-width: 0;
-      table-layout: fixed;
-    }
-
-    .comparison-table th,
-    .comparison-table td {
-      width: 280px;
-      min-width: 280px;
-      max-width: 280px;
-    }
-
-    .dimension-column {
-      position: sticky;
-      left: 0;
-      z-index: 2;
-      width: 160px !important;
-      min-width: 160px !important;
-      max-width: 160px;
-      background: var(--white);
-      box-shadow: none;
-    }
-
-    .comparison-table th.dimension-column {
-      z-index: 3;
-    }
-
-    /* 横向对比正文固定列：使用用户指定的暖灰实底，表头继续保持黑色层级 */
-    .comparison-table tbody .dimension-column {
-      background: #efeee9;
-    }
     .matrix-input {
       color: var(--ink);
       background: var(--white);
@@ -3480,19 +3440,11 @@
 
     /* 洞察关联以证据为主选择，竞品和维度仅显示自动派生结果 */
     .insight-evidence-option {
-      position: relative;
-      display: flex;
-      min-height: 48px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
-      padding-right: 48px;
+      gap: 8px;
       border-bottom: 1px solid var(--line-subtle);
-    }
-
-    .insight-evidence-option > label {
-      width: 100%;
-      min-width: 0;
-      min-height: 48px;
-      align-items: center;
     }
 
     .insight-evidence-option:last-child {
@@ -3500,9 +3452,6 @@
     }
 
     .insight-evidence-view {
-      position: absolute;
-      top: 50%;
-      right: 4px;
       width: 40px;
       height: 40px;
       min-height: 40px;
@@ -3513,23 +3462,21 @@
       clip-path: none;
       opacity: 0;
       pointer-events: none;
-      transform: translateY(-50%);
-      transition: color .16s ease, background .16s ease, opacity .16s ease;
+      transition: color .16s ease, background .16s ease, opacity .16s ease, transform .16s ease;
     }
 
     .insight-evidence-option:hover .insight-evidence-view,
     .insight-evidence-option:focus-within .insight-evidence-view {
       opacity: 1;
       pointer-events: auto;
-      transform: translateY(-50%);
     }
 
-    .insight-evidence-view:hover,
-    .insight-evidence-view:focus-visible {
-      color: var(--white);
-      background: var(--black);
-      border-color: var(--black);
-      transform: translateY(-50%);
+    /* 触屏没有 Hover，眼睛入口保持可见以避免功能不可达 */
+    @media (hover: none), (pointer: coarse) {
+      .insight-evidence-view {
+        opacity: 1;
+        pointer-events: auto;
+      }
     }
 
     .insight-derived-fieldset {
@@ -3757,6 +3704,13 @@
 
         <!-- 竞品管理和数据备份操作 -->
         <div class="hero-actions">
+          <button
+            class="secondary"
+            id="clearExamplesButton"
+            type="button">
+            <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+            清空示例
+          </button>
           <button id="addButton">
             <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
             添加竞品
@@ -4475,6 +4429,8 @@
     const form = document.querySelector('#competitorForm');
     const dialogTitle = document.querySelector('#dialogTitle');
     const saveButton = document.querySelector('#saveButton');
+    const clearExamplesButton =
+      document.querySelector('#clearExamplesButton');
 
     /* ==============================
        获取横向对比矩阵相关页面元素
@@ -5040,6 +4996,9 @@
     function render() {
       renderWorkspaceTabs();
 
+      /* 当前 Tab 仍有任意研究数据时显示清空入口，完全为空时隐藏 */
+      clearExamplesButton.hidden = getCurrentSampleCount() === 0;
+
       /* 竞品名称或数量变化时同步更新矩阵与洞察筛选 */
       renderComparison();
       renderInsights();
@@ -5299,7 +5258,8 @@
 
     /* ==============================
        自动保存矩阵单元格内容
-       用户输入时同步写入浏览器存储
+       用户输入时同步写入浏览器存储；
+       修改示例单元格后移除 sample 标记
        ============================== */
     comparisonContainer.addEventListener('input', event => {
       const input = event.target.closest('.matrix-input');
@@ -5313,6 +5273,21 @@
         comparisonData.values[dimensionId] || {};
       comparisonData.values[dimensionId][competitorId] =
         input.value;
+
+      /* 用户修改示例单元格后，该单元格不再被清空示例删除 */
+      if (
+        comparisonData.sampleValues &&
+        comparisonData.sampleValues[dimensionId] &&
+        comparisonData.sampleValues[dimensionId][competitorId]
+      ) {
+        delete comparisonData.sampleValues[dimensionId][competitorId];
+        if (
+          Object.keys(comparisonData.sampleValues[dimensionId]).length === 0
+        ) {
+          delete comparisonData.sampleValues[dimensionId];
+        }
+      }
+
       persistComparison();
     });
 
@@ -5437,6 +5412,14 @@
         );
         if (dimension) {
           dimension.name = name;
+          /* 编辑示例维度后不再视为系统预置的示例，
+             其下单元格也不再被清空示例删除 */
+          if (dimension.isSample === true) {
+            delete dimension.isSample;
+            if (comparisonData.sampleValues) {
+              delete comparisonData.sampleValues[dimension.id];
+            }
+          }
         }
       }
 
@@ -5603,56 +5586,22 @@
        洞察表单引用选项
        证据是唯一选择主体，竞品与分析维度由证据自动派生
        ============================== */
-    function getInsightDerivedReferenceIds(
-      evidenceIds,
-      sourceEvidenceItems = evidenceItems
-    ) {
+    function getInsightDerivedReferenceIds(evidenceIds) {
       const selectedEvidenceIds = new Set(evidenceIds || []);
       const competitorIds = new Set();
       const dimensionIds = new Set();
 
-      sourceEvidenceItems.forEach(evidence => {
+      evidenceItems.forEach(evidence => {
         if (!selectedEvidenceIds.has(evidence.id)) {
           return;
         }
         if (evidence.competitorId) {
           competitorIds.add(evidence.competitorId);
         }
-        (evidence.dimensionIds || []).forEach(
-          id => dimensionIds.add(id)
-        );
+        evidence.dimensionIds.forEach(id => dimensionIds.add(id));
       });
 
       return { competitorIds, dimensionIds };
-    }
-
-    /* 证据是洞察关联的唯一真源：清理失效证据并重新派生竞品和维度 */
-    function synchronizeInsightReferences(
-      sourceInsights = [],
-      sourceEvidenceItems = evidenceItems
-    ) {
-      const validEvidenceIds = new Set(
-        sourceEvidenceItems.map(item => item.id)
-      );
-
-      return sourceInsights.map(insight => {
-        const normalizedEvidenceIds = Array.from(new Set(
-          Array.isArray(insight.evidenceIds)
-            ? insight.evidenceIds
-            : []
-        )).filter(id => validEvidenceIds.has(id));
-        const derivedIds = getInsightDerivedReferenceIds(
-          normalizedEvidenceIds,
-          sourceEvidenceItems
-        );
-
-        return {
-          ...insight,
-          evidenceIds: normalizedEvidenceIds,
-          competitorIds: Array.from(derivedIds.competitorIds),
-          dimensionIds: Array.from(derivedIds.dimensionIds)
-        };
-      });
     }
 
     function renderInsightDerivedReferenceOptions(selectedEvidenceIds) {
@@ -5801,6 +5750,9 @@
         '[data-insight-evidence-id]',
         'insightEvidenceId'
       );
+      const derivedReferenceIds = getInsightDerivedReferenceIds(
+        selectedEvidenceIds
+      );
       const candidate = normalizeInsightItem({
         id: existingInsight?.id || createId(),
         title: insightTitle.value,
@@ -5809,6 +5761,8 @@
         keyDifference: insightKeyDifference.value,
         opportunityHypothesis: insightOpportunityHypothesis.value,
         actionRecommendation: insightActionRecommendation.value,
+        competitorIds: Array.from(derivedReferenceIds.competitorIds),
+        dimensionIds: Array.from(derivedReferenceIds.dimensionIds),
         evidenceIds: selectedEvidenceIds,
         createdAt: existingInsight?.createdAt || now,
         updatedAt: now
@@ -5817,9 +5771,13 @@
         dimensionIds: new Set(
           comparisonData.dimensions.map(item => item.id)
         ),
-        evidenceIds: new Set(evidenceItems.map(item => item.id)),
-        evidenceItems
+        evidenceIds: new Set(evidenceItems.map(item => item.id))
       });
+
+      /* 编辑示例洞察后不再视为系统预置的示例 */
+      if (existingInsight && existingInsight.isSample === true) {
+        delete candidate.isSample;
+      }
 
       if (existingInsight) {
         const insightIndex = insights.findIndex(
@@ -6229,6 +6187,111 @@
     });
 
     /* ==============================
+       清空当前 Tab 的示例内容
+       用户确认后仅移除带有 isSample 标记的数据，
+       编辑过或用户自己添加的数据不会被删除
+       ============================== */
+    function getCurrentSampleCount() {
+      const sampleCompetitors = competitors.filter(item =>
+        item.isSample === true
+      ).length;
+      const sampleEvidence = evidenceItems.filter(item =>
+        item.isSample === true
+      ).length;
+      const sampleInsights = insights.filter(item =>
+        item.isSample === true
+      ).length;
+      const sampleDimensions = comparisonData.dimensions.filter(item =>
+        item.isSample === true
+      ).length;
+      const sampleMatrixCells = Object.values(
+        comparisonData.sampleValues || {}
+      ).reduce((total, competitorValues) =>
+        total + Object.values(competitorValues || {})
+          .filter(Boolean).length,
+      0);
+
+      return sampleCompetitors +
+        sampleEvidence +
+        sampleInsights +
+        sampleDimensions +
+        sampleMatrixCells;
+    }
+
+    clearExamplesButton.addEventListener('click', () => {
+      if (!window.confirm(
+        '确定清空当前 Tab 的示例内容吗？仅会移除系统预置的示例数据，您自己添加或编辑过的内容不会被删除。'
+      )) {
+        return;
+      }
+
+      /* 删除示例竞品 */
+      competitors = competitors.filter(item => item.isSample !== true);
+
+      /* 删除示例证据（用户编辑过的证据即使关联到示例竞品也不会被删除） */
+      evidenceItems = evidenceItems.filter(item => item.isSample !== true);
+
+      /* 删除示例洞察 */
+      insights = insights.filter(item => item.isSample !== true);
+
+      /* 删除示例维度及其矩阵值 */
+      const sampleDimensionIds = new Set(
+        comparisonData.dimensions
+          .filter(item => item.isSample === true)
+          .map(item => item.id)
+      );
+      comparisonData.dimensions = comparisonData.dimensions.filter(
+        item => item.isSample !== true
+      );
+      comparisonData.values = Object.fromEntries(
+        Object.entries(comparisonData.values || {}).filter(
+          ([dimensionId]) => !sampleDimensionIds.has(dimensionId)
+        )
+      );
+      comparisonData.sampleValues = Object.fromEntries(
+        Object.entries(comparisonData.sampleValues || {}).filter(
+          ([dimensionId]) => !sampleDimensionIds.has(dimensionId)
+        )
+      );
+
+      /* 对于非示例维度，清空仍然标记为示例的单元格 */
+      Object.keys(comparisonData.sampleValues || {}).forEach(dimensionId => {
+        Object.keys(comparisonData.sampleValues[dimensionId] || {})
+          .forEach(competitorId => {
+            if (comparisonData.sampleValues[dimensionId][competitorId]) {
+              if (comparisonData.values[dimensionId]) {
+                delete comparisonData.values[dimensionId][competitorId];
+              }
+              delete comparisonData.sampleValues[dimensionId][competitorId];
+            }
+          });
+        if (
+          comparisonData.sampleValues[dimensionId] &&
+          Object.keys(comparisonData.sampleValues[dimensionId]).length === 0
+        ) {
+          delete comparisonData.sampleValues[dimensionId];
+        }
+      });
+
+      /* 清理被删除示例数据后的无效引用，保留非示例数据 */
+      const normalizedTab = normalizeWorkspaceTab({
+        id: activeWorkspaceTab.id,
+        name: activeWorkspaceTab.name,
+        competitors,
+        evidenceItems,
+        insights,
+        comparisonData
+      }, 0);
+      competitors = normalizedTab.competitors;
+      evidenceItems = normalizedTab.evidenceItems;
+      insights = normalizedTab.insights;
+      comparisonData = normalizedTab.comparisonData;
+
+      persistWorkspaceState();
+      render();
+    });
+
+    /* ==============================
        打开新增竞品弹窗
        ============================== */
     document
@@ -6294,6 +6357,11 @@
         positioning:
           document.querySelector('#positioning').value.trim()
       };
+
+      /* 编辑示例数据后不再视为系统预置的示例 */
+      if (editingIndex !== null) {
+        delete competitor.isSample;
+      }
 
       if (editingIndex === null) {
         competitors.push(competitor);
@@ -6745,15 +6813,16 @@
           updatedAt: previousEvidence ? now : undefined
         };
 
+        /* 编辑示例证据后不再视为系统预置的示例 */
+        if (previousEvidence && previousEvidence.isSample === true) {
+          delete evidence.isSample;
+        }
+
         if (editingEvidenceIndex === null) {
           evidenceItems.push(evidence);
         } else {
           evidenceItems[editingEvidenceIndex] = evidence;
         }
-        insights = synchronizeInsightReferences(
-          insights,
-          evidenceItems
-        );
 
         try {
           persistEvidence();
@@ -6764,10 +6833,6 @@
             evidenceItems[editingEvidenceIndex] =
               previousEvidence;
           }
-          insights = synchronizeInsightReferences(
-            insights,
-            evidenceItems
-          );
 
           throw new Error(
             '浏览器存储空间不足，请减少图片数量或删除旧证据。'
@@ -6934,11 +6999,14 @@
         return;
       }
 
+      const deletedEvidenceId = evidenceItems[evidenceIndex]?.id;
       evidenceItems.splice(evidenceIndex, 1);
-      insights = synchronizeInsightReferences(
-        insights,
-        evidenceItems
-      );
+      insights = insights.map(insight => ({
+        ...insight,
+        evidenceIds: insight.evidenceIds.filter(
+          id => id !== deletedEvidenceId
+        )
+      }));
       persistEvidence();
       render();
     }
@@ -7304,7 +7372,8 @@
           id: createId(),
           name
         })),
-        values: {}
+        values: {},
+        sampleValues: {}
       };
     }
 
@@ -7318,6 +7387,150 @@
         evidenceItems: [],
         insights: [],
         comparisonData: createDefaultComparisonData()
+      };
+    }
+
+    /* ==============================
+       首次访问示例工作区
+       用虚构竞品串联档案、证据、矩阵和洞察的完整操作关系
+       ============================== */
+    function createSampleWorkspaceTab(name = '默认空间') {
+      const tabId = createId();
+      const competitorIds = [createId(), createId(), createId()];
+      const dimensionIds = [createId(), createId(), createId(), createId()];
+      const evidenceIds = [createId(), createId(), createId()];
+      const now = new Date().toISOString();
+      const dimensions = [
+        { id: dimensionIds[0], name: '产品定位', isSample: true },
+        { id: dimensionIds[1], name: '目标用户', isSample: true },
+        { id: dimensionIds[2], name: '核心能力', isSample: true },
+        { id: dimensionIds[3], name: 'AI 能力', isSample: true }
+      ];
+      const competitors = [
+        {
+          id: competitorIds[0],
+          name: '示例｜协同工作台',
+          website: '',
+          positioning: '面向跨职能团队的一体化协同与任务管理工具。',
+          isSample: true
+        },
+        {
+          id: competitorIds[1],
+          name: '示例｜项目协作台',
+          website: '',
+          positioning: '面向项目团队的进度跟踪与流程自动化工具。',
+          isSample: true
+        },
+        {
+          id: competitorIds[2],
+          name: '示例｜知识工作台',
+          website: '',
+          positioning: '面向知识密集团队的文档沉淀与智能检索工具。',
+          isSample: true
+        }
+      ];
+      const evidenceItems = [
+        {
+          id: evidenceIds[0],
+          competitorId: competitorIds[0],
+          dimensionIds: [dimensionIds[0], dimensionIds[2]],
+          images: [],
+          title: '统一任务入口',
+          contentHtml: '<p>示例观察：任务、消息和文档可以在同一工作区内关联。</p>',
+          createdAt: now,
+          isSample: true
+        },
+        {
+          id: evidenceIds[1],
+          competitorId: competitorIds[1],
+          dimensionIds: [dimensionIds[2]],
+          images: [],
+          title: '看板自动化规则',
+          contentHtml: '<p>示例观察：状态变化可以触发负责人、提醒和字段更新。</p>',
+          createdAt: now,
+          isSample: true
+        },
+        {
+          id: evidenceIds[2],
+          competitorId: competitorIds[2],
+          dimensionIds: [dimensionIds[2], dimensionIds[3]],
+          images: [],
+          title: '知识问答引用来源',
+          contentHtml: '<p>示例观察：问答结果会回链到原始文档，便于核对依据。</p>',
+          createdAt: now,
+          isSample: true
+        }
+      ];
+
+      return {
+        id: tabId,
+        name: Array.from(String(name).trim() || '默认空间')
+          .slice(0, 20)
+          .join(''),
+        competitors,
+        evidenceItems,
+        insights: [{
+          id: createId(),
+          title: '协同产品正在整合工作入口',
+          factSignals: '三个示例产品都在减少任务、流程与知识之间的切换。',
+          commonPattern: '统一入口逐渐成为协同产品的基础能力。',
+          keyDifference: '不同产品分别从任务、流程自动化和知识检索切入。',
+          opportunityHypothesis: '可通过跨模块上下文连续性形成差异化体验。',
+          actionRecommendation: '优先验证用户跨模块完成高频任务时的断点。',
+          competitorIds,
+          dimensionIds: [dimensionIds[0], dimensionIds[2], dimensionIds[3]],
+          evidenceIds,
+          createdAt: now,
+          updatedAt: now,
+          isSample: true
+        }],
+        comparisonData: {
+          dimensions,
+          values: {
+            [dimensionIds[0]]: {
+              [competitorIds[0]]: '一体化团队协同',
+              [competitorIds[1]]: '项目执行与流程管理',
+              [competitorIds[2]]: '知识沉淀与检索'
+            },
+            [dimensionIds[1]]: {
+              [competitorIds[0]]: '跨职能团队',
+              [competitorIds[1]]: '项目与交付团队',
+              [competitorIds[2]]: '知识密集型团队'
+            },
+            [dimensionIds[2]]: {
+              [competitorIds[0]]: '任务、消息与文档关联',
+              [competitorIds[1]]: '看板与自动化流程',
+              [competitorIds[2]]: '文档组织与知识检索'
+            },
+            [dimensionIds[3]]: {
+              [competitorIds[0]]: '内容总结与任务辅助',
+              [competitorIds[1]]: '流程建议与风险提示',
+              [competitorIds[2]]: '带来源引用的知识问答'
+            }
+          },
+          sampleValues: {
+            [dimensionIds[0]]: {
+              [competitorIds[0]]: true,
+              [competitorIds[1]]: true,
+              [competitorIds[2]]: true
+            },
+            [dimensionIds[1]]: {
+              [competitorIds[0]]: true,
+              [competitorIds[1]]: true,
+              [competitorIds[2]]: true
+            },
+            [dimensionIds[2]]: {
+              [competitorIds[0]]: true,
+              [competitorIds[1]]: true,
+              [competitorIds[2]]: true
+            },
+            [dimensionIds[3]]: {
+              [competitorIds[0]]: true,
+              [competitorIds[1]]: true,
+              [competitorIds[2]]: true
+            }
+          }
+        }
       };
     }
 
@@ -7342,6 +7555,7 @@
         ? sourceComparison.dimensions
             .filter(item => item && String(item.name || '').trim())
             .map(item => ({
+              ...item,
               id: item.id || createId(),
               name: String(item.name).trim()
             }))
@@ -7350,6 +7564,7 @@
         dimensions.map(item => item.id)
       );
       const values = {};
+      const sampleValues = {};
 
       dimensions.forEach(dimension => {
         const sourceValues = sourceComparison.values?.[dimension.id];
@@ -7361,6 +7576,24 @@
           if (typeof sourceValues[competitor.id] === 'string') {
             values[dimension.id][competitor.id] =
               sourceValues[competitor.id];
+          }
+        });
+      });
+
+      /* 保留旧数据中矩阵单元格的 sample 标记 */
+      const sourceSampleValues = sourceComparison.sampleValues || {};
+      Object.keys(sourceSampleValues).forEach(dimensionId => {
+        if (!dimensionIds.has(dimensionId)) {
+          return;
+        }
+        const row = sourceSampleValues[dimensionId] || {};
+        Object.keys(row).forEach(competitorId => {
+          if (
+            competitorIds.has(competitorId) &&
+            row[competitorId] === true
+          ) {
+            sampleValues[dimensionId] = sampleValues[dimensionId] || {};
+            sampleValues[dimensionId][competitorId] = true;
           }
         });
       });
@@ -7385,8 +7618,7 @@
             .map(item => normalizeInsightItem(item, {
               competitorIds,
               dimensionIds,
-              evidenceIds,
-              evidenceItems
+              evidenceIds
             }))
         : [];
 
@@ -7400,7 +7632,8 @@
         insights,
         comparisonData: {
           dimensions,
-          values
+          values,
+          sampleValues
         }
       };
     }
@@ -7417,14 +7650,6 @@
       const normalizeReferences = (values, validIds) =>
         Array.from(new Set(Array.isArray(values) ? values : []))
           .filter(id => validIds?.has(id));
-      const normalizedEvidenceIds = normalizeReferences(
-        item.evidenceIds,
-        validReferences.evidenceIds
-      );
-      const derivedIds = getInsightDerivedReferenceIds(
-        normalizedEvidenceIds,
-        validReferences.evidenceItems || []
-      );
       const now = new Date().toISOString();
 
       return {
@@ -7441,29 +7666,46 @@
           item.actionRecommendation,
           800
         ),
-        competitorIds: Array.from(derivedIds.competitorIds)
-          .filter(id => validReferences.competitorIds?.has(id)),
-        dimensionIds: Array.from(derivedIds.dimensionIds)
-          .filter(id => validReferences.dimensionIds?.has(id)),
-        evidenceIds: normalizedEvidenceIds,
+        competitorIds: normalizeReferences(
+          item.competitorIds,
+          validReferences.competitorIds
+        ),
+        dimensionIds: normalizeReferences(
+          item.dimensionIds,
+          validReferences.dimensionIds
+        ),
+        evidenceIds: normalizeReferences(
+          item.evidenceIds,
+          validReferences.evidenceIds
+        ),
         createdAt: item.createdAt || now,
-        updatedAt: item.updatedAt || item.createdAt || now
+        updatedAt: item.updatedAt || item.createdAt || now,
+        isSample: item.isSample === true
       };
     }
 
     function migrateLegacyWorkspaceData() {
+      const hasLegacyWorkspaceData = [
+        storageKey,
+        evidenceStorageKey,
+        comparisonStorageKey
+      ].some(key => localStorage.getItem(key) !== null);
+      const defaultTab = hasLegacyWorkspaceData
+        ? normalizeWorkspaceTab({
+            id: createId(),
+            name: '默认空间',
+            competitors: readStoredArray(storageKey),
+            evidenceItems: readStoredArray(evidenceStorageKey),
+            comparisonData:
+              readStoredObject(comparisonStorageKey) ||
+              createDefaultComparisonData()
+          }, 0)
+        : createSampleWorkspaceTab('默认空间');
+
       return {
         version: 3,
         activeTabId: null,
-        tabs: [normalizeWorkspaceTab({
-          id: createId(),
-          name: '默认空间',
-          competitors: readStoredArray(storageKey),
-          evidenceItems: readStoredArray(evidenceStorageKey),
-          comparisonData:
-            readStoredObject(comparisonStorageKey) ||
-            createDefaultComparisonData()
-        }, 0)]
+        tabs: [defaultTab]
       };
     }
 
@@ -7531,10 +7773,6 @@
     }
 
     function persistWorkspaceState() {
-      insights = synchronizeInsightReferences(
-        insights,
-        evidenceItems
-      );
       activeWorkspaceTab.competitors = competitors;
       activeWorkspaceTab.evidenceItems = evidenceItems;
       activeWorkspaceTab.comparisonData = comparisonData;
