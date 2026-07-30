@@ -3273,6 +3273,11 @@
     .insight-filter-option.is-selected { color: var(--black); }
     .insight-filter-select.is-competitor .insight-filter-tag { background: var(--orange); }
     .insight-filter-select.is-dimension .insight-filter-tag { background: var(--black); }
+    /* 折叠筛选框始终单行：长名称在 Tag 内省略，不撑高控件 */
+    .insight-filter-select summary { height: 38px; min-height: 38px; flex-wrap: nowrap; overflow: hidden; }
+    .insight-filter-tag { display: inline-flex; align-items: center; max-width: calc(100% - 24px); min-width: 0; height: 28px; white-space: nowrap; }
+    .insight-filter-tag-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .insight-filter-tag button { flex: 0 0 auto; }
 
 
     .insight-list {
@@ -5639,7 +5644,7 @@
       const selected = selectedOptions.map(option => option.textContent.trim());
       const variant = controlId === '#insightCompetitorFilterControl' ? 'is-competitor' : 'is-dimension';
       const summary = selected.length
-        ? `<span class="insight-filter-tag">${escapeHtml(selected[0])}<button type="button" data-filter-remove="${escapeHtml(selectedOptions[0].value)}" aria-label="移除 ${escapeHtml(selected[0])}">×</button></span>${selected.length > 1 ? `<span class="insight-filter-count" title="已选：${escapeHtml(selected.join('、'))}">+${selected.length - 1}</span>` : ''}`
+        ? `<span class="insight-filter-tag"><span class="insight-filter-tag-text">${escapeHtml(selected[0])}</span><button type="button" data-filter-remove="${escapeHtml(selectedOptions[0].value)}" aria-label="移除 ${escapeHtml(selected[0])}">×</button></span>${selected.length > 1 ? `<span class="insight-filter-count" title="已选：${escapeHtml(selected.join('、'))}">+${selected.length - 1}</span>` : ''}`
         : `<span class="insight-filter-placeholder">${escapeHtml(emptyLabel)}</span>`;
       control.innerHTML = `<details class="insight-filter-select ${variant}"><summary>${summary}<span class="insight-filter-arrow" aria-hidden="true">⌃</span></summary><div class="insight-filter-options">${items.map(item => { const isSelected = selectedOptions.some(option => option.value === item.id); return `<button type="button" class="insight-filter-option${isSelected ? ' is-selected' : ''}" data-filter-option="${escapeHtml(item.id)}"><span>${escapeHtml(item.name)}</span><b aria-hidden="true">${isSelected ? '✓' : ''}</b></button>`; }).join('')}</div></details>`;
     }
