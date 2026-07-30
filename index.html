@@ -3952,7 +3952,7 @@
     <form id="insightForm">
       <div class="insight-dialog-heading">
         <div>
-          <p class="insight-dialog-kicker">INSIGHT BUILDER / 01—05</p>
+          <p class="insight-dialog-kicker">编辑洞察 / INSIGHT BUILDER · 01—05</p>
           <h2 id="insightDialogTitle">添加洞察</h2>
         </div>
       </div>
@@ -5662,11 +5662,11 @@
         ...dimensionNames.map(name => ({ type: 'dimension', name }))
       ];
       const stages = [
-        ['01 / SIGNAL', '事实信号', item.factSignals],
-        ['02 / PATTERN', '共性模式', item.commonPattern],
-        ['03 / DIFF', '关键差异', item.keyDifference],
-        ['04 / CHANCE', '机会假设', item.opportunityHypothesis],
-        ['05 / ACTION', '行动建议', item.actionRecommendation]
+        ['01', '事实信号 / Signal', item.factSignals],
+        ['02', '共性模式 / Pattern', item.commonPattern],
+        ['03', '关键差异 / Difference', item.keyDifference],
+        ['04', '机会假设 / Opportunity', item.opportunityHypothesis],
+        ['05', '行动建议 / Action', item.actionRecommendation]
       ].filter(([, , content]) => content.trim());
 
       return `
@@ -5703,7 +5703,7 @@
           ` : ''}
           <div class="insight-chain" style="--insight-stage-count: ${stages.length}">
             ${stages.map(([code, label, content]) => `
-              <section class="insight-stage${code === '05 / ACTION' ? ' is-action' : ''}">
+              <section class="insight-stage${code === '05' ? ' is-action' : ''}">
                 <span class="insight-stage-label">
                   ${escapeHtml(code)} · ${escapeHtml(label)}
                 </span>
@@ -5715,7 +5715,7 @@
           </div>
           ${linkedEvidence.length > 0 ? `
             <div class="insight-evidence-links">
-              <span>EVIDENCE / ${linkedEvidence.length}</span>
+              <span>证据 / Evidence ${linkedEvidence.length}</span>
               ${linkedEvidence.map(evidence => `
                 <button
                   class="insight-evidence-link"
