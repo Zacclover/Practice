@@ -2180,6 +2180,65 @@
       transform: translateY(0);
     }
 
+    /* 研究覆盖引导：用工业化计数条提示证据缺口，不把完整度伪装成结论 */
+    .comparison-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .research-coverage-summary {
+      margin: 0;
+      padding: 10px 12px;
+      color: var(--ink);
+      background: var(--gray-100);
+      border-left: 3px solid var(--orange);
+      font: 700 12px/1.35 var(--font-mono);
+      letter-spacing: .01em;
+    }
+
+    .research-coverage-summary span {
+      color: var(--line-medium);
+      font-weight: 600;
+    }
+
+    .matrix-coverage-gap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      margin: 0 0 10px;
+      padding: 8px 10px;
+      color: var(--black);
+      background: var(--white);
+      border: 1px dashed var(--line-medium);
+      border-radius: 0;
+      font: 700 12px/1 var(--font-mono);
+    }
+
+    .matrix-coverage-gap:hover,
+    .matrix-coverage-gap:focus-visible {
+      color: var(--black);
+      background: var(--orange);
+      border-color: var(--orange);
+      outline: 2px solid var(--black);
+      outline-offset: 2px;
+      transform: none;
+    }
+
+    @media (max-width: 720px) {
+      .comparison-header,
+      .comparison-actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .comparison-actions > button {
+        justify-content: center;
+      }
+    }
+
     /* 弹窗与表单：实色白面、Strong 外框和橙色键盘焦点 */
     dialog {
       color: var(--ink);
@@ -4075,10 +4134,14 @@
           <span>竞品横向对比</span>
           <small>COMPARISON MATRIX</small>
         </h2>
-        <button id="addDimensionButton" type="button">
-          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
-          添加对比维度
-        </button>
+        <div class="comparison-actions">
+          <!-- 研究覆盖摘要：只反映证据关联完整度，不替代洞察判断 -->
+          <p id="researchCoverageSummary" class="research-coverage-summary" aria-live="polite"></p>
+          <button id="addDimensionButton" type="button">
+            <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
+            添加对比维度
+          </button>
+        </div>
       </div>
 
       <!-- JavaScript 会在这里生成可编辑矩阵 -->
@@ -4767,6 +4830,8 @@
        ============================== */
     const comparisonContainer =
       document.querySelector('#comparisonContainer');
+    const researchCoverageSummary =
+      document.querySelector('#researchCoverageSummary');
     const dimensionDialog =
       document.querySelector('#dimensionDialog');
     const dimensionForm =
@@ -5445,6 +5510,8 @@
        对比维度为行、竞品档案为列
        ============================== */
     function renderComparison() {
+      renderResearchCoverageSummary();
+
       if (competitors.length === 0) {
         comparisonContainer.innerHTML = `
           <div class="comparison-empty">
@@ -5525,6 +5592,22 @@
                       : ''
                   }
 
+                  ${
+                    linkedEvidence.length === 0
+                      ? `
+                        <button
+                          class="matrix-coverage-gap"
+                          data-coverage-gap-competitor-id="${escapeHtml(competitor.id)}"
+                          data-coverage-gap-dimension-id="${escapeHtml(dimension.id)}"
+                          type="button"
+                          aria-label="为${escapeHtml(competitor.name)}的${escapeHtml(dimension.name)}补充证据">
+                          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
+                          补充证据
+                        </button>
+                      `
+                      : ''
+                  }
+
                   <label class="matrix-manual-label">
                     自主补充内容
                   </label>
@@ -5583,6 +5666,41 @@
           </thead>
           <tbody>${rows}</tbody>
         </table>
+      `;
+    }
+
+    /* ==============================
+       计算研究覆盖：仅以证据与竞品、维度的关联为准
+       自主补充文本不计入，避免把备注误判为已完成调研
+       ============================== */
+    function getResearchCoverage() {
+      const totalCellCount =
+        competitors.length * comparisonData.dimensions.length;
+      const coveredCellCount = comparisonData.dimensions.reduce(
+        (count, dimension) => count + competitors.filter(competitor =>
+          evidenceItems.some(evidence =>
+            evidence.competitorId === competitor.id &&
+            evidence.dimensionIds.includes(dimension.id)
+          )
+        ).length,
+        0
+      );
+
+      return {
+        coveredCellCount,
+        totalCellCount,
+        missingCellCount: totalCellCount - coveredCellCount
+      };
+    }
+
+    /* ==============================
+       更新矩阵标题的研究覆盖摘要
+       ============================== */
+    function renderResearchCoverageSummary() {
+      const coverage = getResearchCoverage();
+      researchCoverageSummary.innerHTML = `
+        已覆盖 ${coverage.coveredCellCount} / ${coverage.totalCellCount} 个比较点
+        <span>· 缺 ${coverage.missingCellCount} 项证据</span>
       `;
     }
 
@@ -5646,6 +5764,19 @@
         openLinkedEvidence(
           linkedButton.dataset.linkedDimensionId,
           linkedButton.dataset.linkedCompetitorId
+        );
+        return;
+      }
+
+      /* 点击缺口入口：直接带入当前竞品与对比维度创建证据 */
+      const gapButton = event.target.closest(
+        'button[data-coverage-gap-competitor-id]'
+      );
+
+      if (gapButton) {
+        openEvidenceDialog(
+          gapButton.dataset.coverageGapCompetitorId,
+          gapButton.dataset.coverageGapDimensionId
         );
         return;
       }
@@ -6946,8 +7077,9 @@
 
     /* ==============================
        打开指定竞品的证据上传弹窗
+       可选预选当前矩阵缺口所属维度，减少重复选择
        ============================== */
-    function openEvidenceDialog(competitorId) {
+    function openEvidenceDialog(competitorId, dimensionId = null) {
       const competitor = competitors.find(
         item => item.id === competitorId
       );
@@ -6959,6 +7091,9 @@
 
       resetEvidenceForm();
       selectedEvidenceCompetitorId = competitorId;
+      if (dimensionId) {
+        selectedEvidenceDimensionIds = new Set([dimensionId]);
+      }
       evidenceCompetitorName.textContent = competitor.name;
       renderEvidenceDimensionOptions();
       evidenceDialog.showModal();
