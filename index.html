@@ -3258,6 +3258,16 @@
       flex: 0 0 auto;
     }
     .insight-filter-option:hover { background: var(--paper); }
+    .insight-filter-tag button { margin-left: 5px; padding: 0; color: inherit; background: transparent; border: 0; font: inherit; cursor: pointer; }
+    .insight-filter-arrow { margin-left: auto; color: var(--line-medium); font-size: 15px; transform: rotate(180deg); }
+    .insight-filter-select[open] .insight-filter-arrow { transform: rotate(0); }
+    .insight-filter-option { width: 100%; border: 0; background: transparent; cursor: pointer; }
+    .insight-filter-option span { flex: 1; }
+    .insight-filter-option b { color: var(--orange); font-size: 14px; }
+    .insight-filter-option.is-selected { color: var(--orange); background: var(--paper); }
+    .insight-filter-option.is-selected b { display: inline-block; }
+    .insight-filter-option:not(.is-selected) b { visibility: hidden; }
+
 
     .insight-list {
       display: grid;
@@ -5621,9 +5631,9 @@
       const control = document.querySelector(controlId);
       const selected = [...select.selectedOptions].map(option => option.textContent.trim());
       const summary = selected.length
-        ? `<span class="insight-filter-tag">${escapeHtml(selected[0])}</span>${selected.length > 1 ? `<span class="insight-filter-count" title="${escapeHtml(selected.join('、'))}">+${selected.length - 1}</span>` : ''}`
+        ? `<span class="insight-filter-tag">${escapeHtml(selected[0])}<button type="button" data-filter-remove="${escapeHtml([...select.selectedOptions][0].value)}" aria-label="移除 ${escapeHtml(selected[0])}">×</button></span>${selected.length > 1 ? `<span class="insight-filter-count" title="已选：${escapeHtml(selected.join('、'))}">+${selected.length - 1}</span>` : ''}`
         : `<span class="insight-filter-placeholder">${escapeHtml(emptyLabel)}</span>`;
-      control.innerHTML = `<details class="insight-filter-select"><summary>${summary}</summary><div class="insight-filter-options">${items.map(item => `<label class="insight-filter-option"><input type="checkbox" value="${escapeHtml(item.id)}" ${[...select.selectedOptions].some(option => option.value === item.id) ? 'checked' : ''}>${escapeHtml(item.name)}</label>`).join('')}</div></details>`;
+      control.innerHTML = `<details class="insight-filter-select"><summary>${summary}<span class="insight-filter-arrow" aria-hidden="true">⌃</span></summary><div class="insight-filter-options">${items.map(item => { const isSelected = [...select.selectedOptions].some(option => option.value === item.id); return `<button type="button" class="insight-filter-option${isSelected ? ' is-selected' : ''}" data-filter-option="${escapeHtml(item.id)}"><span>${escapeHtml(item.name)}</span><b aria-hidden="true">${isSelected ? '✓' : ''}</b></button>`; }).join('')}</div></details>`;
     }
 
     function renderInsightFilterControls() {
@@ -5999,12 +6009,17 @@
 
     insightCompetitorFilter.addEventListener('change', () => { renderInsightFilterControls(); renderInsightCards(); });
     insightDimensionFilter.addEventListener('change', () => { renderInsightFilterControls(); renderInsightCards(); });
-    document.querySelector('.insight-filters').addEventListener('change', event => {
-      const checkbox = event.target.closest('.insight-filter-option input');
-      if (!checkbox) return;
-      const select = checkbox.closest('#insightCompetitorFilterControl') ? insightCompetitorFilter : insightDimensionFilter;
-      const option = [...select.options].find(item => item.value === checkbox.value);
-      if (option) option.selected = checkbox.checked;
+    document.querySelector('.insight-filters').addEventListener('click', event => {
+      const removeButton = event.target.closest('[data-filter-remove]');
+      const optionButton = event.target.closest('[data-filter-option]');
+      if (!removeButton && !optionButton) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const control = event.target.closest('#insightCompetitorFilterControl, #insightDimensionFilterControl');
+      const select = control?.id === 'insightCompetitorFilterControl' ? insightCompetitorFilter : insightDimensionFilter;
+      const id = removeButton?.dataset.filterRemove || optionButton?.dataset.filterOption;
+      const option = [...select.options].find(item => item.value === id);
+      if (option) option.selected = removeButton ? false : !option.selected;
       renderInsightFilterControls();
       renderInsightCards();
     });
