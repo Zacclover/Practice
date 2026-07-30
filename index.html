@@ -3303,22 +3303,25 @@
       font-size: 10px;
     }
 
+    /* 保存洞察以独立小卡片呈现，不使用表格式连续边框 */
     .insight-chain {
       display: grid;
       grid-template-columns: repeat(var(--insight-stage-count, 5), minmax(0, 1fr));
-      border: 1px solid var(--line-strong);
+      gap: 10px;
+      border: 0;
     }
 
     .insight-stage {
       min-width: 0;
       padding: 14px;
-      border-right: 1px solid var(--line-subtle);
+      background: var(--white);
+      border: 1px solid var(--line-subtle);
     }
 
     .insight-stage.is-action {
       color: var(--black);
       background: var(--orange);
-      border-right: 0;
+      border: 1px solid var(--orange);
     }
 
     .insight-stage-label {
@@ -3944,17 +3947,14 @@
 
       <!-- 洞察筛选只影响当前视图，不改变保存的数据 -->
       <div class="insight-filters" aria-label="筛选洞察结论">
+        <p id="insightFilterHelp" class="sr-only">可按住 Ctrl 或 Command 键选择多个筛选项；不选择时显示全部。</p>
         <label>
           竞品
-          <select id="insightCompetitorFilter">
-            <option value="">全部竞品</option>
-          </select>
+          <select id="insightCompetitorFilter" multiple size="4" aria-describedby="insightFilterHelp"></select>
         </label>
         <label>
           分析维度
-          <select id="insightDimensionFilter">
-            <option value="">全部维度</option>
-          </select>
+          <select id="insightDimensionFilter" multiple size="4" aria-describedby="insightFilterHelp"></select>
         </label>
       </div>
 
@@ -5590,11 +5590,10 @@
        五阶段内容保持纯文本输出，所有引用均从当前 Tab 解析
        ============================== */
     function renderInsights() {
-      const selectedCompetitorId = insightCompetitorFilter.value;
-      const selectedDimensionId = insightDimensionFilter.value;
+      const selectedCompetitorIds = [...insightCompetitorFilter.selectedOptions].map(option => option.value);
+      const selectedDimensionIds = [...insightDimensionFilter.selectedOptions].map(option => option.value);
 
       insightCompetitorFilter.innerHTML = `
-        <option value="">全部竞品</option>
         ${competitors.map(item => `
           <option value="${escapeHtml(item.id)}">
             ${escapeHtml(item.name)}
@@ -5602,31 +5601,30 @@
         `).join('')}
       `;
       insightDimensionFilter.innerHTML = `
-        <option value="">全部维度</option>
         ${comparisonData.dimensions.map(item => `
           <option value="${escapeHtml(item.id)}">
             ${escapeHtml(item.name)}
           </option>
         `).join('')}
       `;
-      insightCompetitorFilter.value = competitors.some(
-        item => item.id === selectedCompetitorId
-      ) ? selectedCompetitorId : '';
-      insightDimensionFilter.value = comparisonData.dimensions.some(
-        item => item.id === selectedDimensionId
-      ) ? selectedDimensionId : '';
+      [...insightCompetitorFilter.options].forEach(option => {
+        option.selected = selectedCompetitorIds.includes(option.value);
+      });
+      [...insightDimensionFilter.options].forEach(option => {
+        option.selected = selectedDimensionIds.includes(option.value);
+      });
 
       renderInsightCards();
     }
 
     function renderInsightCards() {
-      const competitorFilterId = insightCompetitorFilter.value;
-      const dimensionFilterId = insightDimensionFilter.value;
+      const competitorFilterIds = [...insightCompetitorFilter.selectedOptions].map(option => option.value);
+      const dimensionFilterIds = [...insightDimensionFilter.selectedOptions].map(option => option.value);
       const filteredInsights = insights.filter(item =>
-        (!competitorFilterId ||
-          item.competitorIds.includes(competitorFilterId)) &&
-        (!dimensionFilterId ||
-          item.dimensionIds.includes(dimensionFilterId))
+        (competitorFilterIds.length === 0 ||
+          competitorFilterIds.some(id => item.competitorIds.includes(id))) &&
+        (dimensionFilterIds.length === 0 ||
+          dimensionFilterIds.some(id => item.dimensionIds.includes(id)))
       );
 
       if (insights.length === 0) {
