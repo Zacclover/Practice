@@ -3274,10 +3274,42 @@
     .insight-filter-select.is-competitor .insight-filter-tag { background: var(--orange); }
     .insight-filter-select.is-dimension .insight-filter-tag { background: var(--black); }
     /* 折叠筛选框始终单行：长名称在 Tag 内省略，不撑高控件 */
-    .insight-filter-select summary { height: 38px; min-height: 38px; flex-wrap: nowrap; overflow: hidden; }
-    .insight-filter-tag { display: inline-flex; align-items: center; max-width: calc(100% - 24px); min-width: 0; height: 28px; white-space: nowrap; }
-    .insight-filter-tag-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .insight-filter-tag button { flex: 0 0 auto; }
+    .insight-filter-select summary {
+      height: 38px;
+      min-height: 38px;
+      flex-wrap: nowrap;
+      overflow: hidden;
+    }
+    /* 使用两列网格锁定文字与移除按钮，覆盖全局 button 尺寸规则 */
+    .insight-filter-select summary .insight-filter-tag {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) 18px;
+      align-items: center;
+      max-width: calc(100% - 24px);
+      min-width: 0;
+      height: 28px !important;
+      min-height: 28px !important;
+      padding: 5px 8px !important;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .insight-filter-tag-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .insight-filter-select summary .insight-filter-tag button {
+      display: grid !important;
+      place-items: center;
+      width: 18px !important;
+      min-width: 18px !important;
+      height: 18px !important;
+      min-height: 18px !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      line-height: 1;
+    }
 
 
     .insight-list {
