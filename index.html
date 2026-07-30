@@ -1327,7 +1327,7 @@
       padding: 22px 40px;
       color: var(--white);
       background: var(--black);
-      border-bottom: 2px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     header h1 {
@@ -1496,7 +1496,7 @@
     .workspace-tabs-section {
       padding: 0;
       background: var(--white);
-      border-bottom: 2px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     .workspace-tabs-header {
@@ -1715,7 +1715,7 @@
     .comparison-header {
       justify-content: space-between;
       padding-bottom: 12px;
-      border-bottom: 2px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     .comparison-header h2 {
@@ -2138,7 +2138,7 @@
     dialog h2 {
       margin-top: 0;
       padding-bottom: 12px;
-      border-bottom: 2px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
       font-size: 22px;
       font-weight: 900;
       letter-spacing: -.035em;
@@ -2162,7 +2162,7 @@
       padding: 18px 20px;
       color: var(--white);
       background: var(--black);
-      border-bottom: 2px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     .introduction-dialog-header h2 {
@@ -3183,7 +3183,7 @@
       gap: 16px;
       margin: 34px 0 16px;
       padding-bottom: 12px;
-      border-bottom: 2px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     .insights-header h2 {
@@ -3327,7 +3327,7 @@
       padding: 10px 12px;
       color: var(--black);
       background: var(--gray-100);
-      border-bottom: 2px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
       font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 700;
@@ -3400,7 +3400,7 @@
       justify-content: space-between;
       gap: 20px;
       padding: 0 0 16px;
-      border-bottom: 2px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     .insight-dialog-kicker {
@@ -3438,7 +3438,7 @@
       border: 1px solid var(--line-subtle);
     }
 
-    .insight-reference-grid { gap: 0; border: 2px solid var(--line-strong); }
+    .insight-reference-grid { gap: 0; border: 1px solid var(--line-strong); }
     .insight-reference-help {
       padding: 10px 12px;
       color: var(--black);
@@ -3453,7 +3453,7 @@
     .insight-evidence-fieldset legend::before, .insight-derived-fieldset legend::before {
       display: inline-block; margin-right: 7px; color: var(--orange); content: '///';
     }
-    .insight-derived-fieldset { background: var(--gray-100); }
+    .insight-derived-fieldset { background: var(--white); }
     .insight-derived-fieldset .insight-reference-options { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 7px; }
     .insight-derived-fieldset .insight-reference-options label {
       display: inline-flex; align-items: center; width: auto; min-height: 28px; padding: 5px 8px;
@@ -3468,10 +3468,9 @@
       position: relative;
       display: inline-flex;
       align-items: center;
-      min-height: 28px;
-      padding: 5px 11px;
+      min-height: 27px;
+      padding: 5px 10px;
       color: var(--white);
-      background: var(--orange);
       border: 0;
       clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
       font-family: var(--font-mono);
@@ -3479,6 +3478,10 @@
       font-weight: 700;
       line-height: 1;
     }
+    .insight-association.is-competitor,
+    .insight-derived-fieldset.is-competitor .insight-reference-options label { background: var(--orange); }
+    .insight-association.is-dimension,
+    .insight-derived-fieldset.is-dimension .insight-reference-options label { background: var(--black); }
     .insight-associations { gap: 8px; margin-bottom: 16px; }
     .insight-derived-fieldset .insight-reference-options { gap: 8px; padding-top: 8px; }
 
@@ -3605,7 +3608,7 @@
     .insight-dialog form { display: grid; gap: 18px; padding: 24px; }
     .insight-dialog-heading {
       display: flex; align-items: end; justify-content: space-between; gap: 20px;
-      padding: 0 0 16px; border-bottom: 2px solid var(--line-strong);
+      padding: 0 0 16px; border-bottom: 1px solid var(--line-strong);
     }
     .insight-dialog-kicker {
       margin: 0 0 6px; color: var(--orange); font-family: var(--font-mono);
@@ -3615,23 +3618,23 @@
     .insight-form-chain { margin: 0; gap: 0; border: 1px solid var(--line-strong); }
     .insight-form-chain label {
       display: grid; grid-template-rows: auto 1fr; gap: 10px; min-width: 0; padding: 14px;
-      border-top: 2px solid var(--line-strong); border-right: 1px solid var(--line-subtle);
+      border-top: 1px solid var(--line-strong); border-right: 1px solid var(--line-subtle);
     }
     .insight-form-chain label:first-child { border-top: 0; }
     .insight-form-chain label:last-child { border-right: 0; }
     .insight-form-chain label > span { display: flex; gap: 7px; color: var(--black); }
     .insight-form-chain label > span b { font-size: 13px; }
     .insight-form-chain textarea { min-height: 130px; padding: 10px; background: var(--white); border: 1px solid var(--line-subtle); }
-    .insight-reference-grid { gap: 0; border: 2px solid var(--line-strong); }
+    .insight-reference-grid { gap: 0; border: 1px solid var(--line-strong); }
     .insight-reference-help {
-      padding: 10px 12px; color: var(--black); background: var(--gray-100);
+      padding: 10px 12px; color: var(--black); background: var(--white);
       border-bottom: 1px solid var(--line-strong); font-family: var(--font-mono); font-size: 11px;
     }
     .insight-reference-grid fieldset { padding: 14px; border: 0; }
     .insight-reference-grid fieldset + fieldset { border-left: 1px solid var(--line-strong); }
     .insight-reference-grid legend { padding: 0; color: var(--black); }
     .insight-evidence-fieldset legend::before, .insight-derived-fieldset legend::before { display: inline-block; margin-right: 7px; color: var(--orange); content: '///'; }
-    .insight-derived-fieldset { background: var(--gray-100); }
+    .insight-derived-fieldset { background: var(--white); }
     .insight-derived-fieldset .insight-reference-options { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 7px; }
     .insight-derived-fieldset .insight-reference-options label {
       display: inline-flex; align-items: center; width: auto; min-height: 28px; padding: 5px 8px;
@@ -3989,11 +3992,11 @@
           <legend>选择证据</legend>
           <div id="insightEvidenceOptions" class="insight-reference-options"></div>
         </fieldset>
-        <fieldset class="insight-derived-fieldset">
+        <fieldset class="insight-derived-fieldset is-competitor">
           <legend>自动关联竞品</legend>
           <div id="insightCompetitorOptions" class="insight-reference-options"></div>
         </fieldset>
-        <fieldset class="insight-derived-fieldset">
+        <fieldset class="insight-derived-fieldset is-dimension">
           <legend>自动关联分析维度</legend>
           <div id="insightDimensionOptions" class="insight-reference-options"></div>
         </fieldset>
@@ -5655,8 +5658,8 @@
         .map(id => evidenceItems.find(evidence => evidence.id === id))
         .filter(Boolean);
       const associations = [
-        ...competitorNames.map(name => `竞品 / ${name}`),
-        ...dimensionNames.map(name => `维度 / ${name}`)
+        ...competitorNames.map(name => ({ type: 'competitor', name })),
+        ...dimensionNames.map(name => ({ type: 'dimension', name }))
       ];
       const stages = [
         ['01 / SIGNAL', '事实信号', item.factSignals],
@@ -5693,8 +5696,8 @@
           </div>
           ${associations.length > 0 ? `
             <div class="insight-associations">
-              ${associations.map(label => `
-                <span class="insight-association">${escapeHtml(label)}</span>
+              ${associations.map(({ type, name }) => `
+                <span class="insight-association is-${type}">${escapeHtml(name)}</span>
               `).join('')}
             </div>
           ` : ''}
