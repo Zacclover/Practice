@@ -3351,10 +3351,12 @@
 
     .insight-stage p {
       margin: 0;
+      text-indent: 0;
       font-size: 15px;
       font-weight: 600;
       line-height: 1.65;
-      white-space: pre-wrap;
+      /* 保留用户换行但折叠模板缩进，避免首行产生视觉缩进 */
+      white-space: pre-line;
       overflow-wrap: anywhere;
     }
 
