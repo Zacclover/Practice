@@ -3581,6 +3581,45 @@
       font-size: 12px;
     }
 
+    /* 洞察编辑器最终视觉覆盖：置于通用表单规则之后，确保结构层级可见 */
+    .insight-dialog form { display: grid; gap: 18px; padding: 24px; }
+    .insight-dialog-heading {
+      display: flex; align-items: end; justify-content: space-between; gap: 20px;
+      padding: 0 0 16px; border-bottom: 2px solid var(--line-strong);
+    }
+    .insight-dialog-kicker {
+      margin: 0 0 6px; color: var(--orange); font-family: var(--font-mono);
+      font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    }
+    .insight-dialog-heading h2 { margin: 0; font-size: 28px; }
+    .insight-form-chain { margin: 0; gap: 0; border: 1px solid var(--line-strong); }
+    .insight-form-chain label {
+      display: grid; grid-template-rows: auto 1fr; gap: 10px; min-width: 0; padding: 14px;
+      border-top: 2px solid var(--line-strong); border-right: 1px solid var(--line-subtle);
+    }
+    .insight-form-chain label:first-child { border-top: 0; }
+    .insight-form-chain label:last-child { border-right: 0; }
+    .insight-form-chain label > span { display: flex; gap: 7px; color: var(--black); }
+    .insight-form-chain label > span b { font-size: 13px; }
+    .insight-form-chain textarea { min-height: 130px; padding: 10px; background: var(--white); border: 1px solid var(--line-subtle); }
+    .insight-reference-grid { gap: 0; border: 2px solid var(--line-strong); }
+    .insight-reference-help {
+      padding: 10px 12px; color: var(--black); background: var(--gray-100);
+      border-bottom: 1px solid var(--line-strong); font-family: var(--font-mono); font-size: 11px;
+    }
+    .insight-reference-grid fieldset { padding: 14px; border: 0; }
+    .insight-reference-grid fieldset + fieldset { border-left: 1px solid var(--line-strong); }
+    .insight-reference-grid legend { padding: 0; color: var(--black); }
+    .insight-evidence-fieldset legend::before, .insight-derived-fieldset legend::before { display: inline-block; margin-right: 7px; color: var(--orange); content: '///'; }
+    .insight-derived-fieldset { background: var(--gray-100); }
+    .insight-derived-fieldset .insight-reference-options { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 7px; }
+    .insight-derived-fieldset .insight-reference-options label {
+      display: inline-flex; align-items: center; width: auto; min-height: 28px; padding: 5px 8px;
+      color: var(--black); background: var(--white); border: 1px solid var(--line-strong);
+      font-family: var(--font-mono); font-size: 11px;
+    }
+    .insight-derived-fieldset .insight-reference-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
     @media (max-width: 760px) {
       /* 洞察在移动端改为纵向推导链，避免整页横向溢出 */
       .insights-section {
