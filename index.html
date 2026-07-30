@@ -3267,6 +3267,22 @@
     .insight-filter-option.is-selected { color: var(--orange); background: var(--paper); }
     .insight-filter-option.is-selected b { display: inline-block; }
     .insight-filter-option:not(.is-selected) b { visibility: hidden; }
+    /* 常显的多选项：标签单行、选项平铺，不使用浮层或折叠箭头 */
+    .insight-filter-select { display: grid; gap: 6px; }
+    .insight-filter-summary {
+      display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 5px 9px;
+      overflow: hidden; white-space: nowrap; background: var(--white); border: 1px solid var(--line-subtle);
+    }
+    .insight-filter-tag { flex: 0 0 auto; white-space: nowrap; }
+    .insight-filter-select.is-competitor .insight-filter-tag { background: var(--orange); }
+    .insight-filter-select.is-dimension .insight-filter-tag { background: var(--black); }
+    .insight-filter-options {
+      position: static; display: grid; gap: 2px; width: 100%; padding: 4px;
+      background: var(--white); border: 1px solid var(--line-subtle); box-shadow: none;
+    }
+    .insight-filter-option { min-height: 30px; padding: 6px 8px; }
+    .insight-filter-option.is-selected { color: var(--black); background: var(--paper); }
+    .insight-filter-option.is-selected b { color: var(--orange); }
 
 
     .insight-list {
@@ -5629,11 +5645,13 @@
     /* 折叠多选：首个选项以 Tag 呈现，其余通过 +N 和 title Tooltip 汇总 */
     function renderInsightFilterControl(controlId, select, items, emptyLabel) {
       const control = document.querySelector(controlId);
-      const selected = [...select.selectedOptions].map(option => option.textContent.trim());
+      const selectedOptions = [...select.selectedOptions];
+      const selected = selectedOptions.map(option => option.textContent.trim());
+      const variant = controlId === '#insightCompetitorFilterControl' ? 'is-competitor' : 'is-dimension';
       const summary = selected.length
-        ? `<span class="insight-filter-tag">${escapeHtml(selected[0])}<button type="button" data-filter-remove="${escapeHtml([...select.selectedOptions][0].value)}" aria-label="移除 ${escapeHtml(selected[0])}">×</button></span>${selected.length > 1 ? `<span class="insight-filter-count" title="已选：${escapeHtml(selected.join('、'))}">+${selected.length - 1}</span>` : ''}`
+        ? `<span class="insight-filter-tag">${escapeHtml(selected[0])}<button type="button" data-filter-remove="${escapeHtml(selectedOptions[0].value)}" aria-label="移除 ${escapeHtml(selected[0])}">×</button></span>${selected.length > 1 ? `<span class="insight-filter-count" title="已选：${escapeHtml(selected.join('、'))}">+${selected.length - 1}</span>` : ''}`
         : `<span class="insight-filter-placeholder">${escapeHtml(emptyLabel)}</span>`;
-      control.innerHTML = `<details class="insight-filter-select"><summary>${summary}<span class="insight-filter-arrow" aria-hidden="true">⌃</span></summary><div class="insight-filter-options">${items.map(item => { const isSelected = [...select.selectedOptions].some(option => option.value === item.id); return `<button type="button" class="insight-filter-option${isSelected ? ' is-selected' : ''}" data-filter-option="${escapeHtml(item.id)}"><span>${escapeHtml(item.name)}</span><b aria-hidden="true">${isSelected ? '✓' : ''}</b></button>`; }).join('')}</div></details>`;
+      control.innerHTML = `<div class="insight-filter-select ${variant}"><div class="insight-filter-summary">${summary}</div><div class="insight-filter-options">${items.map(item => { const isSelected = selectedOptions.some(option => option.value === item.id); return `<button type="button" class="insight-filter-option${isSelected ? ' is-selected' : ''}" data-filter-option="${escapeHtml(item.id)}"><span>${escapeHtml(item.name)}</span><b aria-hidden="true">${isSelected ? '✓' : ''}</b></button>`; }).join('')}</div></div>`;
     }
 
     function renderInsightFilterControls() {
