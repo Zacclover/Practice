@@ -3650,6 +3650,21 @@
       text-underline-offset: 3px;
     }
 
+    /* 矩阵与洞察的证据回链共用无外框灰底 / 橙色左轨，避免黑框抢占数据层级 */
+    .matrix-evidence-line,
+    .insight-evidence-link {
+      padding: 7px 9px;
+      color: var(--ink);
+      background: var(--gray-100);
+      border: 0 !important;
+      border-left: 3px solid var(--orange) !important;
+      border-radius: 0;
+      clip-path: none;
+      font-size: 12px;
+      line-height: 1.4;
+      text-decoration: none;
+    }
+
     /* 洞察编辑器：工业化标题层级、纵横分割与可扫读的推导链 */
     .insight-dialog {
       width: min(1120px, calc(100% - 32px));
