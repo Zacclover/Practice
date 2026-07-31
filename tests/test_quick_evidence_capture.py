@@ -48,6 +48,15 @@ class QuickEvidenceCaptureContractTests(unittest.TestCase):
         self.assertIn('input,\n    textarea,\n    select {', self.source)
         self.assertIn('input:focus,\n    textarea:focus,\n    select:focus {', self.source)
 
+    def test_quick_source_controls_share_an_aligned_top_edge(self):
+        self.assertIn('.quick-evidence-grid > label > input,\n    .quick-evidence-grid > label > select {', self.source)
+        self.assertIn('height: 42px;', self.source)
+
+    def test_quick_save_button_uses_the_primary_orange_action_contract(self):
+        self.assertIn('#saveQuickEvidenceButton,', self.source)
+        self.assertIn('#saveQuickEvidenceButton:hover,', self.source)
+        self.assertIn('clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px)', self.source)
+
     def test_matrix_no_longer_offers_manual_supplement_content(self):
         self.assertNotIn('自主补充内容', self.source)
         self.assertNotIn('class="matrix-input"', self.source)

@@ -19,7 +19,20 @@ class MatrixEvidenceRevealContractTests(unittest.TestCase):
         )
         self.assertIn('position: absolute;', self.source)
         self.assertIn('right: 0;', self.source)
-        self.assertIn('min-width: 40px;', self.source)
+        count_rule = re.search(
+            r'\.matrix-evidence-count\s*\{(?P<body>.*?)\n\s*\}',
+            self.source,
+            re.S,
+        )
+        self.assertIsNotNone(count_rule)
+        assert count_rule is not None
+        self.assertIn('width: 24px;', count_rule.group('body'))
+        self.assertIn('height: 24px;', count_rule.group('body'))
+        self.assertNotIn('min-width:', count_rule.group('body'))
+        self.assertIn('.comparison-table td {\n      position: relative;', self.source)
+
+    def test_count_does_not_reserve_horizontal_space_for_evidence_lines(self):
+        self.assertNotIn('.matrix-evidence-lines {\n      padding-right:', self.source)
 
     def test_evidence_count_does_not_open_or_target_linked_evidence(self):
         self.assertNotIn('data-linked-dimension-id=', self.source)

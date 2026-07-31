@@ -1432,6 +1432,7 @@
     #saveDimensionButton,
     #saveInlineDimensionButton,
     #saveEvidenceButton,
+    #saveQuickEvidenceButton,
     #saveInsightButton {
       color: var(--black);
       background: var(--orange);
@@ -1463,6 +1464,8 @@
     #saveInlineDimensionButton:focus-visible,
     #saveEvidenceButton:hover,
     #saveEvidenceButton:focus-visible,
+    #saveQuickEvidenceButton:hover,
+    #saveQuickEvidenceButton:focus-visible,
     #saveInsightButton:hover,
     #saveInsightButton:focus-visible {
       color: var(--white);
@@ -2115,6 +2118,7 @@
     }
 
     .comparison-table td {
+      position: relative;
       background: var(--white);
     }
 
@@ -2245,7 +2249,7 @@
       pointer-events: auto;
     }
 
-    /* 矩阵证据以右上角计数小标承载入口，避免重复文字占用单元格 */
+    /* 矩阵证据以贴边小型计数标记展示，不挤占证据行的水平空间 */
     .matrix-evidence-count {
       position: absolute;
       top: 0;
@@ -2253,23 +2257,16 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      min-width: 40px;
-      height: 40px;
-      min-height: 40px;
+      width: 24px;
+      height: 24px;
       padding: 0;
       color: var(--white);
       background: var(--black);
       border: 1px solid var(--black);
       border-radius: 0;
-      font: 700 12px/1 var(--font-mono);
+      font: 700 11px/1 var(--font-mono);
       clip-path: none;
       transform: none;
-    }
-
-
-    .matrix-evidence-lines {
-      padding-right: 48px;
     }
 
     .quick-evidence-target {
@@ -2284,7 +2281,16 @@
     .quick-evidence-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(150px, .45fr);
+      align-items: start;
       gap: 14px;
+    }
+
+    /* 快速记录的来源链接与类型控件使用相同高度，确保上边线对齐 */
+    .quick-evidence-grid > label > input,
+    .quick-evidence-grid > label > select {
+      height: 42px;
+      margin: 0;
+      padding: 10px 12px;
     }
 
     .quick-evidence-dialog input[type="file"] {
