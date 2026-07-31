@@ -34,7 +34,8 @@ class EvidenceDetailVisualContractTests(unittest.TestCase):
         self.assertIn('justify-content: space-between;', self.source)
         self.assertIn('detailEvidenceIndex = evidenceIndex;', self.source)
         self.assertIn('openEvidenceEdit(detailEvidenceIndex);', self.source)
-        self.assertNotIn('class="evidence-edit-button contextual-action"', self.source)
+        self.assertIn('class="evidence-edit-button contextual-action"', self.source)
+        self.assertIn('data-evidence-action="edit"', self.source)
 
 
 if __name__ == '__main__':

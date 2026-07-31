@@ -2048,31 +2048,10 @@
       padding-right: 96px;
     }
 
-    .card-profile-edit {
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      z-index: 2;
-      width: 40px;
-      min-width: 40px;
-      height: 40px;
-      padding: 0;
-      border: 1px solid var(--line-medium);
-      background: var(--white);
-      color: var(--ink);
-    }
-
-    .card-profile-edit:hover,
-    .card-profile-edit:focus-visible {
-      border-color: var(--orange);
-      background: var(--orange);
-      color: var(--ink);
-    }
-
     .card-context-actions {
       position: absolute;
       top: 14px;
-      right: 60px;
+      right: 14px;
       z-index: 3;
       display: flex;
       gap: 6px;
@@ -5919,19 +5898,18 @@
                   : ''
               }
 
-              <!-- 竞品档案编辑入口始终可见，避免与证据预览编辑混淆 -->
-              <button
-                class="card-profile-edit"
-                data-action="edit"
-                data-index="${index}"
-                type="button"
-                aria-label="编辑竞品档案：${escapeHtml(item.name)}"
-                title="编辑竞品档案">
-                <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
-              </button>
-
-              <!-- 删除为破坏性操作，仅在卡片上下文中显示 -->
+              <!-- 竞品档案基础操作，仅在卡片 Hover / 焦点时显示 -->
               <div class="card-context-actions">
+                <button
+                  class="edit-button contextual-action"
+                  data-action="edit"
+                  data-index="${index}"
+                  type="button"
+                  aria-label="编辑竞品"
+                  title="编辑竞品">
+                  <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+                </button>
+
                 <button
                   class="delete-button contextual-action"
                   data-action="delete"
@@ -6916,8 +6894,18 @@
               : ''
           }
 
-          <!-- 删除仍是卡片级破坏性操作；编辑统一收敛到证据预览窗口 -->
+          <!-- 证据卡片保留快捷编辑与删除；详情窗口也提供完整预览后编辑路径 -->
           <div class="evidence-tile-actions">
+            <button
+              class="evidence-edit-button contextual-action"
+              data-evidence-action="edit"
+              data-index="${evidenceIndex}"
+              type="button"
+              aria-label="编辑证据"
+              title="编辑证据">
+              <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+            </button>
+
             <button
               class="evidence-delete-button contextual-action"
               data-evidence-action="delete"

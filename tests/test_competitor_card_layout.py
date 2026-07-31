@@ -10,11 +10,11 @@ class CompetitorCardLayoutContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.source = INDEX_PATH.read_text(encoding="utf-8")
 
-    def test_competitor_profile_edit_entry_is_persistent_and_distinct_from_delete(self):
-        self.assertIn('class="card-profile-edit"', self.source)
-        self.assertIn('aria-label="编辑竞品档案：${escapeHtml(item.name)}"', self.source)
-        self.assertIn('.card-profile-edit {', self.source)
-        self.assertIn('right: 14px;', self.source)
+    def test_competitor_profile_edit_entry_remains_in_the_hover_context_actions(self):
+        self.assertIn('class="edit-button contextual-action"', self.source)
+        self.assertIn('aria-label="编辑竞品"', self.source)
+        self.assertIn('.card:hover .card-context-actions,', self.source)
+        self.assertNotIn('class="card-profile-edit"', self.source)
 
     def test_cards_use_a_compact_width_without_vertical_content_clipping(self):
         self.assertIn('flex: 0 0 400px;', self.source)
