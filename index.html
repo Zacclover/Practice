@@ -415,44 +415,121 @@
        完整展示所有图片和文字记录
        ============================== */
     .detail-dialog {
-      width: min(900px, calc(100% - 32px));
+      width: min(960px, calc(100% - 32px));
       max-height: calc(100vh - 40px);
+      padding: 0;
       overflow-y: auto;
+      color: var(--ink);
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
     }
 
-    .detail-meta {
-      display: flex;
-      justify-content: space-between;
+    .detail-header {
+      padding: 24px 24px 20px;
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    .detail-kicker,
+    .detail-section-label,
+    .detail-meta-label {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    .detail-kicker { color: var(--orange); }
+
+    .detail-header h2 {
+      margin: 8px 0 0;
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      line-height: 1.2;
+    }
+
+    .detail-summary {
+      display: grid;
+      grid-template-columns: 1fr auto;
       gap: 16px;
-      color: #6b7280;
+      padding: 16px 24px;
+      background: var(--gray-100);
+      border-bottom: 1px solid var(--line-subtle);
     }
 
+    .detail-meta { display: flex; gap: 20px; }
+    .detail-meta-item { display: grid; gap: 4px; }
+    .detail-meta-value { font-size: 14px; font-weight: 800; }
+    .detail-meta-item:last-child { text-align: right; }
+    .detail-dimensions { display: flex; flex-wrap: wrap; gap: 6px; align-content: start; }
+    .detail-dimensions .form-help { margin: 0; }
+    .detail-dimension-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 8px;
+      color: var(--white);
+      background: var(--black);
+      clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .detail-media-section,
+    .detail-content-section { padding: 20px 24px 0; }
+    .detail-section-label { color: var(--line-medium); }
     .detail-images {
       display: grid;
-      grid-template-columns: repeat(
-        auto-fit,
-        minmax(240px, 1fr)
-      );
-      gap: 14px;
-      margin: 18px 0;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin: 10px 0 0;
     }
-
-    .detail-images img {
+    .detail-image {
       width: 100%;
-      max-height: 520px;
+      max-height: 480px;
       object-fit: contain;
-      background: #f8fafc;
-      border: 1px solid #e5e7eb;
-      border-radius: 10px;
+      background: var(--gray-100);
+      border: 1px solid var(--line-subtle);
+      border-radius: 0;
     }
-
+    .detail-image-empty {
+      display: grid;
+      min-height: 220px;
+      padding: 20px;
+      align-content: center;
+      gap: 8px;
+      background: var(--gray-100);
+      border: 1px dashed var(--line-medium);
+      border-radius: 0;
+    }
+    .detail-image-empty span { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+    .detail-image-empty strong { font-size: 20px; }
     .detail-comment {
+      min-height: 116px;
+      margin-top: 10px;
       padding: 16px;
-      color: #374151;
+      color: var(--ink);
       line-height: 1.7;
       white-space: pre-wrap;
-      background: #f8fafc;
-      border-radius: 10px;
+      background: var(--gray-100);
+      border-left: 3px solid var(--orange);
+      border-radius: 0;
+    }
+    .detail-dialog .actions {
+      display: flex;
+      justify-content: flex-end;
+      margin: 20px 24px 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line-subtle);
+    }
+    @media (max-width: 640px) {
+      .detail-header, .detail-media-section, .detail-content-section { padding-right: 16px; padding-left: 16px; }
+      .detail-summary { grid-template-columns: 1fr; padding: 14px 16px; }
+      .detail-meta-item:last-child { text-align: left; }
+      .detail-dialog .actions { margin-right: 16px; margin-left: 16px; }
     }
 
     /* ==============================
@@ -4911,28 +4988,39 @@
        显示全部图片和完整文字记录
        ============================== -->
   <dialog id="evidenceDetailDialog" class="detail-dialog">
-    <h2>证据详情</h2>
-    <h3 id="detailEvidenceTitle"></h3>
+    <!-- 证据详情：编辑部标题、来源元数据、原始素材与可读正文分区 -->
+    <header class="detail-header">
+      <p class="detail-kicker">EVIDENCE / DETAIL</p>
+      <h2 id="detailEvidenceTitle"></h2>
+    </header>
 
-    <div class="detail-meta">
-      <strong id="detailCompetitorName"></strong>
-      <span id="detailCreatedDate"></span>
-    </div>
+    <section class="detail-summary" aria-label="证据元数据">
+      <div class="detail-meta">
+        <div class="detail-meta-item">
+          <span class="detail-meta-label">COMPETITOR</span>
+          <strong id="detailCompetitorName" class="detail-meta-value"></strong>
+        </div>
+        <div class="detail-meta-item">
+          <span class="detail-meta-label">CAPTURED</span>
+          <span id="detailCreatedDate" class="detail-meta-value"></span>
+        </div>
+      </div>
+      <div>
+        <p class="detail-meta-label">ANALYSIS DIMENSIONS</p>
+        <div id="detailDimensions" class="detail-dimensions"></div>
+      </div>
+    </section>
 
-    <!-- 显示证据关联的全部对比维度 -->
-    <div
-      id="detailDimensions"
-      class="detail-dimensions">
-    </div>
+    <section class="detail-media-section" aria-label="原始截图">
+      <p class="detail-section-label">VISUAL EVIDENCE / 原始截图</p>
+      <!-- JavaScript 会把全部证据图片显示在这里 -->
+      <div id="detailImages" class="detail-images"></div>
+    </section>
 
-    <!-- JavaScript 会把全部证据图片显示在这里 -->
-    <div id="detailImages" class="detail-images"></div>
-
-    <h3>证据内容</h3>
-    <div
-      id="detailComment"
-      class="detail-comment rich-content">
-    </div>
+    <section class="detail-content-section" aria-label="证据内容">
+      <p class="detail-section-label">EVIDENCE NOTE / 证据内容</p>
+      <div id="detailComment" class="detail-comment rich-content"></div>
+    </section>
 
     <div class="actions">
       <button id="closeDetailButton" class="secondary" type="button">
@@ -7813,23 +7901,28 @@
       detailDimensions.innerHTML = linkedDimensions.length
         ? linkedDimensions
             .map(dimension => `
-              <span class="dimension-tag">
+              <span class="detail-dimension-tag">
                 ${escapeHtml(dimension.name)}
               </span>
             `)
             .join('')
         : '<span class="form-help">未关联对比维度</span>';
 
-      const detailImageSources = evidence.images.length > 0
+      detailImages.innerHTML = evidence.images.length > 0
         ? evidence.images
-        : [fallbackImage];
-      detailImages.innerHTML = detailImageSources
-        .map((image, index) => `
-          <img
-            src="${escapeHtml(image)}"
-            alt="证据图片 ${index + 1}">
-        `)
-        .join('');
+            .map((image, index) => `
+              <img
+                class="detail-image"
+                src="${escapeHtml(image)}"
+                alt="证据图片 ${index + 1}">
+            `)
+            .join('')
+        : `
+            <div class="detail-image-empty" role="status">
+              <span>NO SCREENSHOT / 00</span>
+              <strong>未附截图</strong>
+            </div>
+          `;
       detailComment.innerHTML = sanitizeRichHtml(
         evidence.contentHtml
       ) || '<p class="form-help">暂无详细内容</p>';

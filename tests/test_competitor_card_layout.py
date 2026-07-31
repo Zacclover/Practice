@@ -13,7 +13,7 @@ class CompetitorCardLayoutContractTests(unittest.TestCase):
     def test_cards_use_a_compact_width_without_vertical_content_clipping(self):
         self.assertIn('flex: 0 0 400px;', self.source)
         self.assertIn('width: 400px;', self.source)
-        self.assertNotIn('height: 480px;', self.source)
+        self.assertNotIn('.competitor-card {\n      height: 480px;', self.source)
         self.assertIn('height: auto;\n      padding: 22px;\n      overflow: visible;', self.source)
 
     def test_competitor_track_keeps_cards_naturally_sized_by_content(self):
