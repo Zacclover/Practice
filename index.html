@@ -7873,6 +7873,21 @@
       });
 
     /* ==============================
+       取消证据编辑后的焦点清理
+       弹窗关闭会把焦点还给证据编辑按钮；主动失焦避免父竞品卡保留黑色选中态
+       ============================== */
+    evidenceDialog.addEventListener('close', () => {
+      window.requestAnimationFrame(() => {
+        const activeCompetitorCard = document.activeElement?.closest(
+          '.competitor-card'
+        );
+        if (activeCompetitorCard) {
+          document.activeElement.blur();
+        }
+      });
+    });
+
+    /* ==============================
        打开证据详情
        完整展示所有图片和文字记录
        ============================== */
@@ -9030,6 +9045,11 @@
     }
 
     function getTouchContextSurface(target) {
+      /* 证据卡是直接查看详情的主入口，触屏首击不得仅展开上下文操作 */
+      if (target.closest?.('.evidence-tile')) {
+        return null;
+      }
+
       const dimensionCell = target.closest?.('.dimension-column');
       if (dimensionCell) {
         const row = dimensionCell.closest('tr');
