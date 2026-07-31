@@ -76,6 +76,10 @@ class EvidenceSearchContractTests(unittest.TestCase):
         self.assertIn('function renderEvidenceSearchFilterControl(', self.source)
         self.assertIn("item.sourceType || '未标注来源'", self.source)
 
+    def test_search_filter_summary_shows_two_tags_then_a_count(self):
+        self.assertIn('const visibleOptions = selectedOptions.slice(0, 2);', self.source)
+        self.assertIn('evidence-search-filter-count', self.source)
+
     def test_result_grid_never_centers_its_content(self):
         self.assertIn('justify-content: flex-start !important;', self.source)
         self.assertIn('align-content: start;', self.source)

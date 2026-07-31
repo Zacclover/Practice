@@ -5613,7 +5613,7 @@
       const control = document.querySelector(controlId);
       const selectedOptions = [...select.selectedOptions];
       const selected = selectedOptions.map(option => option.textContent.trim());
-      const visibleOptions = selectedOptions.slice(0, 1);
+      const visibleOptions = selectedOptions.slice(0, 2);
       const summary = selected.length
         ? `${visibleOptions.map(option => `<span class="evidence-search-filter-tag"><span class="evidence-search-filter-tag-text">${escapeHtml(option.textContent.trim())}</span><button type="button" data-evidence-search-filter-remove="${escapeHtml(option.value)}" aria-label="移除 ${escapeHtml(option.textContent.trim())}">×</button></span>`).join('')}${selected.length > visibleOptions.length ? `<span class="evidence-search-filter-count" title="已选：${escapeHtml(selected.join('、'))}">+${selected.length - visibleOptions.length}</span>` : ''}`
         : `<span class="evidence-search-filter-placeholder">${escapeHtml(emptyLabel)}</span>`;
