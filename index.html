@@ -1421,6 +1421,7 @@
 
     /* Primary Button：橙底黑字、无黑边、左上和右下 9px 斜切 */
     #addWorkspaceTabButton,
+    #cloudLoginButton,
     #addButton,
     #addDimensionButton,
     #addInsightButton,
@@ -1442,6 +1443,8 @@
 
     #addWorkspaceTabButton:hover,
     #addWorkspaceTabButton:focus-visible,
+    #cloudLoginButton:hover,
+    #cloudLoginButton:focus-visible,
     #addButton:hover,
     #addButton:focus-visible,
     #addDimensionButton:hover,
@@ -4117,6 +4120,15 @@
         <small>INSIGHT WORKSPACES</small>
       </h2>
       <div class="workspace-tabs-tools">
+        <!-- 云端登录：仅在公开运行时配置有效时由脚本显示 -->
+        <button
+          id="cloudLoginButton"
+          class="workspace-tab-add"
+          type="button"
+          hidden>
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
+          使用 GitHub 登录
+        </button>
         <button
           class="backup-button"
           id="exportDataButton"
@@ -4968,6 +4980,27 @@
     }
 
     /* ==============================
+       GitHub 云端登录入口
+       仅拼接 Supabase OAuth 公共端点，不加载 SDK 或客户端密钥
+       ============================== */
+    function startGitHubLogin() {
+      const config = getCloudRuntimeConfig();
+      if (!config.enabled) return;
+      const redirectTo =
+        window.location.origin + window.location.pathname;
+      const authorizeUrl =
+        `${config.url.replace(/\/$/, '')}/auth/v1/authorize` +
+        `?provider=github&redirect_to=${encodeURIComponent(redirectTo)}`;
+      window.location.assign(authorizeUrl);
+    }
+
+    function initializeCloudAuthEntry() {
+      const config = getCloudRuntimeConfig();
+      if (!config.enabled) return;
+      cloudLoginButton.hidden = false;
+    }
+
+    /* ==============================
        浏览器存储名称
        分别保存竞品档案和调研证据
        ============================== */
@@ -5002,6 +5035,8 @@
     const workspaceTabs = document.querySelector('#workspaceTabs');
     const addWorkspaceTabButton =
       document.querySelector('#addWorkspaceTabButton');
+    const cloudLoginButton =
+      document.querySelector('#cloudLoginButton');
     const tabDialog = document.querySelector('#tabDialog');
     const tabForm = document.querySelector('#tabForm');
     const tabDialogTitle = document.querySelector('#tabDialogTitle');
@@ -5463,6 +5498,8 @@
     addWorkspaceTabButton.addEventListener('click', () => {
       openWorkspaceTabDialog();
     });
+
+    cloudLoginButton.addEventListener('click', startGitHubLogin);
 
     cancelTabButton.addEventListener('click', () => {
       tabDialog.close();
@@ -8963,6 +9000,7 @@
     document.addEventListener?.('click', revealTouchContext, true);
 
     /* 页面初始化 */
+    initializeCloudAuthEntry();
     render();
 
     /* 首次访问自动展示欢迎版系统介绍；后续只能从主标题问号入口打开 */
