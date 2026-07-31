@@ -2042,10 +2042,31 @@
       padding-right: 96px;
     }
 
-    .card-context-actions {
+    .card-profile-edit {
       position: absolute;
       top: 14px;
       right: 14px;
+      z-index: 2;
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 1px solid var(--line-medium);
+      background: var(--white);
+      color: var(--ink);
+    }
+
+    .card-profile-edit:hover,
+    .card-profile-edit:focus-visible {
+      border-color: var(--orange);
+      background: var(--orange);
+      color: var(--ink);
+    }
+
+    .card-context-actions {
+      position: absolute;
+      top: 14px;
+      right: 60px;
       z-index: 3;
       display: flex;
       gap: 6px;
@@ -5892,18 +5913,19 @@
                   : ''
               }
 
-              <!-- 竞品档案基础操作 -->
-              <div class="card-context-actions">
-                <button
-                  class="edit-button contextual-action"
-                  data-action="edit"
-                  data-index="${index}"
-                  type="button"
-                  aria-label="编辑竞品"
-                  title="编辑竞品">
-                  <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
-                </button>
+              <!-- 竞品档案编辑入口始终可见，避免与证据预览编辑混淆 -->
+              <button
+                class="card-profile-edit"
+                data-action="edit"
+                data-index="${index}"
+                type="button"
+                aria-label="编辑竞品档案：${escapeHtml(item.name)}"
+                title="编辑竞品档案">
+                <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+              </button>
 
+              <!-- 删除为破坏性操作，仅在卡片上下文中显示 -->
+              <div class="card-context-actions">
                 <button
                   class="delete-button contextual-action"
                   data-action="delete"
