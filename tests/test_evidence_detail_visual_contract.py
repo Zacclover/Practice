@@ -28,7 +28,10 @@ class EvidenceDetailVisualContractTests(unittest.TestCase):
         self.assertIn('>未附截图<', self.source)
         self.assertIn('border-radius: 0;', self.source)
     def test_detail_preview_is_the_single_entry_for_evidence_editing(self):
-        self.assertIn('id="editDetailButton"', self.source)
+        self.assertIn('class="actions detail-footer"', self.source)
+        self.assertIn('详情操作位于正文之后，避免遮挡既有标题与元数据', self.source)
+        self.assertNotIn('.detail-edit-button { position: absolute;', self.source)
+        self.assertIn('justify-content: space-between;', self.source)
         self.assertIn('detailEvidenceIndex = evidenceIndex;', self.source)
         self.assertIn('openEvidenceEdit(detailEvidenceIndex);', self.source)
         self.assertNotIn('class="evidence-edit-button contextual-action"', self.source)

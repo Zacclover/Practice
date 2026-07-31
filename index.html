@@ -426,11 +426,17 @@
     }
 
     .detail-header {
-      position: relative;
       padding: 24px 24px 20px;
       border-bottom: 2px solid var(--line-strong);
     }
-    .detail-edit-button { position: absolute; top: 24px; right: 24px; }
+
+    /* 详情操作栏放在正文之后，新增控制不覆盖既有标题或元数据 */
+    .detail-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
 
     .detail-kicker,
     .detail-section-label,
@@ -5014,11 +5020,6 @@
     <header class="detail-header">
       <p class="detail-kicker">EVIDENCE / DETAIL</p>
       <h2 id="detailEvidenceTitle"></h2>
-      <!-- 预览即编辑入口：避免卡片层再维护一套编辑操作 -->
-      <button id="editDetailButton" class="secondary detail-edit-button" type="button">
-        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
-        编辑证据
-      </button>
     </header>
 
     <section class="detail-summary" aria-label="证据元数据">
@@ -5049,7 +5050,12 @@
       <div id="detailComment" class="detail-comment rich-content"></div>
     </section>
 
-    <div class="actions">
+    <!-- 详情操作位于正文之后，避免遮挡既有标题与元数据 -->
+    <div class="actions detail-footer">
+      <button id="editDetailButton" class="secondary" type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+        编辑证据
+      </button>
       <button id="closeDetailButton" class="secondary" type="button">
         <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
         关闭
