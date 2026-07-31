@@ -74,6 +74,7 @@ class EvidenceSearchContractTests(unittest.TestCase):
             self.assertIn(f'<select id="{filter_id}" multiple hidden>', self.source)
             self.assertIn(f'id="{control_id}"', self.source)
         self.assertIn('function renderEvidenceSearchFilterControl(', self.source)
+        self.assertIn("item.sourceType || '未标注来源'", self.source)
 
     def test_result_grid_never_centers_its_content(self):
         self.assertIn('justify-content: flex-start !important;', self.source)

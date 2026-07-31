@@ -5630,7 +5630,7 @@
     function renderEvidenceSearchFilters() {
       const selected = [evidenceSearchCompetitorFilter, evidenceSearchDimensionFilter, evidenceSearchSourceTypeFilter].map(control => [...control.selectedOptions].map(option => option.value));
       const dimensions = comparisonData.dimensions || [];
-      const sourceTypes = [...new Set(evidenceItems.map(item => item.sourceType).filter(Boolean))];
+      const sourceTypes = [...new Set(evidenceItems.map(item => item.sourceType || '未标注来源'))];
       evidenceSearchCompetitorFilter.innerHTML = competitors.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
       evidenceSearchDimensionFilter.innerHTML = dimensions.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
       evidenceSearchSourceTypeFilter.innerHTML = sourceTypes.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join('');
@@ -5648,7 +5648,7 @@
         return (!query || searchable.includes(query)) &&
           (!competitorIds.length || competitorIds.includes(evidence.competitorId)) &&
           (!dimensionIds.length || dimensionIds.some(id => (evidence.dimensionIds || []).includes(id))) &&
-          (!sourceTypes.length || sourceTypes.includes(evidence.sourceType));
+          (sourceTypes.length === 0 || sourceTypes.includes(evidence.sourceType || '未标注来源'));
       });
     }
 
