@@ -1317,7 +1317,8 @@
 
     button,
     input,
-    textarea {
+    textarea,
+    select {
       font: inherit;
     }
 
@@ -2203,6 +2204,102 @@
       font-weight: 600;
     }
 
+    .matrix-coverage-gap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      margin: 0 0 10px;
+      padding: 8px 10px;
+      color: var(--black);
+      background: var(--white);
+      border: 1px dashed var(--line-medium);
+      border-radius: 0;
+      font: 700 12px/1 var(--font-mono);
+    }
+
+    .matrix-coverage-gap:hover,
+    .matrix-coverage-gap:focus-visible {
+      color: var(--black);
+      background: var(--orange);
+      border-color: var(--orange);
+      outline: 2px solid var(--black);
+      outline-offset: 2px;
+      transform: none;
+    }
+
+    /* 快速记录仅在所属卡片或矩阵单元格处于 Hover / 键盘焦点时出现 */
+    .quick-evidence-trigger,
+    .comparison-table td .matrix-coverage-gap {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .14s ease;
+    }
+
+    .competitor-evidence:hover .quick-evidence-trigger,
+    .competitor-evidence:focus-within .quick-evidence-trigger,
+    .comparison-table td:hover .matrix-coverage-gap,
+    .comparison-table td:focus-within .matrix-coverage-gap,
+    .comparison-table td .matrix-coverage-gap:focus-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* 矩阵证据以右上角计数小标承载入口，避免重复文字占用单元格 */
+    .matrix-evidence-count {
+      position: absolute;
+      top: 0;
+      right: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      min-height: 40px;
+      padding: 0;
+      color: var(--white);
+      background: var(--black);
+      border: 1px solid var(--black);
+      border-radius: 0;
+      font: 700 12px/1 var(--font-mono);
+      clip-path: none;
+      transform: none;
+    }
+
+    .matrix-evidence-count:hover,
+    .matrix-evidence-count:focus-visible {
+      color: var(--black);
+      background: var(--orange);
+      border-color: var(--orange);
+      outline: 2px solid var(--black);
+      outline-offset: 2px;
+    }
+
+    .matrix-evidence-lines {
+      padding-right: 48px;
+    }
+
+    .quick-evidence-target {
+      margin: 0 0 16px;
+      padding: 10px 12px;
+      color: var(--ink);
+      background: var(--gray-100);
+      border-left: 3px solid var(--orange);
+      font: 700 12px/1.4 var(--font-mono);
+    }
+
+    .quick-evidence-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(150px, .45fr);
+      gap: 14px;
+    }
+
+    .quick-evidence-dialog input[type="file"] {
+      padding: 9px 0;
+      border: 0;
+    }
+
     @media (max-width: 720px) {
       .comparison-header,
       .comparison-actions {
@@ -2413,7 +2510,8 @@
     }
 
     input,
-    textarea {
+    textarea,
+    select {
       color: var(--ink);
       background: var(--white);
       border: 1px solid var(--line-subtle);
@@ -2421,7 +2519,8 @@
     }
 
     input:focus,
-    textarea:focus {
+    textarea:focus,
+    select:focus {
       border-color: var(--line-strong);
       outline: 2px solid var(--orange);
       outline-offset: 2px;
@@ -4493,6 +4592,30 @@
   </dialog>
 
   <!-- ==============================
+       快速记录证据弹窗
+       用最少字段保留事实、来源、维度与可选截图
+       ============================== -->
+  <dialog id="quickEvidenceDialog" class="quick-evidence-dialog">
+    <form id="quickEvidenceForm">
+      <h2>快速记录</h2>
+      <p id="quickEvidenceTarget" class="quick-evidence-target"></p>
+      <label>关键事实<textarea id="quickEvidenceFact" maxlength="500" rows="4" required placeholder="记录可核对的产品事实，而不是结论"></textarea></label>
+      <div class="quick-evidence-grid">
+        <label>来源链接<input id="quickEvidenceSourceUrl" type="url" placeholder="https://example.com"></label>
+        <label>来源类型<select id="quickEvidenceSourceType" required><option value="">请选择</option><option value="官网">官网</option><option value="帮助中心">帮助中心</option><option value="产品实测">产品实测</option><option value="公开报道">公开报道</option><option value="其他">其他</option></select></label>
+      </div>
+      <label>截图 / 图片（可选）<input id="quickEvidenceImage" type="file" accept="image/*" multiple></label>
+      <!-- 快速记录支持直接粘贴剪贴板截图，避免必须先保存本地文件 -->
+      <div id="quickEvidencePasteArea" class="paste-area" tabindex="0">点击此处后按 Ctrl+V / Command+V 粘贴截图</div>
+      <div id="quickEvidenceDimensionOptions" class="dimension-options" aria-label="关联对比维度"></div>
+      <div class="actions">
+        <button id="cancelQuickEvidenceButton" class="secondary" type="button">取消</button>
+        <button id="saveQuickEvidenceButton" type="submit"><span class="button-label">保存记录</span></button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ==============================
        添加调研证据弹窗
        上传图片并填写对应评论
        ============================== -->
@@ -4882,6 +5005,16 @@
        获取证据上传相关页面元素
        ============================== */
     const evidenceDialog = document.querySelector('#evidenceDialog');
+    const quickEvidenceDialog = document.querySelector('#quickEvidenceDialog');
+    const quickEvidenceForm = document.querySelector('#quickEvidenceForm');
+    const quickEvidenceTarget = document.querySelector('#quickEvidenceTarget');
+    const quickEvidenceFact = document.querySelector('#quickEvidenceFact');
+    const quickEvidenceSourceUrl = document.querySelector('#quickEvidenceSourceUrl');
+    const quickEvidenceSourceType = document.querySelector('#quickEvidenceSourceType');
+    const quickEvidenceImage = document.querySelector('#quickEvidenceImage');
+    const quickEvidencePasteArea = document.querySelector('#quickEvidencePasteArea');
+    const quickEvidenceDimensionOptions = document.querySelector('#quickEvidenceDimensionOptions');
+    const saveQuickEvidenceButton = document.querySelector('#saveQuickEvidenceButton');
     const evidenceDialogTitle =
       document.querySelector('#evidenceDialogTitle');
     const evidenceForm = document.querySelector('#evidenceForm');
@@ -4979,6 +5112,10 @@
 
     /* 当前证据关联的一个或多个对比维度 */
     let selectedEvidenceDimensionIds = new Set();
+
+    /* 快速记录独立维护关联维度和待保存截图，避免影响完整表单草稿 */
+    let selectedQuickEvidenceDimensionIds = new Set();
+    let quickEvidenceFiles = [];
 
     /* 当前正在编辑的证据序号，null 表示新增 */
     let editingEvidenceIndex = null;
@@ -5462,12 +5599,12 @@
                   </h4>
 
                   <button
-                    class="small-button"
-                    data-action="add-evidence"
+                    class="small-button quick-evidence-trigger"
+                    data-action="quick-evidence"
                     data-competitor-id="${escapeHtml(item.id)}"
                     type="button">
                     <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
-                    添加证据
+                    快速记录
                   </button>
                 </div>
 
@@ -5516,10 +5653,6 @@
         .map(dimension => {
           const cells = competitors
             .map(competitor => {
-              const value =
-                comparisonData.values[dimension.id]?.[
-                  competitor.id
-                ] || '';
               const linkedEvidence = evidenceItems
                 .map((evidence, evidenceIndex) => ({
                   evidence,
@@ -5547,19 +5680,15 @@
                     linkedEvidence.length > 0
                       ? `
                         <section class="matrix-auto-evidence">
-                          <div class="matrix-auto-header">
-                            <span class="matrix-auto-title">
-                              证据内容（${linkedEvidence.length}）
-                            </span>
-                            <button
-                              class="matrix-evidence-link"
-                              data-linked-dimension-id="${escapeHtml(dimension.id)}"
-                              data-linked-competitor-id="${escapeHtml(competitor.id)}"
-                              type="button">
-                              <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-eye"></use></svg>
-                              查看全部
-                            </button>
-                          </div>
+                          <button
+                            class="matrix-evidence-count"
+                            data-linked-dimension-id="${escapeHtml(dimension.id)}"
+                            data-linked-competitor-id="${escapeHtml(competitor.id)}"
+                            type="button"
+                            aria-label="查看 ${linkedEvidence.length} 条关联证据"
+                            title="查看 ${linkedEvidence.length} 条关联证据">
+                            ${linkedEvidence.length}
+                          </button>
                           <div class="matrix-evidence-lines">
                             ${evidenceLines}
                           </div>
@@ -5568,14 +5697,24 @@
                       : ''
                   }
 
-                  <label class="matrix-manual-label">
-                    自主补充内容
-                  </label>
-                  <textarea
-                    class="matrix-input"
-                    data-dimension-id="${escapeHtml(dimension.id)}"
-                    data-competitor-id="${escapeHtml(competitor.id)}"
-                    placeholder="填写补充对比信息">${escapeHtml(value)}</textarea>
+                  ${
+                    linkedEvidence.length === 0
+                      ? `
+                        <button
+                          class="matrix-coverage-gap"
+                          data-coverage-gap-competitor-id="${escapeHtml(competitor.id)}"
+                          data-coverage-gap-dimension-id="${escapeHtml(dimension.id)}"
+                          data-quick-evidence-competitor-id="${escapeHtml(competitor.id)}"
+                          data-quick-evidence-dimension-id="${escapeHtml(dimension.id)}"
+                          type="button"
+                          aria-label="为${escapeHtml(competitor.name)}的${escapeHtml(dimension.name)}补充证据">
+                          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
+                          快速记录
+                        </button>
+                      `
+                      : ''
+                  }
+
                 </td>
               `;
             })
@@ -5665,41 +5804,6 @@
     }
 
     /* ==============================
-       自动保存矩阵单元格内容
-       用户输入时同步写入浏览器存储；
-       修改示例单元格后移除 sample 标记
-       ============================== */
-    comparisonContainer.addEventListener('input', event => {
-      const input = event.target.closest('.matrix-input');
-      if (!input) {
-        return;
-      }
-
-      const dimensionId = input.dataset.dimensionId;
-      const competitorId = input.dataset.competitorId;
-      comparisonData.values[dimensionId] =
-        comparisonData.values[dimensionId] || {};
-      comparisonData.values[dimensionId][competitorId] =
-        input.value;
-
-      /* 用户修改示例单元格后，该单元格不再被清空示例删除 */
-      if (
-        comparisonData.sampleValues &&
-        comparisonData.sampleValues[dimensionId] &&
-        comparisonData.sampleValues[dimensionId][competitorId]
-      ) {
-        delete comparisonData.sampleValues[dimensionId][competitorId];
-        if (
-          Object.keys(comparisonData.sampleValues[dimensionId]).length === 0
-        ) {
-          delete comparisonData.sampleValues[dimensionId];
-        }
-      }
-
-      persistComparison();
-    });
-
-    /* ==============================
        编辑或删除对比维度
        ============================== */
     comparisonContainer.addEventListener('click', event => {
@@ -5724,6 +5828,19 @@
         openLinkedEvidence(
           linkedButton.dataset.linkedDimensionId,
           linkedButton.dataset.linkedCompetitorId
+        );
+        return;
+      }
+
+      /* 点击缺口入口：直接带入当前竞品与对比维度快速记录 */
+      const gapButton = event.target.closest(
+        'button[data-quick-evidence-competitor-id]'
+      );
+
+      if (gapButton) {
+        openQuickEvidenceDialog(
+          gapButton.dataset.quickEvidenceCompetitorId,
+          gapButton.dataset.quickEvidenceDimensionId
         );
         return;
       }
@@ -6315,6 +6432,31 @@
           .join('');
     }
 
+    /* 快速记录复用同一套维度关联，但不暴露完整表单的新增维度流程 */
+    function renderQuickEvidenceDimensionOptions() {
+      quickEvidenceDimensionOptions.innerHTML = comparisonData.dimensions
+        .map(dimension => `
+          <label class="dimension-option">
+            <input type="checkbox" data-quick-evidence-dimension-id="${escapeHtml(dimension.id)}" ${selectedQuickEvidenceDimensionIds.has(dimension.id) ? 'checked' : ''}>
+            ${escapeHtml(dimension.name)}
+          </label>
+        `)
+        .join('') || '<span class="form-help">暂无对比维度，仍可保存为竞品证据。</span>';
+    }
+
+    quickEvidenceDimensionOptions.addEventListener('change', event => {
+      const checkbox = event.target.closest('input[data-quick-evidence-dimension-id]');
+      if (!checkbox) {
+        return;
+      }
+      const dimensionId = checkbox.dataset.quickEvidenceDimensionId;
+      if (checkbox.checked) {
+        selectedQuickEvidenceDimensionIds.add(dimensionId);
+      } else {
+        selectedQuickEvidenceDimensionIds.delete(dimensionId);
+      }
+    });
+
     /* 多选框变化时更新当前证据的关联维度 */
     evidenceDimensionOptions.addEventListener('change', event => {
       const checkbox = event.target.closest(
@@ -6531,8 +6673,8 @@
 
       const action = button.dataset.action;
 
-      if (action === 'add-evidence') {
-        openEvidenceDialog(button.dataset.competitorId);
+      if (action === 'quick-evidence') {
+        openQuickEvidenceDialog(button.dataset.competitorId);
         return;
       }
 
@@ -7023,9 +7165,35 @@
     });
 
     /* ==============================
-       打开指定竞品的证据上传弹窗
+       打开快速记录：矩阵入口预选维度，竞品卡入口可自行勾选
        ============================== */
-    function openEvidenceDialog(competitorId) {
+    function openQuickEvidenceDialog(competitorId, dimensionId = null) {
+      const competitor = competitors.find(item => item.id === competitorId);
+      if (!competitor) {
+        window.alert('没有找到对应竞品。');
+        return;
+      }
+      quickEvidenceForm.reset();
+      quickEvidenceFiles = [];
+      quickEvidencePasteArea.textContent = '点击此处后按 Ctrl+V / Command+V 粘贴截图';
+      selectedEvidenceCompetitorId = competitorId;
+      selectedQuickEvidenceDimensionIds = dimensionId
+        ? new Set([dimensionId])
+        : new Set();
+      const dimension = comparisonData.dimensions.find(item => item.id === dimensionId);
+      quickEvidenceTarget.textContent = dimension
+        ? `对应竞品：${competitor.name} · 对比维度：${dimension.name}`
+        : `对应竞品：${competitor.name}`;
+      renderQuickEvidenceDimensionOptions();
+      quickEvidenceDialog.showModal();
+      quickEvidenceFact.focus();
+    }
+
+    /* ==============================
+       打开指定竞品的完整证据上传弹窗
+       可选预选当前矩阵缺口所属维度，减少重复选择
+       ============================== */
+    function openEvidenceDialog(competitorId, dimensionId = null) {
       const competitor = competitors.find(
         item => item.id === competitorId
       );
@@ -7037,6 +7205,9 @@
 
       resetEvidenceForm();
       selectedEvidenceCompetitorId = competitorId;
+      if (dimensionId) {
+        selectedEvidenceDimensionIds = new Set([dimensionId]);
+      }
       evidenceCompetitorName.textContent = competitor.name;
       renderEvidenceDimensionOptions();
       evidenceDialog.showModal();
@@ -7198,6 +7369,104 @@
       }
 
       renderPendingPreviews();
+    });
+
+    /* ==============================
+       快速记录截图：文件选择与剪贴板粘贴共用待保存队列
+       ============================== */
+    function addQuickEvidenceFiles(files) {
+      const validFiles = files.filter(file =>
+        file?.type?.startsWith('image/') && file.size <= 10 * 1024 * 1024
+      );
+      quickEvidenceFiles.push(...validFiles);
+      quickEvidencePasteArea.textContent = validFiles.length > 0
+        ? `已添加 ${quickEvidenceFiles.length} 张截图；可继续粘贴`
+        : '未识别到可用图片；请粘贴截图或选择图片文件';
+    }
+
+    quickEvidenceImage.addEventListener('change', () => {
+      addQuickEvidenceFiles(Array.from(quickEvidenceImage.files || []));
+      quickEvidenceImage.value = '';
+    });
+
+    quickEvidencePasteArea.addEventListener('paste', event => {
+      const pastedImages = Array.from(event.clipboardData.items)
+        .filter(item => item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+      if (pastedImages.length === 0) {
+        quickEvidencePasteArea.textContent = '未识别到可用图片；请粘贴截图或选择图片文件';
+        return;
+      }
+      event.preventDefault();
+      quickEvidenceFiles.push(...pastedImages);
+      quickEvidencePasteArea.textContent = `已添加 ${quickEvidenceFiles.length} 张截图；可继续粘贴`;
+    });
+
+    /* ==============================
+       保存快速记录：事实与来源为必填，截图按完整证据相同规则压缩
+       ============================== */
+    quickEvidenceForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const fact = quickEvidenceFact.value.trim();
+      const sourceUrl = quickEvidenceSourceUrl.value.trim();
+      const sourceType = quickEvidenceSourceType.value;
+      const normalizedSourceUrl = sourceUrl
+        ? normalizeWebsiteUrl(sourceUrl)
+        : '';
+      if (!fact || !sourceType) {
+        return;
+      }
+      saveQuickEvidenceButton.disabled = true;
+      try {
+        const images = [];
+        for (const file of quickEvidenceFiles) {
+          images.push(await compressImage(file));
+        }
+        const title = Array.from(fact).slice(0, 20).join('');
+        const sourceMarkup = normalizedSourceUrl
+          ? `<p>来源：<a href="${escapeHtml(normalizedSourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(normalizedSourceUrl)}</a>（${escapeHtml(sourceType)}）</p>`
+          : `<p>来源类型：${escapeHtml(sourceType)}</p>`;
+        const contentHtml = sanitizeRichHtml(
+          `<p>${escapeHtml(fact)}</p>${sourceMarkup}`
+        );
+        const evidence = {
+          id: createId(),
+          competitorId: selectedEvidenceCompetitorId,
+          images,
+          dimensionIds: Array.from(selectedQuickEvidenceDimensionIds),
+          title,
+          contentHtml,
+          sourceUrl: normalizedSourceUrl,
+          sourceType,
+          createdAt: new Date().toISOString()
+        };
+        evidenceItems.push(evidence);
+        try {
+          persistEvidence();
+        } catch (storageError) {
+          evidenceItems.pop();
+          throw new Error('浏览器存储空间不足，请减少图片数量或删除旧证据。');
+        }
+        quickEvidenceDialog.close();
+        quickEvidenceForm.reset();
+        quickEvidenceFiles = [];
+        quickEvidencePasteArea.textContent = '点击此处后按 Ctrl+V / Command+V 粘贴截图';
+        selectedQuickEvidenceDimensionIds = new Set();
+        render();
+      } catch (error) {
+        window.alert(error.message);
+      } finally {
+        saveQuickEvidenceButton.disabled = false;
+      }
+    });
+
+    document.querySelector('#cancelQuickEvidenceButton').addEventListener('click', () => {
+      quickEvidenceDialog.close();
+      quickEvidenceForm.reset();
+      quickEvidenceFiles = [];
+      quickEvidencePasteArea.textContent = '点击此处后按 Ctrl+V / Command+V 粘贴截图';
+      selectedQuickEvidenceDimensionIds = new Set();
     });
 
     /* ==============================
@@ -8459,7 +8728,7 @@
       }
 
       const evidenceCell = target.closest?.('td');
-      if (evidenceCell?.querySelector('.matrix-evidence-link')) {
+      if (evidenceCell?.querySelector('.matrix-evidence-count')) {
         return evidenceCell;
       }
 
@@ -8478,7 +8747,7 @@
 
       const target = event.target;
       const contextAction = target.closest?.(
-        '.contextual-action, .matrix-evidence-link, .workspace-tab-action, .preview-remove-button'
+        '.contextual-action, .matrix-evidence-count, .workspace-tab-action, .preview-remove-button'
       );
       if (contextAction) {
         return;
