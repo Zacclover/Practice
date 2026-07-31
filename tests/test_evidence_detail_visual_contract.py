@@ -22,6 +22,14 @@ class EvidenceDetailVisualContractTests(unittest.TestCase):
         self.assertIn('class="detail-section-label"', self.source)
         self.assertIn('class="detail-meta-item"', self.source)
 
+    def test_detail_dimension_tag_is_a_standard_two_corner_cut_rectangle(self):
+        self.assertIn('.detail-dimension-tag {', self.source)
+        self.assertIn(
+            'clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), '
+            'calc(100% - 6px) 100%, 0 100%, 0 6px);',
+            self.source,
+        )
+
     def test_detail_uses_flat_image_and_no_screenshot_states_instead_of_rounded_cards(self):
         self.assertIn('class="detail-image"', self.source)
         self.assertIn('class="detail-image-empty"', self.source)
