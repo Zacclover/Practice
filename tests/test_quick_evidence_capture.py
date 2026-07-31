@@ -31,12 +31,18 @@ class QuickEvidenceCaptureContractTests(unittest.TestCase):
         )
         self.assertIsNotNone(source_url_input)
         self.assertNotIn('required', source_url_input.group(0))
-        self.assertRegex(self.source, r'id="quickEvidenceSourceType"[^>]*required')
+        source_type_select = re.search(
+            r'<select[^>]*id="quickEvidenceSourceType"[^>]*>', self.source
+        )
+        self.assertIsNotNone(source_type_select)
+        assert source_type_select is not None
+        self.assertNotIn('required', source_type_select.group(0))
 
-    def test_quick_save_allows_a_fact_without_a_source_link(self):
+    def test_quick_save_allows_a_fact_without_source_metadata(self):
         self.assertIn("const normalizedSourceUrl = sourceUrl", self.source)
-        self.assertIn("if (!fact || !sourceType)", self.source)
-        self.assertIn("const sourceMarkup = normalizedSourceUrl", self.source)
+        self.assertIn('if (!fact) {', self.source)
+        self.assertNotIn('if (!fact || !sourceType)', self.source)
+        self.assertIn('sourceType ? `（${escapeHtml(sourceType)}）` : \'\'', self.source)
 
     def test_quick_form_accepts_pasted_screenshots(self):
         self.assertIn('id="quickEvidencePasteArea"', self.source)

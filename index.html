@@ -4765,7 +4765,7 @@
       <label>关键事实<textarea id="quickEvidenceFact" maxlength="500" rows="4" required placeholder="记录可核对的产品事实，而不是结论"></textarea></label>
       <div class="quick-evidence-grid">
         <label>来源链接<input id="quickEvidenceSourceUrl" type="url" placeholder="https://example.com"></label>
-        <label>来源类型<select id="quickEvidenceSourceType" required><option value="">请选择</option><option value="官网">官网</option><option value="帮助中心">帮助中心</option><option value="产品实测">产品实测</option><option value="公开报道">公开报道</option><option value="其他">其他</option></select></label>
+        <label>来源类型（可选）<select id="quickEvidenceSourceType"><option value="">请选择</option><option value="官网">官网</option><option value="帮助中心">帮助中心</option><option value="产品实测">产品实测</option><option value="公开报道">公开报道</option><option value="其他">其他</option></select></label>
       </div>
       <label>截图 / 图片（可选）<input id="quickEvidenceImage" type="file" accept="image/*" multiple></label>
       <!-- 快速记录支持直接粘贴剪贴板截图，避免必须先保存本地文件 -->
@@ -7695,7 +7695,7 @@
     });
 
     /* ==============================
-       保存快速记录：事实与来源为必填，截图按完整证据相同规则压缩
+       保存快速记录：关键事实必填，来源与截图可选，图片按完整证据相同规则压缩
        ============================== */
     quickEvidenceForm.addEventListener('submit', async event => {
       event.preventDefault();
@@ -7705,7 +7705,7 @@
       const normalizedSourceUrl = sourceUrl
         ? normalizeWebsiteUrl(sourceUrl)
         : '';
-      if (!fact || !sourceType) {
+      if (!fact) {
         return;
       }
       saveQuickEvidenceButton.disabled = true;
@@ -7716,8 +7716,10 @@
         }
         const title = Array.from(fact).slice(0, 20).join('');
         const sourceMarkup = normalizedSourceUrl
-          ? `<p>来源：<a href="${escapeHtml(normalizedSourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(normalizedSourceUrl)}</a>（${escapeHtml(sourceType)}）</p>`
-          : `<p>来源类型：${escapeHtml(sourceType)}</p>`;
+          ? `<p>来源：<a href="${escapeHtml(normalizedSourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(normalizedSourceUrl)}</a>${sourceType ? `（${escapeHtml(sourceType)}）` : ''}</p>`
+          : sourceType
+            ? `<p>来源类型：${escapeHtml(sourceType)}</p>`
+            : '';
         const contentHtml = sanitizeRichHtml(
           `<p>${escapeHtml(fact)}</p>${sourceMarkup}`
         );
