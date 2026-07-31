@@ -16,11 +16,11 @@ class ResearchCoverageGuidanceContractTests(unittest.TestCase):
         self.assertIn('function getResearchCoverage()', self.source)
         self.assertIn('已覆盖 ${coverage.coveredCellCount} / ${coverage.totalCellCount} 个比较点', self.source)
 
-    def test_uncovered_matrix_cells_offer_a_specific_evidence_capture_entry(self):
-        self.assertIn('class="matrix-coverage-gap"', self.source)
-        self.assertIn('data-coverage-gap-competitor-id=', self.source)
-        self.assertIn('data-coverage-gap-dimension-id=', self.source)
-        self.assertIn('补充证据', self.source)
+    def test_every_matrix_cell_offers_a_specific_evidence_capture_entry(self):
+        self.assertIn('class="matrix-quick-capture"', self.source)
+        self.assertIn('data-quick-evidence-competitor-id=', self.source)
+        self.assertIn('data-quick-evidence-dimension-id=', self.source)
+        self.assertIn('快速记录', self.source)
 
     def test_gap_entry_prefills_the_competitor_and_dimension_for_capture(self):
         self.assertRegex(
@@ -29,7 +29,7 @@ class ResearchCoverageGuidanceContractTests(unittest.TestCase):
         )
         self.assertIn('selectedQuickEvidenceDimensionIds = dimensionId', self.source)
         self.assertIn("button[data-quick-evidence-competitor-id]", self.source)
-        self.assertIn('openQuickEvidenceDialog(\n          gapButton.dataset.quickEvidenceCompetitorId,\n          gapButton.dataset.quickEvidenceDimensionId\n        );', self.source)
+        self.assertIn('openQuickEvidenceDialog(\n          quickCaptureButton.dataset.quickEvidenceCompetitorId,\n          quickCaptureButton.dataset.quickEvidenceDimensionId\n        );', self.source)
 
     def test_coverage_uses_evidence_associations_not_manual_matrix_notes(self):
         coverage_function = re.search(
@@ -48,20 +48,20 @@ class ResearchCoverageGuidanceContractTests(unittest.TestCase):
             self.source,
             re.S,
         )
-        gap_rule = re.search(
-            r'\.matrix-coverage-gap\s*\{(?P<body>.*?)\n\s*\}',
+        quick_capture_rule = re.search(
+            r'\.matrix-quick-capture\s*\{(?P<body>.*?)\n\s*\}',
             self.source,
             re.S,
         )
         self.assertIsNotNone(summary_rule)
-        self.assertIsNotNone(gap_rule)
-        assert summary_rule is not None and gap_rule is not None
+        self.assertIsNotNone(quick_capture_rule)
+        assert summary_rule is not None and quick_capture_rule is not None
         self.assertIn('var(--gray-100)', summary_rule.group('body'))
         self.assertIn('var(--orange)', summary_rule.group('body'))
-        self.assertIn('var(--line-medium)', gap_rule.group('body'))
-        self.assertIn('border-radius: 0', gap_rule.group('body'))
+        self.assertIn('var(--line-medium)', quick_capture_rule.group('body'))
+        self.assertIn('border-radius: 0', quick_capture_rule.group('body'))
         self.assertNotRegex(
-            summary_rule.group('body') + gap_rule.group('body'),
+            summary_rule.group('body') + quick_capture_rule.group('body'),
             r'#[0-9a-fA-F]{3,8}',
         )
 

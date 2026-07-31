@@ -2204,7 +2204,7 @@
       font-weight: 600;
     }
 
-    .matrix-coverage-gap {
+    .matrix-quick-capture {
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -2218,8 +2218,8 @@
       font: 700 12px/1 var(--font-mono);
     }
 
-    .matrix-coverage-gap:hover,
-    .matrix-coverage-gap:focus-visible {
+    .matrix-quick-capture:hover,
+    .matrix-quick-capture:focus-visible {
       color: var(--black);
       background: var(--orange);
       border-color: var(--orange);
@@ -2230,7 +2230,7 @@
 
     /* 快速记录仅在所属卡片或矩阵单元格处于 Hover / 键盘焦点时出现 */
     .quick-evidence-trigger,
-    .comparison-table td .matrix-coverage-gap {
+    .comparison-table td .matrix-quick-capture {
       opacity: 0;
       pointer-events: none;
       transition: opacity .14s ease;
@@ -2238,9 +2238,9 @@
 
     .competitor-evidence:hover .quick-evidence-trigger,
     .competitor-evidence:focus-within .quick-evidence-trigger,
-    .comparison-table td:hover .matrix-coverage-gap,
-    .comparison-table td:focus-within .matrix-coverage-gap,
-    .comparison-table td .matrix-coverage-gap:focus-visible {
+    .comparison-table td:hover .matrix-quick-capture,
+    .comparison-table td:focus-within .matrix-quick-capture,
+    .comparison-table td .matrix-quick-capture:focus-visible {
       opacity: 1;
       pointer-events: auto;
     }
@@ -2267,14 +2267,6 @@
       transform: none;
     }
 
-    .matrix-evidence-count:hover,
-    .matrix-evidence-count:focus-visible {
-      color: var(--black);
-      background: var(--orange);
-      border-color: var(--orange);
-      outline: 2px solid var(--black);
-      outline-offset: 2px;
-    }
 
     .matrix-evidence-lines {
       padding-right: 48px;
@@ -5680,15 +5672,12 @@
                     linkedEvidence.length > 0
                       ? `
                         <section class="matrix-auto-evidence">
-                          <button
+                          <!-- 单元格右上角仅展示关联证据总数，不承担查看详情操作 -->
+                          <span
                             class="matrix-evidence-count"
-                            data-linked-dimension-id="${escapeHtml(dimension.id)}"
-                            data-linked-competitor-id="${escapeHtml(competitor.id)}"
-                            type="button"
-                            aria-label="查看 ${linkedEvidence.length} 条关联证据"
-                            title="查看 ${linkedEvidence.length} 条关联证据">
+                            aria-label="本单元格关联 ${linkedEvidence.length} 条证据">
                             ${linkedEvidence.length}
-                          </button>
+                          </span>
                           <div class="matrix-evidence-lines">
                             ${evidenceLines}
                           </div>
@@ -5697,23 +5686,16 @@
                       : ''
                   }
 
-                  ${
-                    linkedEvidence.length === 0
-                      ? `
-                        <button
-                          class="matrix-coverage-gap"
-                          data-coverage-gap-competitor-id="${escapeHtml(competitor.id)}"
-                          data-coverage-gap-dimension-id="${escapeHtml(dimension.id)}"
-                          data-quick-evidence-competitor-id="${escapeHtml(competitor.id)}"
-                          data-quick-evidence-dimension-id="${escapeHtml(dimension.id)}"
-                          type="button"
-                          aria-label="为${escapeHtml(competitor.name)}的${escapeHtml(dimension.name)}补充证据">
-                          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
-                          快速记录
-                        </button>
-                      `
-                      : ''
-                  }
+                  <!-- 每个矩阵单元格都提供快速记录入口；仅在该格 Hover / 焦点时可见 -->
+                  <button
+                    class="matrix-quick-capture"
+                    data-quick-evidence-competitor-id="${escapeHtml(competitor.id)}"
+                    data-quick-evidence-dimension-id="${escapeHtml(dimension.id)}"
+                    type="button"
+                    aria-label="为${escapeHtml(competitor.name)}的${escapeHtml(dimension.name)}快速记录证据">
+                    <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
+                    快速记录
+                  </button>
 
                 </td>
               `;
@@ -5819,28 +5801,15 @@
         return;
       }
 
-      /* 点击矩阵单元格中的“查看全部”入口 */
-      const linkedButton = event.target.closest(
-        'button[data-linked-dimension-id]'
-      );
-
-      if (linkedButton) {
-        openLinkedEvidence(
-          linkedButton.dataset.linkedDimensionId,
-          linkedButton.dataset.linkedCompetitorId
-        );
-        return;
-      }
-
-      /* 点击缺口入口：直接带入当前竞品与对比维度快速记录 */
-      const gapButton = event.target.closest(
+      /* 点击矩阵快速记录入口：直接带入当前竞品与对比维度 */
+      const quickCaptureButton = event.target.closest(
         'button[data-quick-evidence-competitor-id]'
       );
 
-      if (gapButton) {
+      if (quickCaptureButton) {
         openQuickEvidenceDialog(
-          gapButton.dataset.quickEvidenceCompetitorId,
-          gapButton.dataset.quickEvidenceDimensionId
+          quickCaptureButton.dataset.quickEvidenceCompetitorId,
+          quickCaptureButton.dataset.quickEvidenceDimensionId
         );
         return;
       }
@@ -8728,7 +8697,7 @@
       }
 
       const evidenceCell = target.closest?.('td');
-      if (evidenceCell?.querySelector('.matrix-evidence-count')) {
+      if (evidenceCell?.querySelector('.matrix-quick-capture')) {
         return evidenceCell;
       }
 
@@ -8747,7 +8716,7 @@
 
       const target = event.target;
       const contextAction = target.closest?.(
-        '.contextual-action, .matrix-evidence-count, .workspace-tab-action, .preview-remove-button'
+        '.contextual-action, .workspace-tab-action, .preview-remove-button'
       );
       if (contextAction) {
         return;

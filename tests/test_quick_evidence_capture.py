@@ -11,11 +11,13 @@ class QuickEvidenceCaptureContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.source = INDEX_PATH.read_text(encoding="utf-8")
 
-    def test_competitor_cards_and_matrix_gaps_offer_a_quick_capture_path(self):
+    def test_competitor_cards_and_every_matrix_cell_offer_a_quick_capture_path(self):
         self.assertIn('data-action="quick-evidence"', self.source)
+        self.assertIn('class="matrix-quick-capture"', self.source)
         self.assertIn('data-quick-evidence-competitor-id=', self.source)
         self.assertIn('data-quick-evidence-dimension-id=', self.source)
         self.assertIn('function openQuickEvidenceDialog(competitorId, dimensionId = null)', self.source)
+        self.assertNotIn('linkedEvidence.length === 0\n                      ?', self.source)
 
     def test_quick_form_keeps_the_required_capture_fields_small_and_explicit(self):
         self.assertIn('id="quickEvidenceDialog"', self.source)
@@ -53,13 +55,13 @@ class QuickEvidenceCaptureContractTests(unittest.TestCase):
 
     def test_matrix_uses_a_numeric_evidence_badge_instead_of_a_text_header(self):
         self.assertIn('class="matrix-evidence-count"', self.source)
-        self.assertIn('data-linked-dimension-id=', self.source)
+        self.assertNotIn('data-linked-dimension-id=', self.source)
         self.assertNotIn('证据内容（${linkedEvidence.length}）', self.source)
 
     def test_quick_capture_entries_only_reveal_in_their_context(self):
         self.assertIn('quick-evidence-trigger', self.source)
         self.assertIn('.competitor-evidence:hover .quick-evidence-trigger', self.source)
-        self.assertIn('.comparison-table td:hover .matrix-coverage-gap', self.source)
+        self.assertIn('.comparison-table td:hover .matrix-quick-capture', self.source)
 
     def test_quick_save_creates_a_normal_evidence_record_with_source_metadata(self):
         self.assertIn("quickEvidenceForm.addEventListener('submit', async event =>", self.source)
