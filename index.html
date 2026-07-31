@@ -1857,12 +1857,12 @@
     }
 
 
-    /* 竞品档案横向轨道：紧凑卡片按内容自然增高，完整展示纵向证据而不在卡内滚动 */
+    /* 竞品档案横向轨道：同一行卡片对齐到最高内容，仍完整展示证据且不在卡内纵向滚动 */
     .grid {
       display: flex;
       max-width: 100%;
       gap: 12px;
-      align-items: flex-start;
+      align-items: stretch;
       overflow-x: auto;
       overflow-y: visible;
       padding: 2px 2px 12px;

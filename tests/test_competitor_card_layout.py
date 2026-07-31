@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -22,8 +23,9 @@ class CompetitorCardLayoutContractTests(unittest.TestCase):
         self.assertNotIn('.competitor-card {\n      height: 480px;', self.source)
         self.assertIn('height: auto;\n      padding: 22px;\n      overflow: visible;', self.source)
 
-    def test_competitor_track_keeps_cards_naturally_sized_by_content(self):
-        self.assertIn('align-items: flex-start;', self.source)
+    def test_competitor_track_stretches_cards_to_a_consistent_row_height(self):
+        grid_rules = re.findall(r'\.grid\s*\{(?P<body>.*?)\n\s*\}', self.source, re.S)
+        self.assertTrue(any('align-items: stretch;' in rule for rule in grid_rules))
 
     def test_dimension_column_uses_a_compact_fixed_width(self):
         self.assertIn('min-width: 150px !important;', self.source)
