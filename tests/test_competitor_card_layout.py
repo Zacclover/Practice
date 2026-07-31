@@ -23,6 +23,11 @@ class CompetitorCardLayoutContractTests(unittest.TestCase):
         self.assertIn('min-width: 150px !important;', self.source)
         self.assertIn('max-width: 150px;', self.source)
 
+    def test_dimension_cells_preserve_sticky_position_against_the_generic_td_rule(self):
+        self.assertIn('.comparison-table td.dimension-column {\n      position: sticky;', self.source)
+        self.assertIn('left: 0;', self.source)
+        self.assertIn('z-index: 2;', self.source)
+
 
 if __name__ == '__main__':
     unittest.main()

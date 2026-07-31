@@ -2129,6 +2129,13 @@
       box-shadow: none;
     }
 
+    /* 对比维度列在横向滚动时完整冻结：覆盖通用 td 的 relative 定位 */
+    .comparison-table td.dimension-column {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+    }
+
     .comparison-table th.dimension-column {
       background: var(--graphite);
     }
