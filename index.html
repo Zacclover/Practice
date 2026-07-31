@@ -4856,7 +4856,53 @@
     </div>
   </dialog>
 
+  <!-- 可选云端运行时配置；文件缺失时继续使用本地模式 -->
+  <script src="cloud-config.js"></script>
   <script>
+    /* ==============================
+       读取并校验可公开的云端运行时配置
+       无效或缺失时安全回退到本地模式
+       ============================== */
+    function getCloudRuntimeConfig() {
+      const disabledConfig = {
+        enabled: false,
+        url: null,
+        publishableKey: null
+      };
+      const config = window.COMPETITOR_INSIGHTS_CLOUD_CONFIG;
+
+      if (!config || typeof config !== 'object') {
+        return disabledConfig;
+      }
+
+      const url = typeof config.SUPABASE_URL === 'string'
+        ? config.SUPABASE_URL.trim()
+        : '';
+      const publishableKey =
+        typeof config.SUPABASE_PUBLISHABLE_KEY === 'string'
+          ? config.SUPABASE_PUBLISHABLE_KEY.trim()
+          : '';
+
+      try {
+        const parsedUrl = new URL(url);
+        const isSupabaseUrl =
+          parsedUrl.protocol === 'https:' &&
+          parsedUrl.hostname.endsWith('.supabase.co');
+
+        if (!isSupabaseUrl || !publishableKey) {
+          return disabledConfig;
+        }
+      } catch {
+        return disabledConfig;
+      }
+
+      return {
+        enabled: true,
+        url,
+        publishableKey
+      };
+    }
+
     /* ==============================
        浏览器存储名称
        分别保存竞品档案和调研证据
