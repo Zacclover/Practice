@@ -19,6 +19,10 @@ class CompetitorCardLayoutContractTests(unittest.TestCase):
     def test_competitor_track_keeps_cards_naturally_sized_by_content(self):
         self.assertIn('align-items: flex-start;', self.source)
 
+    def test_dimension_column_uses_a_compact_fixed_width(self):
+        self.assertIn('min-width: 150px !important;', self.source)
+        self.assertIn('max-width: 150px;', self.source)
+
 
 if __name__ == '__main__':
     unittest.main()
