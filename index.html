@@ -8737,7 +8737,8 @@
       const directControl = target.closest?.(
         'a, button, input, textarea, select, label, [contenteditable="true"]'
       );
-      if (directControl && !directControl.matches('.workspace-tab-select')) {
+      /* Tab 选择与其他原生控件一样直接执行，避免首击仅展开工具按钮 */
+      if (directControl) {
         clearTouchContexts(surface);
         return;
       }
