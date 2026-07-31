@@ -39,6 +39,33 @@ class EvidenceSearchContractTests(unittest.TestCase):
         self.assertIn('data-evidence-search-result-id=', self.source)
         self.assertIn('openEvidenceDetail(evidenceIndex);', self.source)
 
+    def test_search_entry_reuses_section_header_actions_layout(self):
+        self.assertIn('class="competitor-section-header comparison-header"', self.source)
+        self.assertRegex(
+            self.source,
+            r'<button[^>]*class="[^"]*evidence-search-trigger[^"]*"',
+        )
+
+    def test_shortcut_hint_adapts_for_desktop_and_touch_contexts(self):
+        self.assertIn('id="evidenceSearchShortcut"', self.source)
+        self.assertIn("navigator.platform.toUpperCase().includes('MAC')", self.source)
+        self.assertIn("matchMedia('(pointer: coarse)').matches", self.source)
+
+    def test_dialog_has_an_explicit_icon_close_control(self):
+        self.assertIn('id="evidenceSearchClose"', self.source)
+        self.assertIn('aria-label="关闭搜索证据"', self.source)
+        self.assertIn('evidenceSearchClose.addEventListener', self.source)
+
+    def test_search_result_uses_typed_tags_and_highlights_query_matches(self):
+        self.assertIn('evidence-search-tag--competitor', self.source)
+        self.assertIn('evidence-search-tag--dimension', self.source)
+        self.assertIn('evidence-search-tag--source', self.source)
+        self.assertIn('function highlightEvidenceSearchText', self.source)
+        self.assertIn('evidence-search-highlight', self.source)
+
+    def test_input_focus_encloses_its_search_icon(self):
+        self.assertIn('.evidence-search-input-wrap:focus-within', self.source)
+
 
 if __name__ == '__main__':
     unittest.main()
