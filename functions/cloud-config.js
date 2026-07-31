@@ -14,7 +14,10 @@ export function onRequest({ env }) {
     return new Response("", { headers: RESPONSE_HEADERS });
   }
 
-  const config = safeJson({ url, publishableKey });
+  const config = safeJson({
+    SUPABASE_URL: url,
+    SUPABASE_PUBLISHABLE_KEY: publishableKey,
+  });
   return new Response(
     `window.COMPETITOR_INSIGHTS_CLOUD_CONFIG = ${config};`,
     { headers: RESPONSE_HEADERS },
