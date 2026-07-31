@@ -1771,13 +1771,14 @@
     }
 
 
-    /* 竞品档案横向轨道：卡片保持 480px 正方形，完整展示常规纵向内容，超出工作区后仅在轨道内左右滚动 */
+    /* 竞品档案横向轨道：紧凑卡片按内容自然增高，完整展示纵向证据而不在卡内滚动 */
     .grid {
       display: flex;
       max-width: 100%;
       gap: 12px;
+      align-items: flex-start;
       overflow-x: auto;
-      overflow-y: hidden;
+      overflow-y: visible;
       padding: 2px 2px 12px;
       scroll-snap-type: x proximity;
       scrollbar-width: thin;
@@ -1788,12 +1789,12 @@
     }
 
     .card {
-      flex: 0 0 480px;
-      width: 480px;
-      height: 480px;
+      flex: 0 0 400px;
+      width: 400px;
+      min-height: 0;
+      height: auto;
       padding: 22px;
-      overflow-x: hidden;
-      overflow-y: auto;
+      overflow: visible;
       color: var(--ink);
       background: var(--white);
       border: 1px solid var(--line-medium);
@@ -3986,8 +3987,9 @@
        ============================== */
     .competitor-section-header { margin: 34px 0 16px; }
     .competitor-section-header .section-title { flex: 1; margin: 0; }
-    .evidence-search-trigger { padding: 8px 10px; font-size: 12px; white-space: nowrap; }
-    .evidence-search-shortcut { margin-left: 8px; padding: 2px 5px; border: 1px solid var(--line); background: var(--paper); font: 700 10px var(--font-body); }
+    /* 证据搜索入口：仅保留图标，键盘快捷键继续可用但不占据标题栏文字空间 */
+    .evidence-search-trigger { display: inline-grid; width: 40px; height: 40px; padding: 0; place-items: center; }
+    .evidence-search-trigger .button-icon { width: 18px; height: 18px; }
     .evidence-search-dialog { width: min(760px, calc(100% - 32px)); max-height: calc(100vh - 48px); padding: 22px; border: 1px solid var(--ink); background: var(--paper); color: var(--ink); }
     .evidence-search-dialog::backdrop { background: rgba(20, 20, 18, .48); }
     .evidence-search-heading { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
@@ -4003,14 +4005,16 @@
     .evidence-search-filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
     .evidence-search-filters label { font-size: 11px; font-weight: 800; }
     .evidence-search-filters select { width: 100%; height: 38px; margin-top: 5px; font-size: 12px; }
-    .evidence-search-results { display: grid; gap: 8px; margin-top: 10px; max-height: min(48vh, 440px); overflow-y: auto; }
-    .evidence-search-result { width: 100%; display: grid; gap: 7px; padding: 14px; border: 1px solid var(--line); background: #fff; color: var(--ink); text-align: left; justify-items: start; align-items: start; clip-path: none; }
+    /* 搜索结果：每条占满列表宽度，所有文字和 Tag 锚定在左侧起点 */
+    .evidence-search-results { display: grid; gap: 8px; margin-top: 10px; max-height: min(48vh, 440px); overflow-y: auto; justify-items: stretch; align-items: start; }
+    .evidence-search-result { width: 100%; min-width: 0; display: grid; gap: 7px; padding: 14px; border: 1px solid var(--line); background: #fff; color: var(--ink); text-align: left !important; justify-self: stretch; justify-items: start !important; align-items: start; clip-path: none; }
     .evidence-search-result:hover, .evidence-search-result:focus-visible { border-color: var(--orange); outline: 2px solid var(--orange); outline-offset: 2px; transform: none; }
     .evidence-search-result strong { font-size: 14px; }
     .evidence-search-result p { margin: 0; color: var(--ink-muted); font-size: 13px; line-height: 1.5; }
-    .evidence-search-result strong, .evidence-search-result p, .evidence-search-meta { width: 100%; text-align: left; }
-    .evidence-search-meta { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 6px; color: var(--ink-muted); font-size: 11px; font-weight: 800; }
-    .evidence-search-tag { padding: 3px 6px; color: var(--white); font: 700 10px var(--font-mono); line-height: 1.2; }
+    .evidence-search-result strong, .evidence-search-result p, .evidence-search-meta { width: 100%; justify-self: start !important; text-align: left !important; }
+    .evidence-search-meta { display: flex; flex-wrap: wrap; justify-content: flex-start !important; gap: 6px; color: var(--ink-muted); font-size: 11px; font-weight: 800; }
+    /* 结果 Tag：左上、右下切角，沿用工业系统的斜切语言 */
+    .evidence-search-tag { padding: 3px 7px; color: var(--white); clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); font: 700 10px var(--font-mono); line-height: 1.2; }
     .evidence-search-tag--competitor { background: var(--orange); }
     .evidence-search-tag--dimension { background: var(--black); }
     .evidence-search-tag--source { color: var(--ink); background: var(--gray-100); }
@@ -4217,7 +4221,7 @@
     </h2>
       <!-- 证据搜索入口：与横向对比的操作区保持同级右对齐 -->
       <div class="comparison-actions">
-        <button id="evidenceSearchTrigger" class="secondary evidence-search-trigger" type="button"><svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg>搜索证据 <span id="evidenceSearchShortcut" class="evidence-search-shortcut" aria-hidden="true"></span></button>
+        <button id="evidenceSearchTrigger" class="secondary evidence-search-trigger" type="button" aria-label="搜索证据" title="搜索证据"><svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg></button>
       </div>
     </section>
 
@@ -5577,14 +5581,6 @@
        跨竞品证据搜索
        命令面板快捷键、组合筛选与证据详情回链
        ============================== */
-    function getEvidenceSearchShortcutLabel() {
-      if (window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 680) return '点击搜索';
-      return navigator.platform.toUpperCase().includes('MAC') ? '⌘K' : 'Ctrl K';
-    }
-
-    function renderEvidenceSearchShortcut() {
-      evidenceSearchShortcut.textContent = getEvidenceSearchShortcutLabel();
-    }
 
     function highlightEvidenceSearchText(value, query) {
       const escapedValue = escapeHtml(value);
@@ -5635,7 +5631,6 @@
     }
 
     function openEvidenceSearchDialog() {
-      renderEvidenceSearchShortcut();
       renderEvidenceSearchFilters();
       renderEvidenceSearchResults();
       evidenceSearchDialog.showModal();
@@ -5644,7 +5639,7 @@
 
     evidenceSearchTrigger.addEventListener('click', openEvidenceSearchDialog);
     evidenceSearchClose.addEventListener('click', () => evidenceSearchDialog.close());
-    window.addEventListener('resize', renderEvidenceSearchShortcut);
+
     [evidenceSearchInput, evidenceSearchCompetitorFilter, evidenceSearchDimensionFilter, evidenceSearchSourceTypeFilter].forEach(control => control.addEventListener('input', renderEvidenceSearchResults));
     evidenceSearchResults.addEventListener('click', event => {
       const result = event.target.closest('[data-evidence-search-result-id]');

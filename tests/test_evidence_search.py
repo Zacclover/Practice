@@ -14,8 +14,7 @@ class EvidenceSearchContractTests(unittest.TestCase):
     def test_search_has_an_explicit_entry_and_a_command_palette_dialog(self):
         self.assertRegex(
             self.source,
-            r'<button[^>]*id="evidenceSearchTrigger"[^>]*>.*?搜索证据',
-            re.S,
+            r'<button[^>]*id="evidenceSearchTrigger"[^>]*aria-label="搜索证据"',
         )
         self.assertIn('id="evidenceSearchDialog"', self.source)
         self.assertIn('id="evidenceSearchInput"', self.source)
@@ -46,10 +45,12 @@ class EvidenceSearchContractTests(unittest.TestCase):
             r'<button[^>]*class="[^"]*evidence-search-trigger[^"]*"',
         )
 
-    def test_shortcut_hint_adapts_for_desktop_and_touch_contexts(self):
-        self.assertIn('id="evidenceSearchShortcut"', self.source)
-        self.assertIn("navigator.platform.toUpperCase().includes('MAC')", self.source)
-        self.assertIn("matchMedia('(pointer: coarse)').matches", self.source)
+    def test_search_entry_is_an_icon_only_control(self):
+        self.assertRegex(
+            self.source,
+            r'<button[^>]*id="evidenceSearchTrigger"[^>]*aria-label="搜索证据"[^>]*>\s*<svg',
+        )
+        self.assertNotIn('id="evidenceSearchShortcut"', self.source)
 
     def test_dialog_has_an_explicit_icon_close_control(self):
         self.assertIn('id="evidenceSearchClose"', self.source)
@@ -62,6 +63,7 @@ class EvidenceSearchContractTests(unittest.TestCase):
         self.assertIn('evidence-search-tag--source', self.source)
         self.assertIn('function highlightEvidenceSearchText', self.source)
         self.assertIn('evidence-search-highlight', self.source)
+        self.assertIn('clip-path: polygon(7px 0', self.source)
 
     def test_input_focus_encloses_its_search_icon(self):
         self.assertIn('.evidence-search-input-wrap:focus-within', self.source)
