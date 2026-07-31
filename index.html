@@ -426,9 +426,11 @@
     }
 
     .detail-header {
+      position: relative;
       padding: 24px 24px 20px;
       border-bottom: 2px solid var(--line-strong);
     }
+    .detail-edit-button { position: absolute; top: 24px; right: 24px; }
 
     .detail-kicker,
     .detail-section-label,
@@ -4991,6 +4993,11 @@
     <header class="detail-header">
       <p class="detail-kicker">EVIDENCE / DETAIL</p>
       <h2 id="detailEvidenceTitle"></h2>
+      <!-- 预览即编辑入口：避免卡片层再维护一套编辑操作 -->
+      <button id="editDetailButton" class="secondary detail-edit-button" type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+        编辑证据
+      </button>
     </header>
 
     <section class="detail-summary" aria-label="证据元数据">
@@ -5258,6 +5265,7 @@
       document.querySelector('#detailDimensions');
     const detailImages = document.querySelector('#detailImages');
     const detailComment = document.querySelector('#detailComment');
+    const editDetailButton = document.querySelector('#editDetailButton');
 
     /* 获取矩阵关联证据弹窗元素 */
     const linkedEvidenceDialog =
@@ -5323,6 +5331,8 @@
 
     /* 当前正在编辑的证据序号，null 表示新增 */
     let editingEvidenceIndex = null;
+    /* 当前在预览窗口打开的证据序号，用于从预览直接进入同一编辑流程 */
+    let detailEvidenceIndex = null;
 
     /* 编辑证据时继续保留的旧图片 */
     let retainedEvidenceImages = [];
@@ -6878,18 +6888,8 @@
               : ''
           }
 
-          <!-- 编辑和删除证据的独立按钮 -->
+          <!-- 删除仍是卡片级破坏性操作；编辑统一收敛到证据预览窗口 -->
           <div class="evidence-tile-actions">
-            <button
-              class="evidence-edit-button contextual-action"
-              data-evidence-action="edit"
-              data-index="${evidenceIndex}"
-              type="button"
-              aria-label="编辑证据"
-              title="编辑证据">
-              <svg aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
-            </button>
-
             <button
               class="evidence-delete-button contextual-action"
               data-evidence-action="delete"
@@ -7456,35 +7456,18 @@
     });
 
     /* ==============================
-       打开快速记录：矩阵入口预选维度，竞品卡入口可自行勾选
+       快速记录与完整编辑共用同一证据窗口
+       仅预选竞品与维度，不再维护字段不一致的简版表单
        ============================== */
     function openQuickEvidenceDialog(competitorId, dimensionId = null) {
-      const competitor = competitors.find(item => item.id === competitorId);
-      if (!competitor) {
-        window.alert('没有找到对应竞品。');
-        return;
-      }
-      quickEvidenceForm.reset();
-      quickEvidenceFiles = [];
-      quickEvidencePasteArea.textContent = '点击此处后按 Ctrl+V / Command+V 粘贴截图';
-      selectedEvidenceCompetitorId = competitorId;
-      selectedQuickEvidenceDimensionIds = dimensionId
-        ? new Set([dimensionId])
-        : new Set();
-      const dimension = comparisonData.dimensions.find(item => item.id === dimensionId);
-      quickEvidenceTarget.textContent = dimension
-        ? `对应竞品：${competitor.name} · 对比维度：${dimension.name}`
-        : `对应竞品：${competitor.name}`;
-      renderQuickEvidenceDimensionOptions();
-      quickEvidenceDialog.showModal();
-      quickEvidenceFact.focus();
+      openEvidenceDialog(competitorId, dimensionId, '快速记录证据');
     }
 
     /* ==============================
        打开指定竞品的完整证据上传弹窗
        可选预选当前矩阵缺口所属维度，减少重复选择
        ============================== */
-    function openEvidenceDialog(competitorId, dimensionId = null) {
+    function openEvidenceDialog(competitorId, dimensionId = null, dialogTitle = '添加调研证据') {
       const competitor = competitors.find(
         item => item.id === competitorId
       );
@@ -7495,6 +7478,7 @@
       }
 
       resetEvidenceForm();
+      evidenceDialogTitle.textContent = dialogTitle;
       selectedEvidenceCompetitorId = competitorId;
       if (dimensionId) {
         selectedEvidenceDimensionIds = new Set([dimensionId]);
@@ -7880,6 +7864,7 @@
       if (!evidence) {
         return;
       }
+      detailEvidenceIndex = evidenceIndex;
 
       const competitor = competitors.find(
         item => item.id === evidence.competitorId
@@ -7929,6 +7914,15 @@
       ) || '<p class="form-help">暂无详细内容</p>';
       evidenceDetailDialog.showModal();
     }
+
+    /* 预览与编辑合并：从详情上下文无缝进入完整编辑器 */
+    editDetailButton.addEventListener('click', () => {
+      if (detailEvidenceIndex === null) {
+        return;
+      }
+      evidenceDetailDialog.close();
+      openEvidenceEdit(detailEvidenceIndex);
+    });
 
     document
       .querySelector('#closeDetailButton')

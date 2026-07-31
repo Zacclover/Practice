@@ -44,6 +44,11 @@ class QuickEvidenceCaptureContractTests(unittest.TestCase):
         self.assertNotIn('if (!fact || !sourceType)', self.source)
         self.assertIn('sourceType ? `（${escapeHtml(sourceType)}）` : \'\'', self.source)
 
+    def test_quick_capture_opens_the_full_evidence_editor_with_prefilled_context(self):
+        self.assertIn("openEvidenceDialog(competitorId, dimensionId, '快速记录证据');", self.source)
+        self.assertIn("function openEvidenceDialog(competitorId, dimensionId = null, dialogTitle = '添加调研证据')", self.source)
+        self.assertIn('evidenceDialogTitle.textContent = dialogTitle;', self.source)
+
     def test_quick_form_accepts_pasted_screenshots(self):
         self.assertIn('id="quickEvidencePasteArea"', self.source)
         self.assertIn("quickEvidencePasteArea.addEventListener('paste'", self.source)

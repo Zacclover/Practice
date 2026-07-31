@@ -27,6 +27,11 @@ class EvidenceDetailVisualContractTests(unittest.TestCase):
         self.assertIn('class="detail-image-empty"', self.source)
         self.assertIn('>未附截图<', self.source)
         self.assertIn('border-radius: 0;', self.source)
+    def test_detail_preview_is_the_single_entry_for_evidence_editing(self):
+        self.assertIn('id="editDetailButton"', self.source)
+        self.assertIn('detailEvidenceIndex = evidenceIndex;', self.source)
+        self.assertIn('openEvidenceEdit(detailEvidenceIndex);', self.source)
+        self.assertNotIn('class="evidence-edit-button contextual-action"', self.source)
 
 
 if __name__ == '__main__':
