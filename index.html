@@ -415,44 +415,130 @@
        完整展示所有图片和文字记录
        ============================== */
     .detail-dialog {
-      width: min(900px, calc(100% - 32px));
+      width: min(960px, calc(100% - 32px));
       max-height: calc(100vh - 40px);
+      padding: 0;
       overflow-y: auto;
+      color: var(--ink);
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
     }
 
-    .detail-meta {
+    .detail-header {
+      padding: 24px 24px 20px;
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    /* 详情操作栏放在正文之后，新增控制不覆盖既有标题或元数据 */
+    .detail-footer {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
-      color: #6b7280;
+      align-items: center;
+      gap: 12px;
     }
 
+    .detail-kicker,
+    .detail-section-label,
+    .detail-meta-label {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    .detail-kicker { color: var(--orange); }
+
+    .detail-header h2 {
+      margin: 8px 0 0;
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      line-height: 1.2;
+    }
+
+    .detail-summary {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      padding: 16px 24px;
+      background: var(--gray-100);
+      border-bottom: 1px solid var(--line-subtle);
+    }
+
+    .detail-meta { display: flex; gap: 20px; }
+    .detail-meta-item { display: grid; gap: 4px; }
+    .detail-meta-value { font-size: 14px; font-weight: 800; }
+    .detail-meta-item:last-child { text-align: right; }
+    .detail-dimensions { display: flex; flex-wrap: wrap; gap: 6px; align-content: start; }
+    .detail-dimensions .form-help { margin: 0; }
+    .detail-dimension-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 8px;
+      color: var(--white);
+      background: var(--black);
+      /* 标准斜切矩形：保留四条直边，仅切去左上与右下角，避免变成平行四边形 */
+      clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .detail-media-section,
+    .detail-content-section { padding: 20px 24px 0; }
+    .detail-section-label { color: var(--line-medium); }
     .detail-images {
       display: grid;
-      grid-template-columns: repeat(
-        auto-fit,
-        minmax(240px, 1fr)
-      );
-      gap: 14px;
-      margin: 18px 0;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin: 10px 0 0;
     }
-
-    .detail-images img {
+    .detail-image {
       width: 100%;
-      max-height: 520px;
+      max-height: 480px;
       object-fit: contain;
-      background: #f8fafc;
-      border: 1px solid #e5e7eb;
-      border-radius: 10px;
+      background: var(--gray-100);
+      border: 1px solid var(--line-subtle);
+      border-radius: 0;
     }
-
+    .detail-image-empty {
+      display: grid;
+      min-height: 220px;
+      padding: 20px;
+      align-content: center;
+      gap: 8px;
+      background: var(--gray-100);
+      border: 1px dashed var(--line-medium);
+      border-radius: 0;
+    }
+    .detail-image-empty span { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+    .detail-image-empty strong { font-size: 20px; }
     .detail-comment {
+      min-height: 116px;
+      margin-top: 10px;
       padding: 16px;
-      color: #374151;
+      color: var(--ink);
       line-height: 1.7;
       white-space: pre-wrap;
-      background: #f8fafc;
-      border-radius: 10px;
+      background: var(--gray-100);
+      border-left: 3px solid var(--orange);
+      border-radius: 0;
+    }
+    .detail-dialog .actions {
+      display: flex;
+      justify-content: flex-end;
+      margin: 20px 24px 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line-subtle);
+    }
+    @media (max-width: 640px) {
+      .detail-header, .detail-media-section, .detail-content-section { padding-right: 16px; padding-left: 16px; }
+      .detail-summary { grid-template-columns: 1fr; padding: 14px 16px; }
+      .detail-meta-item:last-child { text-align: left; }
+      .detail-dialog .actions { margin-right: 16px; margin-left: 16px; }
     }
 
     /* ==============================
@@ -1774,12 +1860,12 @@
     }
 
 
-    /* 竞品档案横向轨道：紧凑卡片按内容自然增高，完整展示纵向证据而不在卡内滚动 */
+    /* 竞品档案横向轨道：同一行卡片对齐到最高内容，仍完整展示证据且不在卡内纵向滚动 */
     .grid {
       display: flex;
       max-width: 100%;
       gap: 12px;
-      align-items: flex-start;
+      align-items: stretch;
       overflow-x: auto;
       overflow-y: visible;
       padding: 2px 2px 12px;
@@ -1910,8 +1996,7 @@
       background: rgba(17, 17, 17, .88);
     }
 
-    .evidence-tile-tag,
-    .detail-dimension-tag {
+    .evidence-tile-tag {
       color: var(--black);
       background: var(--orange);
     }
@@ -2130,6 +2215,13 @@
     .comparison-table td.dimension-column {
       border-right: 1px solid var(--line-medium);
       box-shadow: none;
+    }
+
+    /* 对比维度列在横向滚动时完整冻结：覆盖通用 td 的 relative 定位 */
+    .comparison-table td.dimension-column {
+      position: sticky;
+      left: 0;
+      z-index: 2;
     }
 
     .comparison-table th.dimension-column {
@@ -3653,6 +3745,21 @@
       text-underline-offset: 3px;
     }
 
+    /* 矩阵与洞察的证据回链共用无外框灰底 / 橙色左轨，避免黑框抢占数据层级 */
+    .matrix-evidence-line,
+    .insight-evidence-link {
+      padding: 7px 9px;
+      color: var(--ink);
+      background: var(--gray-100);
+      border: 0 !important;
+      border-left: 3px solid var(--orange) !important;
+      border-radius: 0;
+      clip-path: none;
+      font-size: 12px;
+      line-height: 1.4;
+      text-decoration: none;
+    }
+
     /* 洞察编辑器：工业化标题层级、纵横分割与可扫读的推导链 */
     .insight-dialog {
       width: min(1120px, calc(100% - 32px));
@@ -4007,10 +4114,29 @@
     .evidence-search-input-wrap input { width: 100%; height: 52px; padding: 0; border: 0; box-shadow: none; outline: 0; }
     .evidence-search-filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
     .evidence-search-filters label { font-size: 11px; font-weight: 800; }
-    .evidence-search-filters select { width: 100%; height: 38px; margin-top: 5px; font-size: 12px; }
+    /* 搜索筛选：复用洞察筛选的折叠多选交互，已选项以可移除 Tag 呈现 */
+    .evidence-search-filter-control { min-width: 0; }
+    .evidence-search-filter-select { position: relative; margin-top: 5px; }
+    .evidence-search-filter-select summary { display: flex; align-items: center; gap: 6px; min-height: 38px; height: 38px; padding: 5px 9px; overflow: hidden; background: var(--white); border: 1px solid var(--line-subtle); cursor: pointer; list-style: none; }
+    .evidence-search-filter-select summary::-webkit-details-marker { display: none; }
+    .evidence-search-filter-tag { display: grid; grid-template-columns: minmax(0, 1fr) 18px; align-items: center; max-width: 100%; padding: 4px 7px; overflow: hidden; color: var(--white); font: 700 10px var(--font-mono); white-space: nowrap; clip-path: polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px); }
+    .evidence-search-filter-tag-text { overflow: hidden; text-overflow: ellipsis; }
+    .evidence-search-filter-tag button { display: grid; place-items: center; width: 18px; min-width: 18px; height: 18px; margin: 0; padding: 0; color: inherit; background: transparent; border: 0; font: inherit; cursor: pointer; }
+    .evidence-search-filter-select.is-competitor .evidence-search-filter-tag { background: var(--orange); }
+    .evidence-search-filter-select.is-dimension .evidence-search-filter-tag { background: var(--black); }
+    .evidence-search-filter-select.is-source .evidence-search-filter-tag { color: var(--black); background: var(--gray-200); }
+    .evidence-search-filter-placeholder { color: var(--line-medium); font-size: 12px; font-weight: 400; }
+    .evidence-search-filter-count { color: var(--orange); font-family: var(--font-mono); font-size: 11px; }
+    .evidence-search-filter-arrow { margin-left: auto; color: var(--line-medium); font-size: 15px; transform: rotate(180deg); }
+    .evidence-search-filter-select[open] .evidence-search-filter-arrow { transform: rotate(0); }
+    .evidence-search-filter-options { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: 100%; padding: 6px; color: var(--gray-700); background: var(--white); border: 1px solid var(--line-strong); box-shadow: 4px 4px 0 var(--black); }
+    .evidence-search-filter-option { display: flex; width: 100%; align-items: center; justify-content: flex-start; gap: 8px; padding: 7px 8px; color: var(--gray-700); text-align: left; background: transparent; border: 0; cursor: pointer; }
+    .evidence-search-filter-option:hover, .evidence-search-filter-option.is-selected { color: var(--black); background: var(--paper); }
+    .evidence-search-filter-option span { flex: 1; }
+    .evidence-search-filter-option b { color: var(--orange); font-size: 14px; }
     /* 搜索结果：每条占满列表宽度，所有文字和 Tag 锚定在左侧起点 */
     .evidence-search-results { display: grid; gap: 8px; margin-top: 10px; max-height: min(48vh, 440px); overflow-y: auto; justify-items: stretch; align-items: start; }
-    .evidence-search-result { width: 100%; min-width: 0; display: grid; gap: 7px; padding: 14px; border: 1px solid var(--line); background: #fff; color: var(--ink); text-align: left !important; justify-self: stretch; justify-items: start !important; align-items: start; clip-path: none; }
+    .evidence-search-result { width: 100%; min-width: 0; display: grid; gap: 7px; padding: 14px; border: 1px solid var(--line); background: #fff; color: var(--ink); text-align: left !important; justify-self: stretch; justify-items: start !important; justify-content: flex-start !important; align-items: start; align-content: start; clip-path: none; }
     .evidence-search-result:hover, .evidence-search-result:focus-visible { border-color: var(--orange); outline: 2px solid var(--orange); outline-offset: 2px; transform: none; }
     .evidence-search-result strong { font-size: 14px; }
     .evidence-search-result p { margin: 0; color: var(--ink-muted); font-size: 13px; line-height: 1.5; }
@@ -4660,7 +4786,7 @@
       <label>关键事实<textarea id="quickEvidenceFact" maxlength="500" rows="4" required placeholder="记录可核对的产品事实，而不是结论"></textarea></label>
       <div class="quick-evidence-grid">
         <label>来源链接<input id="quickEvidenceSourceUrl" type="url" placeholder="https://example.com"></label>
-        <label>来源类型<select id="quickEvidenceSourceType" required><option value="">请选择</option><option value="官网">官网</option><option value="帮助中心">帮助中心</option><option value="产品实测">产品实测</option><option value="公开报道">公开报道</option><option value="其他">其他</option></select></label>
+        <label>来源类型（可选）<select id="quickEvidenceSourceType"><option value="">请选择</option><option value="官网">官网</option><option value="帮助中心">帮助中心</option><option value="产品实测">产品实测</option><option value="公开报道">公开报道</option><option value="其他">其他</option></select></label>
       </div>
       <label>截图 / 图片（可选）<input id="quickEvidenceImage" type="file" accept="image/*" multiple></label>
       <!-- 快速记录支持直接粘贴剪贴板截图，避免必须先保存本地文件 -->
@@ -4681,9 +4807,9 @@
     <div class="evidence-search-heading"><div><p>EVIDENCE FINDER / CURRENT TAB</p><h2 id="evidenceSearchTitle">搜索证据</h2></div><button id="evidenceSearchClose" class="evidence-search-close" type="button" aria-label="关闭搜索证据" title="关闭搜索证据"><svg aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg></button></div>
     <label class="evidence-search-input-wrap"><svg aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg><input id="evidenceSearchInput" type="search" autocomplete="off" placeholder="搜索标题、观察内容或来源链接" aria-label="搜索证据"></label>
     <div class="evidence-search-filters" aria-label="筛选搜索结果">
-      <label>竞品<select id="evidenceSearchCompetitorFilter"><option value="">全部竞品</option></select></label>
-      <label>分析维度<select id="evidenceSearchDimensionFilter"><option value="">全部维度</option></select></label>
-      <label>来源类型<select id="evidenceSearchSourceTypeFilter"><option value="">全部来源</option></select></label>
+      <label class="evidence-search-filter-control">竞品<select id="evidenceSearchCompetitorFilter" multiple hidden></select><div id="evidenceSearchCompetitorFilterControl"></div></label>
+      <label class="evidence-search-filter-control">分析维度<select id="evidenceSearchDimensionFilter" multiple hidden></select><div id="evidenceSearchDimensionFilterControl"></div></label>
+      <label class="evidence-search-filter-control">来源类型<select id="evidenceSearchSourceTypeFilter" multiple hidden></select><div id="evidenceSearchSourceTypeFilterControl"></div></label>
     </div>
     <p id="evidenceSearchSummary" class="evidence-search-summary" aria-live="polite"></p>
     <div id="evidenceSearchResults" class="evidence-search-results"></div>
@@ -4882,30 +5008,46 @@
        显示全部图片和完整文字记录
        ============================== -->
   <dialog id="evidenceDetailDialog" class="detail-dialog">
-    <h2>证据详情</h2>
-    <h3 id="detailEvidenceTitle"></h3>
+    <!-- 证据详情：编辑部标题、来源元数据、原始素材与可读正文分区 -->
+    <header class="detail-header">
+      <p class="detail-kicker">EVIDENCE / DETAIL</p>
+      <h2 id="detailEvidenceTitle"></h2>
+    </header>
 
-    <div class="detail-meta">
-      <strong id="detailCompetitorName"></strong>
-      <span id="detailCreatedDate"></span>
-    </div>
+    <section class="detail-summary" aria-label="证据元数据">
+      <div class="detail-meta">
+        <div class="detail-meta-item">
+          <span class="detail-meta-label">COMPETITOR</span>
+          <strong id="detailCompetitorName" class="detail-meta-value"></strong>
+        </div>
+        <div class="detail-meta-item">
+          <span class="detail-meta-label">CAPTURED</span>
+          <span id="detailCreatedDate" class="detail-meta-value"></span>
+        </div>
+      </div>
+      <div>
+        <p class="detail-meta-label">ANALYSIS DIMENSIONS</p>
+        <div id="detailDimensions" class="detail-dimensions"></div>
+      </div>
+    </section>
 
-    <!-- 显示证据关联的全部对比维度 -->
-    <div
-      id="detailDimensions"
-      class="detail-dimensions">
-    </div>
+    <section class="detail-media-section" aria-label="原始截图">
+      <p class="detail-section-label">VISUAL EVIDENCE / 原始截图</p>
+      <!-- JavaScript 会把全部证据图片显示在这里 -->
+      <div id="detailImages" class="detail-images"></div>
+    </section>
 
-    <!-- JavaScript 会把全部证据图片显示在这里 -->
-    <div id="detailImages" class="detail-images"></div>
+    <section class="detail-content-section" aria-label="证据内容">
+      <p class="detail-section-label">EVIDENCE NOTE / 证据内容</p>
+      <div id="detailComment" class="detail-comment rich-content"></div>
+    </section>
 
-    <h3>证据内容</h3>
-    <div
-      id="detailComment"
-      class="detail-comment rich-content">
-    </div>
-
-    <div class="actions">
+    <!-- 详情操作位于正文之后，避免遮挡既有标题与元数据 -->
+    <div class="actions detail-footer">
+      <button id="editDetailButton" class="secondary" type="button">
+        <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+        编辑证据
+      </button>
       <button id="closeDetailButton" class="secondary" type="button">
         <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-close"></use></svg>
         关闭
@@ -5211,6 +5353,7 @@
       document.querySelector('#detailDimensions');
     const detailImages = document.querySelector('#detailImages');
     const detailComment = document.querySelector('#detailComment');
+    const editDetailButton = document.querySelector('#editDetailButton');
 
     /* 获取矩阵关联证据弹窗元素 */
     const linkedEvidenceDialog =
@@ -5276,6 +5419,8 @@
 
     /* 当前正在编辑的证据序号，null 表示新增 */
     let editingEvidenceIndex = null;
+    /* 当前在预览窗口打开的证据序号，用于从预览直接进入同一编辑流程 */
+    let detailEvidenceIndex = null;
 
     /* 编辑证据时继续保留的旧图片 */
     let retainedEvidenceImages = [];
@@ -5673,31 +5818,46 @@
       return escapedValue.replace(new RegExp(`(${escapedQuery})`, 'gi'), '<mark class="evidence-search-highlight">$1</mark>');
     }
 
+    function renderEvidenceSearchFilterControl(controlId, select, items, emptyLabel, variant) {
+      const control = document.querySelector(controlId);
+      const selectedOptions = [...select.selectedOptions];
+      const selected = selectedOptions.map(option => option.textContent.trim());
+      const visibleOptions = selectedOptions.slice(0, 2);
+      const summary = selected.length
+        ? `${visibleOptions.map(option => `<span class="evidence-search-filter-tag"><span class="evidence-search-filter-tag-text">${escapeHtml(option.textContent.trim())}</span><button type="button" data-evidence-search-filter-remove="${escapeHtml(option.value)}" aria-label="移除 ${escapeHtml(option.textContent.trim())}">×</button></span>`).join('')}${selected.length > visibleOptions.length ? `<span class="evidence-search-filter-count" title="已选：${escapeHtml(selected.join('、'))}">+${selected.length - visibleOptions.length}</span>` : ''}`
+        : `<span class="evidence-search-filter-placeholder">${escapeHtml(emptyLabel)}</span>`;
+      control.innerHTML = `<details class="evidence-search-filter-select ${variant}" data-evidence-search-filter-for="${select.id}"><summary>${summary}<span class="evidence-search-filter-arrow" aria-hidden="true">⌃</span></summary><div class="evidence-search-filter-options">${items.map(item => { const isSelected = selectedOptions.some(option => option.value === item.id); return `<button type="button" class="evidence-search-filter-option${isSelected ? ' is-selected' : ''}" data-evidence-search-filter-option="${escapeHtml(item.id)}"><span>${escapeHtml(item.name)}</span><b aria-hidden="true">${isSelected ? '✓' : ''}</b></button>`; }).join('')}</div></details>`;
+    }
+
+    function renderEvidenceSearchFilterControls() {
+      renderEvidenceSearchFilterControl('#evidenceSearchCompetitorFilterControl', evidenceSearchCompetitorFilter, competitors, '全部竞品', 'is-competitor');
+      renderEvidenceSearchFilterControl('#evidenceSearchDimensionFilterControl', evidenceSearchDimensionFilter, comparisonData.dimensions || [], '全部维度', 'is-dimension');
+      const sourceTypes = [...new Set(evidenceItems.map(item => item.sourceType).filter(Boolean))].map(item => ({ id: item, name: item }));
+      renderEvidenceSearchFilterControl('#evidenceSearchSourceTypeFilterControl', evidenceSearchSourceTypeFilter, sourceTypes, '全部来源', 'is-source');
+    }
+
     function renderEvidenceSearchFilters() {
-      const selected = [
-        evidenceSearchCompetitorFilter.value,
-        evidenceSearchDimensionFilter.value,
-        evidenceSearchSourceTypeFilter.value
-      ];
+      const selected = [evidenceSearchCompetitorFilter, evidenceSearchDimensionFilter, evidenceSearchSourceTypeFilter].map(control => [...control.selectedOptions].map(option => option.value));
       const dimensions = comparisonData.dimensions || [];
-      const sourceTypes = [...new Set(evidenceItems.map(item => item.sourceType).filter(Boolean))];
-      evidenceSearchCompetitorFilter.innerHTML = `<option value="">全部竞品</option>${competitors.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('')}`;
-      evidenceSearchDimensionFilter.innerHTML = `<option value="">全部维度</option>${dimensions.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('')}`;
-      evidenceSearchSourceTypeFilter.innerHTML = `<option value="">全部来源</option>${sourceTypes.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join('')}`;
-      [evidenceSearchCompetitorFilter, evidenceSearchDimensionFilter, evidenceSearchSourceTypeFilter].forEach((control, index) => { control.value = selected[index]; });
+      const sourceTypes = [...new Set(evidenceItems.map(item => item.sourceType || '未标注来源'))];
+      evidenceSearchCompetitorFilter.innerHTML = competitors.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+      evidenceSearchDimensionFilter.innerHTML = dimensions.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+      evidenceSearchSourceTypeFilter.innerHTML = sourceTypes.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join('');
+      [evidenceSearchCompetitorFilter, evidenceSearchDimensionFilter, evidenceSearchSourceTypeFilter].forEach((control, index) => [...control.options].forEach(option => { option.selected = selected[index].includes(option.value); }));
+      renderEvidenceSearchFilterControls();
     }
 
     function getFilteredEvidenceSearchResults() {
       const query = evidenceSearchInput.value.trim().toLowerCase();
-      const competitorId = evidenceSearchCompetitorFilter.value;
-      const dimensionId = evidenceSearchDimensionFilter.value;
-      const sourceType = evidenceSearchSourceTypeFilter.value;
+      const competitorIds = [...evidenceSearchCompetitorFilter.selectedOptions].map(option => option.value);
+      const dimensionIds = [...evidenceSearchDimensionFilter.selectedOptions].map(option => option.value);
+      const sourceTypes = [...evidenceSearchSourceTypeFilter.selectedOptions].map(option => option.value);
       return evidenceItems.filter(evidence => {
         const searchable = [evidence.title, stripHtml(evidence.content || evidence.contentHtml || evidence.comment || ''), evidence.sourceUrl, evidence.sourceType].join(' ').toLowerCase();
         return (!query || searchable.includes(query)) &&
-          (!competitorId || evidence.competitorId === competitorId) &&
-          (!dimensionId || (evidence.dimensionIds || []).includes(dimensionId)) &&
-          (!sourceType || evidence.sourceType === sourceType);
+          (!competitorIds.length || competitorIds.includes(evidence.competitorId)) &&
+          (!dimensionIds.length || dimensionIds.some(id => (evidence.dimensionIds || []).includes(id))) &&
+          (sourceTypes.length === 0 || sourceTypes.includes(evidence.sourceType || '未标注来源'));
       });
     }
 
@@ -5723,7 +5883,22 @@
     evidenceSearchTrigger.addEventListener('click', openEvidenceSearchDialog);
     evidenceSearchClose.addEventListener('click', () => evidenceSearchDialog.close());
 
-    [evidenceSearchInput, evidenceSearchCompetitorFilter, evidenceSearchDimensionFilter, evidenceSearchSourceTypeFilter].forEach(control => control.addEventListener('input', renderEvidenceSearchResults));
+    evidenceSearchInput.addEventListener('input', renderEvidenceSearchResults);
+    evidenceSearchDialog.querySelector('.evidence-search-filters').addEventListener('click', event => {
+      const removeButton = event.target.closest('[data-evidence-search-filter-remove]');
+      const optionButton = event.target.closest('[data-evidence-search-filter-option]');
+      if (!removeButton && !optionButton) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const filter = event.target.closest('[data-evidence-search-filter-for]');
+      const select = document.querySelector(`#${filter?.dataset.evidenceSearchFilterFor || ''}`);
+      const value = (removeButton || optionButton).dataset.evidenceSearchFilterRemove || (removeButton || optionButton).dataset.evidenceSearchFilterOption;
+      const option = [...(select?.options || [])].find(item => item.value === value);
+      if (!option) return;
+      option.selected = !removeButton && !option.selected;
+      renderEvidenceSearchFilterControls();
+      renderEvidenceSearchResults();
+    });
     evidenceSearchResults.addEventListener('click', event => {
       const result = event.target.closest('[data-evidence-search-result-id]');
       if (!result) return;
@@ -5807,7 +5982,7 @@
                   : ''
               }
 
-              <!-- 竞品档案基础操作 -->
+              <!-- 竞品档案基础操作，仅在卡片 Hover / 焦点时显示 -->
               <div class="card-context-actions">
                 <button
                   class="edit-button contextual-action"
@@ -6803,7 +6978,7 @@
               : ''
           }
 
-          <!-- 编辑和删除证据的独立按钮 -->
+          <!-- 证据卡片保留快捷编辑与删除；详情窗口也提供完整预览后编辑路径 -->
           <div class="evidence-tile-actions">
             <button
               class="evidence-edit-button contextual-action"
@@ -7381,35 +7556,18 @@
     });
 
     /* ==============================
-       打开快速记录：矩阵入口预选维度，竞品卡入口可自行勾选
+       快速记录与完整编辑共用同一证据窗口
+       仅预选竞品与维度，不再维护字段不一致的简版表单
        ============================== */
     function openQuickEvidenceDialog(competitorId, dimensionId = null) {
-      const competitor = competitors.find(item => item.id === competitorId);
-      if (!competitor) {
-        window.alert('没有找到对应竞品。');
-        return;
-      }
-      quickEvidenceForm.reset();
-      quickEvidenceFiles = [];
-      quickEvidencePasteArea.textContent = '点击此处后按 Ctrl+V / Command+V 粘贴截图';
-      selectedEvidenceCompetitorId = competitorId;
-      selectedQuickEvidenceDimensionIds = dimensionId
-        ? new Set([dimensionId])
-        : new Set();
-      const dimension = comparisonData.dimensions.find(item => item.id === dimensionId);
-      quickEvidenceTarget.textContent = dimension
-        ? `对应竞品：${competitor.name} · 对比维度：${dimension.name}`
-        : `对应竞品：${competitor.name}`;
-      renderQuickEvidenceDimensionOptions();
-      quickEvidenceDialog.showModal();
-      quickEvidenceFact.focus();
+      openEvidenceDialog(competitorId, dimensionId, '快速记录证据');
     }
 
     /* ==============================
        打开指定竞品的完整证据上传弹窗
        可选预选当前矩阵缺口所属维度，减少重复选择
        ============================== */
-    function openEvidenceDialog(competitorId, dimensionId = null) {
+    function openEvidenceDialog(competitorId, dimensionId = null, dialogTitle = '添加调研证据') {
       const competitor = competitors.find(
         item => item.id === competitorId
       );
@@ -7420,6 +7578,7 @@
       }
 
       resetEvidenceForm();
+      evidenceDialogTitle.textContent = dialogTitle;
       selectedEvidenceCompetitorId = competitorId;
       if (dimensionId) {
         selectedEvidenceDimensionIds = new Set([dimensionId]);
@@ -7620,7 +7779,7 @@
     });
 
     /* ==============================
-       保存快速记录：事实与来源为必填，截图按完整证据相同规则压缩
+       保存快速记录：关键事实必填，来源与截图可选，图片按完整证据相同规则压缩
        ============================== */
     quickEvidenceForm.addEventListener('submit', async event => {
       event.preventDefault();
@@ -7630,7 +7789,7 @@
       const normalizedSourceUrl = sourceUrl
         ? normalizeWebsiteUrl(sourceUrl)
         : '';
-      if (!fact || !sourceType) {
+      if (!fact) {
         return;
       }
       saveQuickEvidenceButton.disabled = true;
@@ -7641,8 +7800,10 @@
         }
         const title = Array.from(fact).slice(0, 20).join('');
         const sourceMarkup = normalizedSourceUrl
-          ? `<p>来源：<a href="${escapeHtml(normalizedSourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(normalizedSourceUrl)}</a>（${escapeHtml(sourceType)}）</p>`
-          : `<p>来源类型：${escapeHtml(sourceType)}</p>`;
+          ? `<p>来源：<a href="${escapeHtml(normalizedSourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(normalizedSourceUrl)}</a>${sourceType ? `（${escapeHtml(sourceType)}）` : ''}</p>`
+          : sourceType
+            ? `<p>来源类型：${escapeHtml(sourceType)}</p>`
+            : '';
         const contentHtml = sanitizeRichHtml(
           `<p>${escapeHtml(fact)}</p>${sourceMarkup}`
         );
@@ -7795,6 +7956,21 @@
       });
 
     /* ==============================
+       取消证据编辑后的焦点清理
+       弹窗关闭会把焦点还给证据编辑按钮；主动失焦避免父竞品卡保留黑色选中态
+       ============================== */
+    evidenceDialog.addEventListener('close', () => {
+      window.requestAnimationFrame(() => {
+        const activeCompetitorCard = document.activeElement?.closest(
+          '.competitor-card'
+        );
+        if (activeCompetitorCard) {
+          document.activeElement.blur();
+        }
+      });
+    });
+
+    /* ==============================
        打开证据详情
        完整展示所有图片和文字记录
        ============================== */
@@ -7803,6 +7979,7 @@
       if (!evidence) {
         return;
       }
+      detailEvidenceIndex = evidenceIndex;
 
       const competitor = competitors.find(
         item => item.id === evidence.competitorId
@@ -7825,28 +8002,42 @@
       detailDimensions.innerHTML = linkedDimensions.length
         ? linkedDimensions
             .map(dimension => `
-              <span class="dimension-tag">
+              <span class="detail-dimension-tag">
                 ${escapeHtml(dimension.name)}
               </span>
             `)
             .join('')
         : '<span class="form-help">未关联对比维度</span>';
 
-      const detailImageSources = evidence.images.length > 0
+      detailImages.innerHTML = evidence.images.length > 0
         ? evidence.images
-        : [fallbackImage];
-      detailImages.innerHTML = detailImageSources
-        .map((image, index) => `
-          <img
-            src="${escapeHtml(image)}"
-            alt="证据图片 ${index + 1}">
-        `)
-        .join('');
+            .map((image, index) => `
+              <img
+                class="detail-image"
+                src="${escapeHtml(image)}"
+                alt="证据图片 ${index + 1}">
+            `)
+            .join('')
+        : `
+            <div class="detail-image-empty" role="status">
+              <span>NO SCREENSHOT / 00</span>
+              <strong>未附截图</strong>
+            </div>
+          `;
       detailComment.innerHTML = sanitizeRichHtml(
         evidence.contentHtml
       ) || '<p class="form-help">暂无详细内容</p>';
       evidenceDetailDialog.showModal();
     }
+
+    /* 预览与编辑合并：从详情上下文无缝进入完整编辑器 */
+    editDetailButton.addEventListener('click', () => {
+      if (detailEvidenceIndex === null) {
+        return;
+      }
+      evidenceDetailDialog.close();
+      openEvidenceEdit(detailEvidenceIndex);
+    });
 
     document
       .querySelector('#closeDetailButton')
@@ -8937,6 +9128,11 @@
     }
 
     function getTouchContextSurface(target) {
+      /* 证据卡是直接查看详情的主入口，触屏首击不得仅展开上下文操作 */
+      if (target.closest?.('.evidence-tile')) {
+        return null;
+      }
+
       const dimensionCell = target.closest?.('.dimension-column');
       if (dimensionCell) {
         const row = dimensionCell.closest('tr');

@@ -27,7 +27,7 @@ class ResearchCoverageGuidanceContractTests(unittest.TestCase):
             self.source,
             r'function openQuickEvidenceDialog\(competitorId, dimensionId = null\)',
         )
-        self.assertIn('selectedQuickEvidenceDimensionIds = dimensionId', self.source)
+        self.assertIn("openEvidenceDialog(competitorId, dimensionId, '快速记录证据');", self.source)
         self.assertIn("button[data-quick-evidence-competitor-id]", self.source)
         self.assertIn('openQuickEvidenceDialog(\n          quickCaptureButton.dataset.quickEvidenceCompetitorId,\n          quickCaptureButton.dataset.quickEvidenceDimensionId\n        );', self.source)
 

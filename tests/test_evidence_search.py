@@ -65,6 +65,25 @@ class EvidenceSearchContractTests(unittest.TestCase):
         self.assertIn('evidence-search-highlight', self.source)
         self.assertIn('clip-path: polygon(7px 0', self.source)
 
+    def test_search_filters_are_multi_select_controls_like_insight_filters(self):
+        for filter_id, control_id in (
+            ('evidenceSearchCompetitorFilter', 'evidenceSearchCompetitorFilterControl'),
+            ('evidenceSearchDimensionFilter', 'evidenceSearchDimensionFilterControl'),
+            ('evidenceSearchSourceTypeFilter', 'evidenceSearchSourceTypeFilterControl'),
+        ):
+            self.assertIn(f'<select id="{filter_id}" multiple hidden>', self.source)
+            self.assertIn(f'id="{control_id}"', self.source)
+        self.assertIn('function renderEvidenceSearchFilterControl(', self.source)
+        self.assertIn("item.sourceType || '未标注来源'", self.source)
+
+    def test_search_filter_summary_shows_two_tags_then_a_count(self):
+        self.assertIn('const visibleOptions = selectedOptions.slice(0, 2);', self.source)
+        self.assertIn('evidence-search-filter-count', self.source)
+
+    def test_result_grid_never_centers_its_content(self):
+        self.assertIn('justify-content: flex-start !important;', self.source)
+        self.assertIn('align-content: start;', self.source)
+
     def test_input_focus_encloses_its_search_icon(self):
         self.assertIn('.evidence-search-input-wrap:focus-within', self.source)
 
