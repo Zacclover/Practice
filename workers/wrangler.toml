@@ -1,0 +1,12 @@
+name = "competitor-insights-source-capture"
+main = "source-capture.mjs"
+compatibility_date = "2026-07-31"
+
+# 每 6 小时扫描一次；每个来源仍按 fetch_interval_hours 决定是否实际抓取。
+[triggers]
+crons = ["17 */6 * * *"]
+
+# 仅在 Cloudflare Worker 的加密环境变量中配置：
+# SUPABASE_URL=https://<project-ref>.supabase.co
+# SUPABASE_SERVICE_ROLE_KEY=<secret>
+# 绝不可把 service-role key 放入 Pages、浏览器运行时配置或 Git。
