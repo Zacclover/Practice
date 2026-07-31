@@ -3981,6 +3981,32 @@
     }
 
 
+    /* ==============================
+       证据搜索：工业命令面板与结果列表
+       ============================== */
+    .evidence-search-trigger { margin-left: auto; padding: 8px 10px; font-size: 12px; }
+    .evidence-search-trigger kbd, .evidence-search-heading kbd { margin-left: 8px; padding: 2px 5px; border: 1px solid var(--line); background: var(--paper); font: 700 10px var(--font-body); }
+    .evidence-search-dialog { width: min(760px, calc(100% - 32px)); max-height: calc(100vh - 48px); padding: 22px; border: 1px solid var(--ink); background: var(--paper); color: var(--ink); }
+    .evidence-search-dialog::backdrop { background: rgba(20, 20, 18, .48); }
+    .evidence-search-heading { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+    .evidence-search-heading p, .evidence-search-summary { margin: 0; color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+    .evidence-search-heading h2 { margin: 4px 0 16px; font-size: 24px; }
+    .evidence-search-input-wrap { display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 1px solid var(--ink); background: #fff; }
+    .evidence-search-input-wrap svg { width: 20px; height: 20px; stroke: var(--orange); fill: none; stroke-width: 2; }
+    .evidence-search-input-wrap input { width: 100%; height: 52px; padding: 0; border: 0; box-shadow: none; }
+    .evidence-search-filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+    .evidence-search-filters label { font-size: 11px; font-weight: 800; }
+    .evidence-search-filters select { width: 100%; height: 38px; margin-top: 5px; font-size: 12px; }
+    .evidence-search-results { display: grid; gap: 8px; margin-top: 10px; max-height: min(48vh, 440px); overflow-y: auto; }
+    .evidence-search-result { width: 100%; display: grid; gap: 7px; padding: 14px; border: 1px solid var(--line); background: #fff; color: var(--ink); text-align: left; clip-path: none; }
+    .evidence-search-result:hover, .evidence-search-result:focus-visible { border-color: var(--orange); outline: 2px solid var(--orange); outline-offset: 2px; transform: none; }
+    .evidence-search-result strong { font-size: 14px; }
+    .evidence-search-result p { margin: 0; color: var(--ink-muted); font-size: 13px; line-height: 1.5; }
+    .evidence-search-meta { display: flex; flex-wrap: wrap; gap: 6px; color: var(--ink-muted); font-size: 11px; font-weight: 800; }
+    .evidence-search-meta span { padding: 3px 6px; background: var(--gray-100); }
+    .evidence-search-empty { padding: 28px; border: 1px dashed var(--line); color: var(--ink-muted); text-align: center; }
+    @media (max-width: 680px) { .evidence-search-trigger kbd { display: none; } .evidence-search-filters { grid-template-columns: 1fr; } .evidence-search-dialog { padding: 16px; } }
+
     /* 减少动态：保留状态变化，但移除所有非必要位移与过渡 */
     @media (prefers-reduced-motion: reduce) {
       *,
@@ -4022,7 +4048,8 @@
     <symbol id="icon-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"></path></symbol>
     <symbol id="icon-check" viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"></path></symbol>
     <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"></path></symbol>
-    <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"></path><circle cx="12" cy="12" r="2.5"></circle></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6z"></path><circle cx="12" cy="12" r="2.5"></circle></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"></circle><path d="m15 15 5 5"></path></symbol>
     <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v11M8 10l4 4 4-4M4 13v7h16v-7"></path></symbol>
     <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 14V3M8 7l4-4 4 4M4 13v7h16v-7"></path></symbol>
     <symbol id="icon-paragraph" viewBox="0 0 24 24"><path d="M10 4H8a4 4 0 0 0 0 8h2M10 4h7M13 4v16M17 4v16M10 20h7"></path></symbol>
@@ -4175,6 +4202,8 @@
       </span>
       <span>竞品档案</span>
       <small>COMPETITOR PROFILES</small>
+      <!-- 证据搜索入口：采用命令面板式快速检索，不占用 Hero 主操作 -->
+      <button id="evidenceSearchTrigger" class="secondary evidence-search-trigger" type="button"><svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg>搜索证据 <kbd>⌘K</kbd></button>
     </h2>
 
     <!-- JavaScript 会把竞品卡片显示在这里 -->
@@ -4614,6 +4643,22 @@
   </dialog>
 
   <!-- ==============================
+       跨竞品证据搜索弹窗
+       命令面板式检索当前 Tab 证据，并按研究上下文收窄
+       ============================== -->
+  <dialog id="evidenceSearchDialog" class="evidence-search-dialog" aria-labelledby="evidenceSearchTitle">
+    <div class="evidence-search-heading"><div><p>EVIDENCE FINDER / CURRENT TAB</p><h2 id="evidenceSearchTitle">搜索证据</h2></div><kbd>ESC</kbd></div>
+    <label class="evidence-search-input-wrap"><svg aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg><input id="evidenceSearchInput" type="search" autocomplete="off" placeholder="搜索标题、观察内容或来源链接" aria-label="搜索证据"></label>
+    <div class="evidence-search-filters" aria-label="筛选搜索结果">
+      <label>竞品<select id="evidenceSearchCompetitorFilter"><option value="">全部竞品</option></select></label>
+      <label>分析维度<select id="evidenceSearchDimensionFilter"><option value="">全部维度</option></select></label>
+      <label>来源类型<select id="evidenceSearchSourceTypeFilter"><option value="">全部来源</option></select></label>
+    </div>
+    <p id="evidenceSearchSummary" class="evidence-search-summary" aria-live="polite"></p>
+    <div id="evidenceSearchResults" class="evidence-search-results"></div>
+  </dialog>
+
+  <!-- ==============================
        添加调研证据弹窗
        上传图片并填写对应评论
        ============================== -->
@@ -5013,6 +5058,18 @@
     const quickEvidencePasteArea = document.querySelector('#quickEvidencePasteArea');
     const quickEvidenceDimensionOptions = document.querySelector('#quickEvidenceDimensionOptions');
     const saveQuickEvidenceButton = document.querySelector('#saveQuickEvidenceButton');
+
+    /* ==============================
+       获取跨竞品证据搜索相关页面元素
+       ============================== */
+    const evidenceSearchTrigger = document.querySelector('#evidenceSearchTrigger');
+    const evidenceSearchDialog = document.querySelector('#evidenceSearchDialog');
+    const evidenceSearchInput = document.querySelector('#evidenceSearchInput');
+    const evidenceSearchCompetitorFilter = document.querySelector('#evidenceSearchCompetitorFilter');
+    const evidenceSearchDimensionFilter = document.querySelector('#evidenceSearchDimensionFilter');
+    const evidenceSearchSourceTypeFilter = document.querySelector('#evidenceSearchSourceTypeFilter');
+    const evidenceSearchSummary = document.querySelector('#evidenceSearchSummary');
+    const evidenceSearchResults = document.querySelector('#evidenceSearchResults');
     const evidenceDialogTitle =
       document.querySelector('#evidenceDialogTitle');
     const evidenceForm = document.querySelector('#evidenceForm');
@@ -5499,6 +5556,74 @@
        渲染竞品档案
        每张竞品卡片内包含自己的证据横向列表
        ============================== */
+    /* ==============================
+       跨竞品证据搜索
+       命令面板快捷键、组合筛选与证据详情回链
+       ============================== */
+    function renderEvidenceSearchFilters() {
+      const selected = [
+        evidenceSearchCompetitorFilter.value,
+        evidenceSearchDimensionFilter.value,
+        evidenceSearchSourceTypeFilter.value
+      ];
+      const dimensions = comparisonData.dimensions || [];
+      const sourceTypes = [...new Set(evidenceItems.map(item => item.sourceType).filter(Boolean))];
+      evidenceSearchCompetitorFilter.innerHTML = `<option value="">全部竞品</option>${competitors.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('')}`;
+      evidenceSearchDimensionFilter.innerHTML = `<option value="">全部维度</option>${dimensions.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('')}`;
+      evidenceSearchSourceTypeFilter.innerHTML = `<option value="">全部来源</option>${sourceTypes.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join('')}`;
+      [evidenceSearchCompetitorFilter, evidenceSearchDimensionFilter, evidenceSearchSourceTypeFilter].forEach((control, index) => { control.value = selected[index]; });
+    }
+
+    function getFilteredEvidenceSearchResults() {
+      const query = evidenceSearchInput.value.trim().toLowerCase();
+      const competitorId = evidenceSearchCompetitorFilter.value;
+      const dimensionId = evidenceSearchDimensionFilter.value;
+      const sourceType = evidenceSearchSourceTypeFilter.value;
+      return evidenceItems.filter(evidence => {
+        const searchable = [evidence.title, stripHtml(evidence.content || evidence.contentHtml || evidence.comment || ''), evidence.sourceUrl, evidence.sourceType].join(' ').toLowerCase();
+        return (!query || searchable.includes(query)) &&
+          (!competitorId || evidence.competitorId === competitorId) &&
+          (!dimensionId || (evidence.dimensionIds || []).includes(dimensionId)) &&
+          (!sourceType || evidence.sourceType === sourceType);
+      });
+    }
+
+    function renderEvidenceSearchResults() {
+      const results = getFilteredEvidenceSearchResults();
+      evidenceSearchSummary.textContent = `当前空间 · 找到 ${results.length} 条证据`;
+      evidenceSearchResults.innerHTML = results.length ? results.map(item => {
+        const competitor = competitors.find(entry => entry.id === item.competitorId);
+        const dimensions = (item.dimensionIds || []).map(id => (comparisonData.dimensions || []).find(entry => entry.id === id)?.name).filter(Boolean);
+        const excerpt = stripHtml(item.content || item.comment || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        return `<button class="evidence-search-result" type="button" data-evidence-search-result-id="${escapeHtml(item.id)}"><strong>${escapeHtml(item.title || '未命名证据')}</strong><p>${escapeHtml(excerpt || item.sourceUrl || '暂无文字摘要')}</p><span class="evidence-search-meta"><span>${escapeHtml(competitor?.name || '未归属竞品')}</span>${dimensions.map(name => `<span>${escapeHtml(name)}</span>`).join('')}<span>${escapeHtml(item.sourceType || '未标注来源')}</span></span></button>`;
+      }).join('') : '<div class="evidence-search-empty">没有匹配证据。试试清空筛选或换一个关键词。</div>';
+    }
+
+    function openEvidenceSearchDialog() {
+      renderEvidenceSearchFilters();
+      renderEvidenceSearchResults();
+      evidenceSearchDialog.showModal();
+      evidenceSearchInput.focus();
+    }
+
+    evidenceSearchTrigger.addEventListener('click', openEvidenceSearchDialog);
+    [evidenceSearchInput, evidenceSearchCompetitorFilter, evidenceSearchDimensionFilter, evidenceSearchSourceTypeFilter].forEach(control => control.addEventListener('input', renderEvidenceSearchResults));
+    evidenceSearchResults.addEventListener('click', event => {
+      const result = event.target.closest('[data-evidence-search-result-id]');
+      if (!result) return;
+      const evidenceIndex = evidenceItems.findIndex(item => item.id === result.dataset.evidenceSearchResultId);
+      evidenceSearchDialog.close();
+      if (evidenceIndex >= 0) openEvidenceDetail(evidenceIndex);
+    });
+    document.addEventListener('keydown', event => {
+      const target = event.target;
+      const editing = target.matches('input, textarea, select, [contenteditable="true"]');
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !editing) {
+        event.preventDefault();
+        openEvidenceSearchDialog();
+      }
+    });
+
     function render() {
       renderWorkspaceTabs();
 
