@@ -1049,6 +1049,9 @@
 
     .cloud-account-panel button {
       width: 100%;
+      justify-content: flex-start;
+      gap: 8px;
+      padding: 9px 12px;
       color: var(--black);
       background: var(--white);
       border-color: var(--orange);
@@ -4297,6 +4300,8 @@
     <symbol id="icon-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"></path></symbol>
     <symbol id="icon-check" viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"></path></symbol>
     <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"></path></symbol>
+    <!-- 退出图标：门框与向外箭头明确表达离开账户，不复用导航箭头 -->
+    <symbol id="icon-exit" viewBox="0 0 24 24"><path d="M14 4H5v16h9M10 12h11M17 8l4 4-4 4"></path></symbol>
     <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6z"></path><circle cx="12" cy="12" r="2.5"></circle></symbol>
     <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"></circle><path d="m15 15 5 5"></path></symbol>
     <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v11M8 10l4 4 4-4M4 13v7h16v-7"></path></symbol>
@@ -4374,7 +4379,7 @@
           </button>
           <div id="cloudAccountPanel" class="cloud-account-panel" hidden>
             <button id="cloudLogoutButton" type="button">
-              <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
+              <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-exit"></use></svg>
               退出登录
             </button>
           </div>
@@ -4721,7 +4726,7 @@
 
   <!-- ==============================
        公开来源管理弹窗
-       为单个竞品维护本机 HTTPS 来源，不伪造尚未建立的云端同步
+       为单个竞品维护公开 HTTPS 来源，登录后显示真实云端同步状态
        ============================== -->
   <dialog id="sourceManagementDialog" class="source-dialog" aria-labelledby="sourceDialogTitle">
     <div class="source-dialog-header">
@@ -4729,7 +4734,7 @@
       <h2 id="sourceDialogTitle">来源管理</h2>
     </div>
     <div class="source-dialog-body">
-      <p class="source-sync-notice" role="status"><strong>本机保存，尚未同步</strong><br>当前版本未建立安全的认证会话适配器，来源与候选仅保存在本机。</p>
+      <p id="sourceSyncNotice" class="source-sync-notice" role="status"><strong>本机保存，尚未同步</strong><br>登录 GitHub 后将通过受 RLS 保护的云端接口同步来源与候选。</p>
       <form id="sourceForm">
         <input id="sourceId" type="hidden">
         <label>来源名称<input id="sourceLabel" maxlength="80" required placeholder="例如：产品更新日志"></label>
@@ -5416,7 +5421,13 @@
           renderCloudLogin();
           return;
         }
-        renderCloudAccount(await response.json());
+        const profile = await response.json();
+        renderCloudAccount(profile);
+        void synchronizeCloudSourceCapture(profile, accessToken).catch(error => {
+          sourceCaptureState.cloudSynced = false;
+          updateSourceSyncNotice('error', error.message);
+          renderSourceList();
+        });
       } catch (error) {
         renderCloudLogin();
       }
@@ -5437,6 +5448,11 @@
         }
       } finally {
         clearCloudAuthSession();
+        if (typeof sourceCaptureState !== 'undefined') {
+          sourceCaptureState.cloudSynced = false;
+          sourceCaptureState.cloudWorkspaceId = null;
+          updateSourceSyncNotice('local');
+        }
         renderCloudLogin();
       }
     }
@@ -5544,6 +5560,7 @@
     const sourceType = document.querySelector('#sourceType');
     const sourceFrequency = document.querySelector('#sourceFrequency');
     const sourceList = document.querySelector('#sourceList');
+    const sourceSyncNotice = document.querySelector('#sourceSyncNotice');
     const reviewQueueButton = document.querySelector('#reviewQueueButton');
     const reviewQueueCount = document.querySelector('#reviewQueueCount');
     const reviewQueueDialog = document.querySelector('#reviewQueueDialog');
@@ -6297,12 +6314,131 @@
       return {
         version: 1,
         sources: Array.isArray(stored?.sources) ? stored.sources : [],
-        candidates: Array.isArray(stored?.candidates) ? stored.candidates : []
+        candidates: Array.isArray(stored?.candidates) ? stored.candidates : [],
+        cloudSynced: false,
+        cloudWorkspaceId: null
       };
     }
 
     function persistSourceCaptureState() {
-      localStorage.setItem(sourceCaptureStorageKey, JSON.stringify(sourceCaptureState));
+      const localSnapshot = {
+        version: 1,
+        sources: sourceCaptureState.sources,
+        candidates: sourceCaptureState.candidates
+      };
+      localStorage.setItem(sourceCaptureStorageKey, JSON.stringify(localSnapshot));
+    }
+
+    /* ==============================
+       来源采集云端 REST 会话
+       仅使用公开运行时配置与当前用户 Bearer Token，所有访问继续受 RLS 约束
+       ============================== */
+    function updateSourceSyncNotice(state, detail = '') {
+      if (!sourceSyncNotice) return;
+      const messages = {
+        local: '<strong>本机保存，尚未同步</strong><br>登录 GitHub 后将通过受 RLS 保护的云端接口同步来源与候选。',
+        syncing: '<strong>正在同步云端</strong><br>正在准备工作区、Tab、竞品和来源外键关系。',
+        synced: '<strong>云端已同步</strong><br>来源变更由 Supabase RLS 保护；候选仍须人工审核。',
+        error: `<strong>云端同步失败，已保留本机数据</strong><br>${escapeHtml(detail || '可稍后重试，当前不会丢失本机来源。')}`
+      };
+      sourceSyncNotice.innerHTML = messages[state] || messages.local;
+    }
+
+    async function cloudRestRequest(resource, options = {}) {
+      const config = getCloudRuntimeConfig();
+      const accessToken = options.accessToken || readCloudAccessToken();
+      if (!config.enabled || !accessToken) throw new Error('云端会话不可用。');
+      if (options.method === 'POST' && Array.isArray(options.body) && options.body.length === 0) return [];
+      const headers = {
+        apikey: config.publishableKey,
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        ...(options.headers || {})
+      };
+      if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+      const response = await fetch(
+        `${config.url.replace(/\/$/, '')}/rest/v1/${resource}`,
+        { method: options.method || 'GET', headers, body: options.body === undefined ? undefined : JSON.stringify(options.body) }
+      );
+      if (!response.ok) {
+        let message = `云端请求失败（${response.status}）。`;
+        try { message = (await response.json()).message || message; } catch (error) { /* 非 JSON 错误使用安全状态说明。 */ }
+        throw new Error(message);
+      }
+      if (response.status === 204) return [];
+      const text = await response.text();
+      return text ? JSON.parse(text) : [];
+    }
+
+    /* 首选当前用户已有工作区；不存在时由 owner 触发器安全建立成员关系。 */
+    async function resolveCloudWorkspace(profile, accessToken) {
+      const existing = await cloudRestRequest(
+        `workspaces?owner_user_id=eq.${encodeURIComponent(profile.id)}&select=id,name&order=created_at.asc&limit=1`, { accessToken }
+      );
+      if (existing[0]?.id) return existing[0];
+      const created = await cloudRestRequest('workspaces', {
+        method: 'POST', accessToken,
+        headers: { Prefer: 'return=representation' },
+        body: { id: createId(), owner_user_id: profile.id, name: '竞品洞察台' }
+      });
+      if (!created[0]?.id) throw new Error('云端工作区创建后未返回标识。');
+      return created[0];
+    }
+
+    function mapLocalSourceToCloud(item, workspaceId) {
+      const sourceTypes = {
+        product: 'product_page', changelog: 'changelog', help: 'help_center',
+        pricing: 'pricing', blog: 'blog', 'release-notes': 'release_notes'
+      };
+      return {
+        id: item.id, workspace_id: workspaceId, tab_id: item.tabId,
+        competitor_id: item.competitorId, label: item.label,
+        source_type: sourceTypes[item.type] || 'product_page', url: item.url,
+        fetch_interval_hours: Number(item.frequencyHours), is_enabled: true
+      };
+    }
+
+    function mapCloudSourceToLocal(item) {
+      const sourceTypes = {
+        product_page: 'product', help_center: 'help', release_notes: 'release-notes'
+      };
+      return {
+        id: item.id, tabId: item.tab_id, competitorId: item.competitor_id,
+        label: item.label, type: sourceTypes[item.source_type] || item.source_type,
+        url: item.url, frequencyHours: item.fetch_interval_hours,
+        createdAt: item.created_at, updatedAt: item.updated_at
+      };
+    }
+
+    /* 先写 FK 前置实体，再上传来源并读取 RLS 范围内的来源和待审核候选。 */
+    async function synchronizeCloudSourceCapture(profile, accessToken) {
+      updateSourceSyncNotice('syncing');
+      const workspace = await resolveCloudWorkspace(profile, accessToken);
+      const upsert = { method: 'POST', accessToken, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } };
+      await cloudRestRequest("workspace_tabs", { ...upsert, body: workspaceState.tabs.map((tab, index) => ({ id: tab.id, workspace_id: workspace.id, name: tab.name, sort_order: index })) });
+      await cloudRestRequest("competitors", { ...upsert, body: workspaceState.tabs.flatMap(tab => tab.competitors.map(item => ({ id: item.id, workspace_id: workspace.id, tab_id: tab.id, name: item.name, website: item.website || '', positioning: item.positioning || '', is_sample: item.isSample === true }))) });
+      await cloudRestRequest("competitor_sources", { ...upsert, body: sourceCaptureState.sources.map(item => mapLocalSourceToCloud(item, workspace.id)) });
+      const cloudSources = await cloudRestRequest(`competitor_sources?workspace_id=eq.${encodeURIComponent(workspace.id)}&select=*`, { accessToken });
+      const candidates = await cloudRestRequest(`source_capture_candidates?workspace_id=eq.${encodeURIComponent(workspace.id)}&status=eq.pending&select=id,tab_id,competitor_id,source_url,title,summary,status,created_at&order=created_at.desc`, { accessToken });
+      sourceCaptureState.sources = cloudSources.map(mapCloudSourceToLocal);
+      sourceCaptureState.candidates = candidates.map(item => ({ id: item.id, tabId: item.tab_id, competitorId: item.competitor_id, sourceUrl: item.source_url, title: item.title, summary: item.summary, status: item.status, createdAt: item.created_at }));
+      sourceCaptureState.cloudSynced = true;
+      sourceCaptureState.cloudWorkspaceId = workspace.id;
+      persistSourceCaptureState();
+      updateSourceSyncNotice('synced');
+      renderSourceList(); renderReviewQueue(); render();
+    }
+
+    async function createCloudCompetitorSource(record) {
+      return cloudRestRequest('competitor_sources', { method: 'POST', headers: { Prefer: 'return=representation' }, body: mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId) });
+    }
+
+    async function updateCloudCompetitorSource(record) {
+      return cloudRestRequest(`competitor_sources?id=eq.${encodeURIComponent(record.id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId) });
+    }
+
+    async function deleteCloudCompetitorSource(recordId) {
+      return cloudRestRequest(`competitor_sources?id=eq.${encodeURIComponent(recordId)}`, { method: 'DELETE' });
     }
 
     function isPrivateSourceHostname(hostname = '') {
@@ -6360,7 +6496,7 @@
         <article class="source-list-item">
           <div class="source-list-heading"><div><h3>${escapeHtml(item.label)}</h3><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a></div>
           <div class="source-item-actions"><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
-          <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>本机保存</span></p>
+          <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>${sourceCaptureState.cloudSynced ? '云端已同步' : '本机保存'}</span></p>
         </article>`).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
     }
 
@@ -6386,7 +6522,7 @@
       openEvidenceDialog(candidate.competitorId, null, '人工采纳候选证据');
     }
 
-    sourceForm.addEventListener('submit', event => {
+    sourceForm.addEventListener('submit', async event => {
       event.preventDefault();
       const normalizedUrl = normalizePublicHttpsSourceUrl(sourceUrl.value);
       if (!normalizedUrl) { window.alert('来源只允许可公开访问的 HTTPS 地址，不能使用本机或私有网络地址。'); sourceUrl.focus(); return; }
@@ -6395,18 +6531,35 @@
       const existingIndex = sourceCaptureState.sources.findIndex(item => item.id === sourceId.value);
       const now = new Date().toISOString();
       const record = { id: sourceId.value || createId(), tabId: activeWorkspaceTab.id, competitorId: selectedSourceCompetitorId, label: sourceLabel.value.trim(), url: normalizedUrl, type: sourceType.value, frequencyHours: Number(sourceFrequency.value), createdAt: existingIndex >= 0 ? sourceCaptureState.sources[existingIndex].createdAt : now, updatedAt: now };
+      if (sourceCaptureState.cloudSynced) {
+        try {
+          if (existingIndex >= 0) await updateCloudCompetitorSource(record);
+          else await createCloudCompetitorSource(record);
+        } catch (error) {
+          updateSourceSyncNotice('error', error.message);
+          window.alert(`来源未保存到云端：${error.message}`);
+          return;
+        }
+      }
       if (existingIndex >= 0) sourceCaptureState.sources[existingIndex] = record; else sourceCaptureState.sources.push(record);
       persistSourceCaptureState(); resetSourceForm(); renderSourceList(); render();
     });
 
-    sourceList.addEventListener('click', event => {
+    sourceList.addEventListener('click', async event => {
       const editButton = event.target.closest('[data-edit-source-id]');
       const deleteButton = event.target.closest('[data-delete-source-id]');
       const id = editButton?.dataset.editSourceId || deleteButton?.dataset.deleteSourceId;
       const item = sourceCaptureState.sources.find(entry => entry.id === id);
       if (!item) return;
       if (editButton) { sourceId.value = item.id; sourceLabel.value = item.label; sourceUrl.value = item.url; sourceType.value = item.type; sourceFrequency.value = String(item.frequencyHours); setButtonLabel(document.querySelector('#saveSourceButton'), '保存修改'); sourceLabel.focus(); return; }
-      if (window.confirm(`确定删除来源“${item.label}”吗？`)) { sourceCaptureState.sources = sourceCaptureState.sources.filter(entry => entry.id !== id); persistSourceCaptureState(); renderSourceList(); render(); }
+      if (window.confirm(`确定删除来源“${item.label}”吗？`)) {
+        if (sourceCaptureState.cloudSynced) {
+          try { await deleteCloudCompetitorSource(id); }
+          catch (error) { updateSourceSyncNotice('error', error.message); window.alert(`云端来源未删除：${error.message}`); return; }
+        }
+        sourceCaptureState.sources = sourceCaptureState.sources.filter(entry => entry.id !== id);
+        persistSourceCaptureState(); renderSourceList(); render();
+      }
     });
     document.querySelector('#cancelSourceEditButton').addEventListener('click', resetSourceForm);
     document.querySelector('#closeSourceDialogButton').addEventListener('click', () => sourceManagementDialog.close());
