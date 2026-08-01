@@ -28,10 +28,11 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn("parsedUrl.protocol !== 'https:'", SOURCE)
         self.assertIn("isPrivateSourceHostname(parsedUrl.hostname)", SOURCE)
 
-    def test_sources_are_additive_local_data_and_cloud_state_is_honest(self):
+    def test_sources_keep_local_fallback_and_report_successful_cloud_sync_honestly(self):
         self.assertIn("const sourceCaptureStorageKey =\n      'competitor-insights-source-capture-v1';", SOURCE)
         self.assertIn('本机保存，尚未同步', SOURCE)
-        self.assertIn('当前版本未建立安全的认证会话适配器，来源与候选仅保存在本机。', SOURCE)
+        self.assertIn('登录 GitHub 后将通过受 RLS 保护的云端接口同步来源与候选。', SOURCE)
+        self.assertIn('云端已同步', SOURCE)
         self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY", SOURCE)
 
     def test_review_queue_exposes_pending_metadata_and_human_preparation_action(self):

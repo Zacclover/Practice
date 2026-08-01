@@ -53,6 +53,19 @@ class GitHubAuthEntryTests(unittest.TestCase):
         self.assertIn('cloudLoginButton.hidden = true', SOURCE)
         self.assertIn('cloudAccountMenu.hidden = false', SOURCE)
 
+    def test_logout_menu_uses_dedicated_exit_icon_without_excess_indent(self):
+        self.assertIn('<symbol id="icon-exit"', SOURCE)
+        logout = re.search(
+            r'<button id="cloudLogoutButton".*?</button>', SOURCE, re.S
+        )
+        self.assertIsNotNone(logout)
+        self.assertIn('href="#icon-exit"', logout.group(0))
+        self.assertNotIn('href="#icon-arrow-right"', logout.group(0))
+        self.assertRegex(
+            SOURCE,
+            r'\.cloud-account-panel button\s*\{[^}]*justify-content:\s*flex-start;[^}]*padding:\s*9px 12px;',
+        )
+
     def test_auth_entry_does_not_embed_sdk_or_secret_credentials(self):
         self.assertNotIn('supabase.createClient', SOURCE)
         self.assertNotRegex(SOURCE.lower(), r'service_role|secret[_-]?key')
