@@ -41,6 +41,18 @@ class GitHubAuthEntryTests(unittest.TestCase):
         self.assertIn('window.location.pathname', body)
         self.assertIn('window.location.assign', body)
 
+    def test_authenticated_github_profile_replaces_login_button_and_offers_logout(self):
+        self.assertIn('id="cloudAccountMenu"', SOURCE)
+        self.assertIn('id="cloudAccountAvatar"', SOURCE)
+        self.assertIn('id="cloudAccountName"', SOURCE)
+        self.assertIn('id="cloudLogoutButton"', SOURCE)
+        self.assertIn('function renderCloudAccount(profile)', SOURCE)
+        self.assertIn('function signOutCloudAccount()', SOURCE)
+        self.assertIn("/auth/v1/user", SOURCE)
+        self.assertIn("/auth/v1/logout", SOURCE)
+        self.assertIn('cloudLoginButton.hidden = true', SOURCE)
+        self.assertIn('cloudAccountMenu.hidden = false', SOURCE)
+
     def test_auth_entry_does_not_embed_sdk_or_secret_credentials(self):
         self.assertNotIn('supabase.createClient', SOURCE)
         self.assertNotRegex(SOURCE.lower(), r'service_role|secret[_-]?key')

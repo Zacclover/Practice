@@ -989,6 +989,77 @@
       padding: 9px 16px;
     }
 
+    /* 云端账户菜单：使用工业式直角边框承载账户身份与退出操作 */
+    .cloud-account-menu {
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .cloud-account-trigger {
+      max-width: 220px;
+      padding: 7px 10px;
+      color: var(--black);
+      background: var(--white);
+      border: 1px solid var(--line-strong);
+    }
+
+    .cloud-account-avatar,
+    .cloud-account-avatar-fallback {
+      width: 26px;
+      height: 26px;
+      flex: 0 0 26px;
+      border: 1px solid var(--line-strong);
+      border-radius: 0;
+      object-fit: cover;
+    }
+
+    .cloud-account-avatar-fallback {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--white);
+      background: var(--graphite);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .cloud-account-avatar:not([hidden]) +
+    .cloud-account-avatar-fallback {
+      display: none;
+    }
+
+    .cloud-account-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cloud-account-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 20;
+      width: max-content;
+      min-width: 180px;
+      padding: 8px;
+      background: var(--white);
+      border: 2px solid var(--line-strong);
+    }
+
+    .cloud-account-panel button {
+      width: 100%;
+      color: var(--black);
+      background: var(--white);
+      border-color: var(--orange);
+    }
+
+    .cloud-account-panel button:hover,
+    .cloud-account-panel button:focus-visible {
+      color: var(--black);
+      background: var(--orange);
+    }
+
     .tab-options-list {
       display: grid;
       gap: 8px;
@@ -4289,6 +4360,25 @@
           <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
           使用 GitHub 登录
         </button>
+        <!-- 云端账户：登录成功后替换登录按钮，并提供可访问的账户菜单 -->
+        <div id="cloudAccountMenu" class="cloud-account-menu" hidden>
+          <button
+            id="cloudAccountTrigger"
+            class="cloud-account-trigger"
+            type="button"
+            aria-expanded="false"
+            aria-controls="cloudAccountPanel">
+            <img id="cloudAccountAvatar" class="cloud-account-avatar" alt="" hidden>
+            <span id="cloudAccountAvatarFallback" class="cloud-account-avatar-fallback" aria-hidden="true">GH</span>
+            <span id="cloudAccountName" class="cloud-account-name">GitHub 用户</span>
+          </button>
+          <div id="cloudAccountPanel" class="cloud-account-panel" hidden>
+            <button id="cloudLogoutButton" type="button">
+              <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
+              退出登录
+            </button>
+          </div>
+        </div>
         <button
           class="backup-button"
           id="exportDataButton"
@@ -5216,10 +5306,149 @@
       window.location.assign(authorizeUrl);
     }
 
+    /* ==============================
+       GitHub OAuth 回调与账户会话
+       访问令牌仅保留在当前标签页，并只发送到配置的 Supabase 项目
+       ============================== */
+    const cloudAuthSessionKey =
+      'competitor-insights-cloud-access-token-v1';
+
+    function clearCloudAuthHash() {
+      const callbackHash = new URLSearchParams(
+        window.location.hash.replace(/^#/, '')
+      );
+      if (!callbackHash.has('access_token') &&
+          !callbackHash.has('error') &&
+          !callbackHash.has('error_description')) return;
+      window.history.replaceState(
+        null,
+        document.title,
+        window.location.pathname + window.location.search
+      );
+    }
+
+    function readCloudAccessToken() {
+      const callbackHash = new URLSearchParams(
+        window.location.hash.replace(/^#/, '')
+      );
+      const callbackToken = callbackHash.get('access_token');
+      if (callbackToken) {
+        try {
+          sessionStorage.setItem(cloudAuthSessionKey, callbackToken);
+        } catch (error) {
+          /* 浏览器禁用会话存储时仍允许本次回调完成。 */
+        }
+        clearCloudAuthHash();
+        return callbackToken;
+      }
+      try {
+        return sessionStorage.getItem(cloudAuthSessionKey) || '';
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function clearCloudAuthSession() {
+      try {
+        sessionStorage.removeItem(cloudAuthSessionKey);
+      } catch (error) {
+        /* 会话存储不可用时无需处理其他应用数据。 */
+      }
+      clearCloudAuthHash();
+    }
+
+    function renderCloudLogin() {
+      cloudAccountMenu.hidden = true;
+      cloudAccountPanel.hidden = true;
+      cloudAccountTrigger.setAttribute('aria-expanded', 'false');
+      cloudLoginButton.hidden = !getCloudRuntimeConfig().enabled;
+    }
+
+    function getCloudAccountName(profile) {
+      const metadata = profile?.user_metadata || {};
+      return metadata.full_name || metadata.name || metadata.login ||
+        metadata.user_name || 'GitHub 用户';
+    }
+
+    function renderCloudAccount(profile) {
+      const metadata = profile?.user_metadata || {};
+      const accountName = getCloudAccountName(profile);
+      cloudAccountName.textContent = accountName;
+      cloudAccountAvatarFallback.textContent =
+        accountName.trim().slice(0, 2).toUpperCase() || 'GH';
+
+      cloudAccountAvatar.hidden = true;
+      cloudAccountAvatar.removeAttribute('src');
+      cloudAccountAvatar.alt = '';
+      if (typeof metadata.avatar_url === 'string') {
+        try {
+          const avatarUrl = new URL(metadata.avatar_url);
+          if (avatarUrl.protocol === 'https:') {
+            cloudAccountAvatar.src = avatarUrl.href;
+            cloudAccountAvatar.alt = `${accountName} 的 GitHub 头像`;
+            cloudAccountAvatar.hidden = false;
+          }
+        } catch (error) {
+          /* 无效头像地址使用文字头像兜底。 */
+        }
+      }
+
+      cloudLoginButton.hidden = true;
+      cloudAccountMenu.hidden = false;
+    }
+
+    async function loadCloudAccount(config, accessToken) {
+      try {
+        const response = await fetch(
+          `${config.url.replace(/\/$/, '')}/auth/v1/user`,
+          {
+            method: 'GET',
+            headers: {
+              apikey: config.publishableKey,
+              Authorization: `Bearer ${accessToken}`
+            }
+          }
+        );
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            clearCloudAuthSession();
+          }
+          renderCloudLogin();
+          return;
+        }
+        renderCloudAccount(await response.json());
+      } catch (error) {
+        renderCloudLogin();
+      }
+    }
+
+    async function signOutCloudAccount() {
+      const config = getCloudRuntimeConfig();
+      const accessToken = readCloudAccessToken();
+      try {
+        if (config.enabled && accessToken) {
+          await fetch(`${config.url.replace(/\/$/, '')}/auth/v1/logout`, {
+            method: 'POST',
+            headers: {
+              apikey: config.publishableKey,
+              Authorization: `Bearer ${accessToken}`
+            }
+          });
+        }
+      } finally {
+        clearCloudAuthSession();
+        renderCloudLogin();
+      }
+    }
+
     function initializeCloudAuthEntry() {
       const config = getCloudRuntimeConfig();
       if (!config.enabled) return;
       cloudLoginButton.hidden = false;
+      const accessToken = readCloudAccessToken();
+      if (accessToken) {
+        void loadCloudAccount(config, accessToken);
+      }
     }
 
     /* ==============================
@@ -5261,6 +5490,20 @@
       document.querySelector('#addWorkspaceTabButton');
     const cloudLoginButton =
       document.querySelector('#cloudLoginButton');
+    const cloudAccountMenu =
+      document.querySelector('#cloudAccountMenu');
+    const cloudAccountTrigger =
+      document.querySelector('#cloudAccountTrigger');
+    const cloudAccountAvatar =
+      document.querySelector('#cloudAccountAvatar');
+    const cloudAccountAvatarFallback =
+      document.querySelector('#cloudAccountAvatarFallback');
+    const cloudAccountName =
+      document.querySelector('#cloudAccountName');
+    const cloudAccountPanel =
+      document.querySelector('#cloudAccountPanel');
+    const cloudLogoutButton =
+      document.querySelector('#cloudLogoutButton');
     const tabDialog = document.querySelector('#tabDialog');
     const tabForm = document.querySelector('#tabForm');
     const tabDialogTitle = document.querySelector('#tabDialogTitle');
@@ -5747,6 +5990,34 @@
     });
 
     cloudLoginButton.addEventListener('click', startGitHubLogin);
+
+    /* 云端账户菜单交互：支持点击、外部关闭与 Escape 键关闭。 */
+    cloudAccountTrigger.addEventListener('click', () => {
+      const willOpen = cloudAccountPanel.hidden;
+      cloudAccountPanel.hidden = !willOpen;
+      cloudAccountTrigger.setAttribute('aria-expanded', String(willOpen));
+    });
+
+    cloudAccountAvatar.addEventListener('error', () => {
+      cloudAccountAvatar.hidden = true;
+      cloudAccountAvatar.removeAttribute('src');
+    });
+
+    cloudLogoutButton.addEventListener('click', signOutCloudAccount);
+
+    document.addEventListener('click', event => {
+      if (cloudAccountMenu.hidden ||
+          cloudAccountMenu.contains(event.target)) return;
+      cloudAccountPanel.hidden = true;
+      cloudAccountTrigger.setAttribute('aria-expanded', 'false');
+    });
+
+    cloudAccountMenu.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || cloudAccountPanel.hidden) return;
+      cloudAccountPanel.hidden = true;
+      cloudAccountTrigger.setAttribute('aria-expanded', 'false');
+      cloudAccountTrigger.focus();
+    });
 
     cancelTabButton.addEventListener('click', () => {
       tabDialog.close();
