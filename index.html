@@ -4151,6 +4151,40 @@
     .evidence-search-empty { padding: 28px; border: 1px dashed var(--line); color: var(--ink-muted); text-align: center; }
     @media (max-width: 680px) { .competitor-section-header { align-items: flex-start; } .evidence-search-trigger { min-height: 40px; } .evidence-search-filters { grid-template-columns: 1fr; } .evidence-search-dialog { padding: 16px; } }
 
+    /* ==============================
+       来源管理与候选审核
+       复用工业弹窗、表单、边线和按钮语义，并与证据区域分层避免重叠
+       ============================== */
+    .competitor-source-management {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line-subtle);
+    }
+    .competitor-source-management p { min-height: 0; margin: 0; color: var(--line-medium); font-size: 12px; }
+    .source-management-trigger { flex: 0 0 auto; min-height: 40px; padding: 9px 12px; }
+    .source-dialog { width: min(760px, calc(100% - 32px)); max-height: calc(100vh - 40px); padding: 0; overflow-y: auto; }
+    .source-dialog-header { padding: 22px 24px 16px; border-bottom: 2px solid var(--line-strong); }
+    .source-dialog-header h2 { margin: 4px 0 0; }
+    .source-dialog-kicker { margin: 0; color: var(--orange); font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+    .source-dialog-body { display: grid; gap: 16px; padding: 20px 24px; }
+    .source-sync-notice { margin: 0; padding: 12px; color: var(--ink); background: var(--gray-100); border-left: 3px solid var(--orange); }
+    .source-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .source-list, .review-queue-list { display: grid; gap: 10px; }
+    .source-list-item, .review-candidate { padding: 14px; background: var(--white); border: 1px solid var(--line-subtle); }
+    .source-list-heading, .review-candidate-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+    .source-list-item h3, .review-candidate h3 { margin: 0; font-size: 16px; }
+    .source-list-item a, .review-candidate a { color: var(--ink); text-decoration-color: var(--orange); }
+    .source-item-meta, .review-candidate-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0 0; color: var(--line-medium); font-family: var(--font-mono); font-size: 10px; }
+    .source-item-actions { display: flex; gap: 8px; }
+    .source-item-actions button { min-width: 40px; min-height: 40px; padding: 8px; }
+    .review-candidate-summary { margin: 12px 0; color: var(--line-medium); }
+    .review-queue-empty { padding: 22px; text-align: center; background: var(--gray-100); border: 1px dashed var(--line-medium); }
+    @media (max-width: 680px) { .source-form-grid { grid-template-columns: 1fr; } .source-dialog-header, .source-dialog-body { padding-right: 16px; padding-left: 16px; } }
+
     /* 减少动态：保留状态变化，但移除所有非必要位移与过渡 */
     @media (prefers-reduced-motion: reduce) {
       *,
@@ -4359,6 +4393,10 @@
     </h2>
       <!-- 证据搜索入口：与横向对比的操作区保持同级右对齐 -->
       <div class="comparison-actions">
+        <button id="reviewQueueButton" class="secondary" type="button">
+          <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg>
+          审核队列 <span id="reviewQueueCount">0</span>
+        </button>
         <button id="evidenceSearchTrigger" class="secondary evidence-search-trigger" type="button" aria-label="搜索证据" title="搜索证据"><svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg></button>
       </div>
     </section>
@@ -4588,6 +4626,48 @@
         <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
         开始使用
       </button>
+    </div>
+  </dialog>
+
+  <!-- ==============================
+       公开来源管理弹窗
+       为单个竞品维护本机 HTTPS 来源，不伪造尚未建立的云端同步
+       ============================== -->
+  <dialog id="sourceManagementDialog" class="source-dialog" aria-labelledby="sourceDialogTitle">
+    <div class="source-dialog-header">
+      <p class="source-dialog-kicker">SOURCE REGISTRY / LOCAL V1</p>
+      <h2 id="sourceDialogTitle">来源管理</h2>
+    </div>
+    <div class="source-dialog-body">
+      <p class="source-sync-notice" role="status"><strong>本机保存，尚未同步</strong><br>当前版本未建立安全的认证会话适配器，来源与候选仅保存在本机。</p>
+      <form id="sourceForm">
+        <input id="sourceId" type="hidden">
+        <label>来源名称<input id="sourceLabel" maxlength="80" required placeholder="例如：产品更新日志"></label>
+        <label>公开 HTTPS 地址<input id="sourceUrl" type="url" inputmode="url" required placeholder="https://example.com/changelog"></label>
+        <div class="source-form-grid">
+          <label>来源类型<select id="sourceType" required><option value="product">产品</option><option value="changelog">更新日志</option><option value="help">帮助中心</option><option value="pricing">定价</option><option value="blog">博客</option><option value="release-notes">发布说明</option></select></label>
+          <label>检查频率<select id="sourceFrequency" required><option value="24">每天</option><option value="72">每 3 天</option><option value="168" selected>每周</option><option value="336">每 2 周</option><option value="720">每月</option></select></label>
+        </div>
+        <div class="actions">
+          <button id="cancelSourceEditButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>清空</button>
+          <button id="saveSourceButton" type="submit"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">添加来源</span></button>
+        </div>
+      </form>
+      <div id="sourceList" class="source-list"></div>
+      <div class="actions"><button id="closeSourceDialogButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>关闭</button></div>
+    </div>
+  </dialog>
+
+  <!-- ==============================
+       待审核候选队列弹窗
+       只展示候选元数据并准备人工证据草稿，不自动写入证据或矩阵
+       ============================== -->
+  <dialog id="reviewQueueDialog" class="source-dialog" aria-labelledby="reviewQueueTitle">
+    <div class="source-dialog-header"><p class="source-dialog-kicker">HUMAN REVIEW / PENDING</p><h2 id="reviewQueueTitle">来源审核队列</h2></div>
+    <div class="source-dialog-body">
+      <p class="source-sync-notice">仅准备证据草稿，不会自动写入证据或横向对比。</p>
+      <div id="reviewQueueList" class="review-queue-list"></div>
+      <div class="actions"><button id="closeReviewQueueButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>关闭</button></div>
     </div>
   </dialog>
 
@@ -5151,6 +5231,8 @@
     const comparisonStorageKey = 'competitor-insights-comparison';
     const workspaceStorageKey =
       'competitor-insights-workspaces-v2';
+    const sourceCaptureStorageKey =
+      'competitor-insights-source-capture-v1';
     const systemIntroductionSeenKey =
       'competitor-insights-system-introduction-seen-v1';
 
@@ -5208,6 +5290,21 @@
     const saveButton = document.querySelector('#saveButton');
     const clearExamplesButton =
       document.querySelector('#clearExamplesButton');
+
+    /* 获取来源管理与人工审核队列相关页面元素 */
+    const sourceManagementDialog = document.querySelector('#sourceManagementDialog');
+    const sourceDialogTitle = document.querySelector('#sourceDialogTitle');
+    const sourceForm = document.querySelector('#sourceForm');
+    const sourceId = document.querySelector('#sourceId');
+    const sourceLabel = document.querySelector('#sourceLabel');
+    const sourceUrl = document.querySelector('#sourceUrl');
+    const sourceType = document.querySelector('#sourceType');
+    const sourceFrequency = document.querySelector('#sourceFrequency');
+    const sourceList = document.querySelector('#sourceList');
+    const reviewQueueButton = document.querySelector('#reviewQueueButton');
+    const reviewQueueCount = document.querySelector('#reviewQueueCount');
+    const reviewQueueDialog = document.querySelector('#reviewQueueDialog');
+    const reviewQueueList = document.querySelector('#reviewQueueList');
 
     /* ==============================
        获取横向对比矩阵相关页面元素
@@ -5388,6 +5485,11 @@
     let evidenceItems = activeWorkspaceTab.evidenceItems;
     let comparisonData = activeWorkspaceTab.comparisonData;
     let insights = activeWorkspaceTab.insights;
+
+    /* 来源和候选使用独立的本机 v1 数据，不改变工作区 v3 导入导出格式 */
+    let sourceCaptureState = loadSourceCaptureState();
+    let selectedSourceCompetitorId = null;
+    let pendingCandidateDraft = null;
 
     /* 首次迁移成功后使用统一存储，避免图片数据重复占用空间 */
     initializeWorkspaceStorage();
@@ -5915,8 +6017,135 @@
       }
     });
 
+    /* ==============================
+       来源采集本机数据与公开 HTTPS 校验
+       独立版本键避免改变既有工作区存储、迁移和导入导出语义
+       ============================== */
+    function loadSourceCaptureState() {
+      const stored = readStoredObject(sourceCaptureStorageKey);
+      return {
+        version: 1,
+        sources: Array.isArray(stored?.sources) ? stored.sources : [],
+        candidates: Array.isArray(stored?.candidates) ? stored.candidates : []
+      };
+    }
+
+    function persistSourceCaptureState() {
+      localStorage.setItem(sourceCaptureStorageKey, JSON.stringify(sourceCaptureState));
+    }
+
+    function isPrivateSourceHostname(hostname = '') {
+      const normalized = String(hostname).toLowerCase();
+      if (normalized === 'localhost' || normalized.endsWith('.localhost') || normalized.endsWith('.local')) return true;
+      if (normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80:')) return true;
+      const octets = normalized.split('.').map(Number);
+      if (octets.length !== 4 || octets.some(value => !Number.isInteger(value) || value < 0 || value > 255)) return false;
+      const [first, second] = octets;
+      return first === 0 || first === 10 || first === 127 ||
+        (first === 169 && second === 254) ||
+        (first === 172 && second >= 16 && second <= 31) ||
+        (first === 192 && second === 168);
+    }
+
+    function normalizePublicHttpsSourceUrl(value = '') {
+      try {
+        const parsedUrl = new URL(String(value).trim());
+        if (parsedUrl.protocol !== 'https:' || parsedUrl.username || parsedUrl.password || isPrivateSourceHostname(parsedUrl.hostname)) return '';
+        parsedUrl.hash = '';
+        return parsedUrl.toString();
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function getCompetitorSources(competitorId) {
+      return sourceCaptureState.sources.filter(item =>
+        item.tabId === activeWorkspaceTab.id && item.competitorId === competitorId
+      );
+    }
+
+    function resetSourceForm() {
+      sourceForm.reset();
+      sourceId.value = '';
+      sourceFrequency.value = '168';
+      setButtonLabel(document.querySelector('#saveSourceButton'), '添加来源');
+    }
+
+    function openSourceManagement(competitorId) {
+      const competitor = competitors.find(item => item.id === competitorId);
+      if (!competitor) return;
+      selectedSourceCompetitorId = competitorId;
+      sourceDialogTitle.textContent = `${competitor.name} · 来源管理`;
+      resetSourceForm();
+      renderSourceList();
+      sourceManagementDialog.showModal();
+    }
+
+    function renderSourceList() {
+      const typeLabels = { product: '产品', changelog: '更新日志', help: '帮助中心', pricing: '定价', blog: '博客', 'release-notes': '发布说明' };
+      const frequencyLabels = { 24: '每天', 72: '每 3 天', 168: '每周', 336: '每 2 周', 720: '每月' };
+      const sources = getCompetitorSources(selectedSourceCompetitorId);
+      sourceList.innerHTML = sources.length ? sources.map(item => `
+        <article class="source-list-item">
+          <div class="source-list-heading"><div><h3>${escapeHtml(item.label)}</h3><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a></div>
+          <div class="source-item-actions"><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
+          <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>本机保存</span></p>
+        </article>`).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
+    }
+
+    function renderReviewQueue() {
+      const pending = sourceCaptureState.candidates.filter(item =>
+        item.tabId === activeWorkspaceTab.id && item.status === 'pending'
+      );
+      reviewQueueCount.textContent = String(pending.length);
+      reviewQueueList.innerHTML = pending.length ? pending.map(item => {
+        const competitor = competitors.find(entry => entry.id === item.competitorId);
+        const safeUrl = normalizePublicHttpsSourceUrl(item.sourceUrl);
+        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>候选标题：${escapeHtml(item.title || '未命名候选')}</h3><span class="insight-status">PENDING</span></div><p class="review-candidate-summary">${escapeHtml(item.summary || '暂无摘要')}</p><p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p><div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button></div></article>`;
+      }).join('') : '<p class="review-queue-empty">当前没有待审核候选。云端同步未启用时，本机不会虚构采集结果。</p>';
+    }
+
+    /* 人工动作仅把候选内容带入既有证据编辑器；提交前不改变任何研究数据 */
+    function prepareCandidateAsEvidence(candidateId) {
+      const candidate = sourceCaptureState.candidates.find(item => item.id === candidateId && item.status === 'pending');
+      if (!candidate) return;
+      const sourceUrl = normalizePublicHttpsSourceUrl(candidate.sourceUrl);
+      pendingCandidateDraft = { title: candidate.title, summary: candidate.summary, sourceUrl };
+      reviewQueueDialog.close();
+      openEvidenceDialog(candidate.competitorId, null, '人工采纳候选证据');
+    }
+
+    sourceForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const normalizedUrl = normalizePublicHttpsSourceUrl(sourceUrl.value);
+      if (!normalizedUrl) { window.alert('来源只允许可公开访问的 HTTPS 地址，不能使用本机或私有网络地址。'); sourceUrl.focus(); return; }
+      const duplicate = sourceCaptureState.sources.some(item => item.id !== sourceId.value && item.competitorId === selectedSourceCompetitorId && item.url === normalizedUrl);
+      if (duplicate) { window.alert('该竞品已经添加过这个来源。'); return; }
+      const existingIndex = sourceCaptureState.sources.findIndex(item => item.id === sourceId.value);
+      const now = new Date().toISOString();
+      const record = { id: sourceId.value || createId(), tabId: activeWorkspaceTab.id, competitorId: selectedSourceCompetitorId, label: sourceLabel.value.trim(), url: normalizedUrl, type: sourceType.value, frequencyHours: Number(sourceFrequency.value), createdAt: existingIndex >= 0 ? sourceCaptureState.sources[existingIndex].createdAt : now, updatedAt: now };
+      if (existingIndex >= 0) sourceCaptureState.sources[existingIndex] = record; else sourceCaptureState.sources.push(record);
+      persistSourceCaptureState(); resetSourceForm(); renderSourceList(); render();
+    });
+
+    sourceList.addEventListener('click', event => {
+      const editButton = event.target.closest('[data-edit-source-id]');
+      const deleteButton = event.target.closest('[data-delete-source-id]');
+      const id = editButton?.dataset.editSourceId || deleteButton?.dataset.deleteSourceId;
+      const item = sourceCaptureState.sources.find(entry => entry.id === id);
+      if (!item) return;
+      if (editButton) { sourceId.value = item.id; sourceLabel.value = item.label; sourceUrl.value = item.url; sourceType.value = item.type; sourceFrequency.value = String(item.frequencyHours); setButtonLabel(document.querySelector('#saveSourceButton'), '保存修改'); sourceLabel.focus(); return; }
+      if (window.confirm(`确定删除来源“${item.label}”吗？`)) { sourceCaptureState.sources = sourceCaptureState.sources.filter(entry => entry.id !== id); persistSourceCaptureState(); renderSourceList(); render(); }
+    });
+    document.querySelector('#cancelSourceEditButton').addEventListener('click', resetSourceForm);
+    document.querySelector('#closeSourceDialogButton').addEventListener('click', () => sourceManagementDialog.close());
+    reviewQueueButton.addEventListener('click', () => { renderReviewQueue(); reviewQueueDialog.showModal(); });
+    document.querySelector('#closeReviewQueueButton').addEventListener('click', () => reviewQueueDialog.close());
+    reviewQueueList.addEventListener('click', event => { const button = event.target.closest('[data-prepare-candidate-id]'); if (button) prepareCandidateAsEvidence(button.dataset.prepareCandidateId); });
+
     function render() {
       renderWorkspaceTabs();
+      renderReviewQueue();
 
       /* 当前 Tab 仍有任意研究数据时显示清空入口，完全为空时隐藏 */
       clearExamplesButton.hidden = getCurrentSampleCount() === 0;
@@ -6004,6 +6233,19 @@
                   <svg aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
                 </button>
               </div>
+
+              <!-- 来源管理拥有独立行，不与卡片上下文操作或证据入口重叠 -->
+              <section class="competitor-source-management">
+                <p>${getCompetitorSources(item.id).length} 个公开来源</p>
+                <button
+                  class="source-management-trigger secondary"
+                  data-action="manage-sources"
+                  data-source-competitor-id="${escapeHtml(item.id)}"
+                  type="button">
+                  <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+                    来源管理
+                </button>
+              </section>
 
               <!-- 当前竞品关联的调研证据 -->
               <section class="competitor-evidence">
@@ -7069,6 +7311,11 @@
         return;
       }
 
+      if (action === 'manage-sources') {
+        openSourceManagement(button.dataset.sourceCompetitorId);
+        return;
+      }
+
       const index = Number(button.dataset.index);
       const competitor = competitors[index];
 
@@ -7585,6 +7832,16 @@
       }
       evidenceCompetitorName.textContent = competitor.name;
       renderEvidenceDimensionOptions();
+      /* 审核候选只预填草稿；必须由用户检查并提交后才成为正式证据 */
+      const draft = pendingCandidateDraft;
+      pendingCandidateDraft = null;
+      if (draft) {
+        evidenceTitle.value = Array.from(String(draft.title || '')).slice(0, 20).join('');
+        const sourceUrl = normalizePublicHttpsSourceUrl(draft.sourceUrl);
+        evidenceContentEditor.innerHTML = sanitizeRichHtml(
+          `${plainTextToHtml(draft.summary || '')}${sourceUrl ? `<p>公开来源：<a href="${escapeHtml(sourceUrl)}">${escapeHtml(sourceUrl)}</a></p>` : ''}`
+        );
+      }
       evidenceDialog.showModal();
     }
 
