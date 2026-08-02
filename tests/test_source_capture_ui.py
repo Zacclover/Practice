@@ -55,7 +55,8 @@ class SourceCaptureUiContractTests(unittest.TestCase):
             "    .source-list-item:focus-within .source-item-actions",
             SOURCE,
         )
-        self.assertIn("@media (hover: none), (max-width: 640px)", SOURCE)
+        self.assertIn("@media (max-width: 640px)", SOURCE)
+        self.assertNotIn("@media (hover: none), (max-width: 640px)", SOURCE)
 
     def test_source_dialog_reports_capture_state_without_claiming_global_sync(self):
         self.assertIn("const sourceCaptureStorageKey =\n      'competitor-insights-source-capture-v1';", SOURCE)
