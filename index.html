@@ -4291,6 +4291,12 @@
     .source-list-item:hover .source-item-actions,
     .source-list-item:focus-within .source-item-actions { opacity: 1; pointer-events: auto; }
     .source-item-actions button { min-width: 40px; min-height: 40px; padding: 8px; }
+    /* 来源抓取独立 Tooltip：由按钮本身定位，避免复用富文本工具栏的全局浮层。 */
+    .source-capture-button { position: relative; }
+    .source-action-tooltip { position: absolute; z-index: 10001; bottom: calc(100% + 8px); left: 50%; padding: 12px 16px; color: var(--white); background: var(--graphite); border-radius: 6px; font-family: var(--font-body); font-size: 14px; font-weight: 700; line-height: 1.3; white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transform: translateX(-50%) translateY(2px); transition: opacity 140ms ease, transform 140ms ease; }
+    .source-action-tooltip::after { position: absolute; top: 100%; left: 50%; width: 0; height: 0; border-top: 7px solid var(--graphite); border-right: 7px solid transparent; border-left: 7px solid transparent; content: ''; transform: translateX(-50%); }
+    .source-capture-button:hover .source-action-tooltip,
+    .source-capture-button:focus-visible .source-action-tooltip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
     /* 手动抓取：处理中替换为工业风旋转圆环，并锁定按钮避免重复触发。 */
     .source-capture-button.is-loading { cursor: wait; }
     .source-capture-button.is-loading svg { animation: source-capture-spin 780ms linear infinite; }
@@ -6825,7 +6831,7 @@
       sourceList.innerHTML = sources.length ? sources.map(item => `
         <article class="source-list-item">
           <div class="source-list-heading"><div><h3>${escapeHtml(item.label)}</h3><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a></div>
-          <div class="source-item-actions"><button class="secondary source-capture-button" type="button" data-capture-source-id="${escapeHtml(item.id)}" aria-label="立即抓取此来源" title="立即抓取此来源" data-tooltip="立即抓取此来源"><svg aria-hidden="true"><use href="#icon-source-capture-hand"></use></svg></button><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
+          <div class="source-item-actions"><button class="secondary source-capture-button" type="button" data-capture-source-id="${escapeHtml(item.id)}" aria-label="立即抓取此来源" aria-describedby="source-capture-tooltip-${escapeHtml(item.id)}"><svg aria-hidden="true"><use href="#icon-source-capture-hand"></use></svg><span class="source-action-tooltip" id="source-capture-tooltip-${escapeHtml(item.id)}" role="tooltip">立即抓取此来源</span></button><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
           <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>${sourceCaptureState.cloudSynced ? '来源已连接' : '本机保存'}</span></p>
         </article>`).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
     }
@@ -6911,23 +6917,6 @@
         sourceCaptureState.sources = sourceCaptureState.sources.filter(entry => entry.id !== id);
         persistSourceCaptureState(); renderSourceList(); render();
       }
-    });
-    /* 来源抓取 Tooltip：动态渲染的图标按钮复用固定定位提示层，支持鼠标和键盘。 */
-    sourceList.addEventListener('mouseover', event => {
-      const button = event.target.closest('[data-capture-source-id][data-tooltip]');
-      if (button && !button.contains(event.relatedTarget)) showRichToolbarTooltip(button);
-    });
-    sourceList.addEventListener('mouseout', event => {
-      const button = event.target.closest('[data-capture-source-id][data-tooltip]');
-      if (button && !button.contains(event.relatedTarget)) hideRichToolbarTooltip(button);
-    });
-    sourceList.addEventListener('focusin', event => {
-      const button = event.target.closest('[data-capture-source-id][data-tooltip]');
-      if (button) showRichToolbarTooltip(button);
-    });
-    sourceList.addEventListener('focusout', event => {
-      const button = event.target.closest('[data-capture-source-id][data-tooltip]');
-      if (button) hideRichToolbarTooltip(button);
     });
     addSourceButton.addEventListener('click', () => showSourceFormMode());
     cancelSourceEditButton.addEventListener('click', showSourceListMode);
