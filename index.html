@@ -2302,6 +2302,17 @@
       background: var(--graphite);
     }
 
+    /* 云同步冲突条：复用白色数据面、Strong 边框和克制橙色状态线。 */
+    .cloud-conflict-panel {
+      margin: 0 24px 12px;
+      padding: 12px 16px;
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--line-strong);
+      border-left: 4px solid var(--orange);
+      font-size: 13px;
+    }
+
     .matrix-input {
       color: var(--ink);
       background: var(--white);
@@ -4418,6 +4429,8 @@
       role="tablist"
       aria-label="洞察空间 Tab">
     </nav>
+    <!-- 云端冲突状态：保留本机版本并明确提示用户处理，不静默覆盖 -->
+    <aside id="cloudConflictPanel" class="cloud-conflict-panel" role="status" hidden></aside>
   </section>
 
   <!-- ==============================
@@ -4763,6 +4776,24 @@
       <p class="source-sync-notice">仅准备证据草稿，不会自动写入证据或横向对比。</p>
       <div id="reviewQueueList" class="review-queue-list"></div>
       <div class="actions"><button id="closeReviewQueueButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>关闭</button></div>
+    </div>
+  </dialog>
+
+  <!-- ==============================
+       首次云端导入确认
+       先下载本机 v3 备份，再通过原子 RPC 导入空白云工作区
+       ============================== -->
+  <dialog id="cloudImportDialog" aria-labelledby="cloudImportTitle">
+    <div class="source-dialog-header">
+      <p class="source-dialog-kicker">CLOUD IMPORT / EXPLICIT</p>
+      <h2 id="cloudImportTitle">将本机数据导入空白云空间？</h2>
+    </div>
+    <div class="source-dialog-body">
+      <p>云端登录后以云工作区为准。确认后会先下载完整 v3 备份，再原子导入当前 Tab、竞品、维度、证据、洞察、矩阵与来源；不会覆盖已有云数据。</p>
+      <div class="actions">
+        <button id="cancelCloudImportButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>暂不导入</button>
+        <button id="confirmCloudImportButton" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>备份并导入</button>
+      </div>
     </div>
   </dialog>
 
@@ -5423,7 +5454,7 @@
         }
         const profile = await response.json();
         renderCloudAccount(profile);
-        void synchronizeCloudSourceCapture(profile, accessToken).catch(error => {
+        void synchronizeCloudWorkspace(profile, accessToken).catch(error => {
           sourceCaptureState.cloudSynced = false;
           updateSourceSyncNotice('error', error.message);
           renderSourceList();
@@ -5451,6 +5482,8 @@
         if (typeof sourceCaptureState !== 'undefined') {
           sourceCaptureState.cloudSynced = false;
           sourceCaptureState.cloudWorkspaceId = null;
+          cloudSyncState.workspaceId = null;
+          cloudSyncState.accessToken = '';
           updateSourceSyncNotice('local');
         }
         renderCloudLogin();
@@ -5478,6 +5511,10 @@
       'competitor-insights-workspaces-v2';
     const sourceCaptureStorageKey =
       'competitor-insights-source-capture-v1';
+    const cloudOutboxStorageKey =
+      'competitor-insights-cloud-outbox-v1';
+    const cloudConflictStorageKey =
+      'competitor-insights-cloud-conflicts-v1';
     const systemIntroductionSeenKey =
       'competitor-insights-system-introduction-seen-v1';
 
@@ -5520,6 +5557,10 @@
       document.querySelector('#cloudAccountPanel');
     const cloudLogoutButton =
       document.querySelector('#cloudLogoutButton');
+    const cloudImportDialog = document.querySelector('#cloudImportDialog');
+    const confirmCloudImportButton = document.querySelector('#confirmCloudImportButton');
+    const cancelCloudImportButton = document.querySelector('#cancelCloudImportButton');
+    const cloudConflictPanel = document.querySelector('#cloudConflictPanel');
     const tabDialog = document.querySelector('#tabDialog');
     const tabForm = document.querySelector('#tabForm');
     const tabDialogTitle = document.querySelector('#tabDialogTitle');
@@ -5750,6 +5791,15 @@
     let sourceCaptureState = loadSourceCaptureState();
     let selectedSourceCompetitorId = null;
     let pendingCandidateDraft = null;
+    let candidateBeingApprovedId = null;
+    /* 云同步运行态不写入 v3 数据；基线、实体队列和冲突分别持久化。 */
+    const cloudSyncState = {
+      workspaceId: null,
+      accessToken: '',
+      pulling: false,
+      hydrating: false,
+      baseline: new Map()
+    };
 
     /* 首次迁移成功后使用统一存储，避免图片数据重复占用空间 */
     initializeWorkspaceStorage();
@@ -6021,6 +6071,19 @@
     });
 
     cloudLogoutButton.addEventListener('click', signOutCloudAccount);
+    confirmCloudImportButton.addEventListener('click', () => {
+      void importConfirmedLocalWorkspace().catch(error => {
+        updateSourceSyncNotice('error', error.message);
+        window.alert(`云端导入未完成，本机数据与备份仍保留：${error.message}`);
+      });
+    });
+    cancelCloudImportButton.addEventListener('click', () => cloudImportDialog.close());
+    window.addEventListener('online', () => void flushCloudOutbox());
+    window.addEventListener('focus', () => void pullCloudWorkspaceSafely());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void pullCloudWorkspaceSafely();
+    });
+    window.setInterval(() => void pullCloudWorkspaceSafely(), 60000);
 
     document.addEventListener('click', event => {
       if (cloudAccountMenu.hidden ||
@@ -6370,19 +6433,16 @@
       return text ? JSON.parse(text) : [];
     }
 
-    /* 首选当前用户已有工作区；不存在时由 owner 触发器安全建立成员关系。 */
+    /* 工作区解析只调用数据库唯一性 RPC，避免浏览器先查后建造成重复记录。 */
     async function resolveCloudWorkspace(profile, accessToken) {
-      const existing = await cloudRestRequest(
-        `workspaces?owner_user_id=eq.${encodeURIComponent(profile.id)}&select=id,name&order=created_at.asc&limit=1`, { accessToken }
-      );
-      if (existing[0]?.id) return existing[0];
-      const created = await cloudRestRequest('workspaces', {
+      const resolved = await cloudRestRequest('rpc/resolve_user_workspace', {
         method: 'POST', accessToken,
         headers: { Prefer: 'return=representation' },
-        body: { id: createId(), owner_user_id: profile.id, name: '竞品洞察台' }
+        body: { workspace_name: `${getCloudAccountName(profile)}的研究空间` }
       });
-      if (!created[0]?.id) throw new Error('云端工作区创建后未返回标识。');
-      return created[0];
+      const workspace = Array.isArray(resolved) ? resolved[0] : resolved;
+      if (!workspace?.id) throw new Error('云端工作区解析失败。');
+      return workspace;
     }
 
     function mapLocalSourceToCloud(item, workspaceId) {
@@ -6410,35 +6470,216 @@
       };
     }
 
-    /* 先写 FK 前置实体，再上传来源并读取 RLS 范围内的来源和待审核候选。 */
-    async function synchronizeCloudSourceCapture(profile, accessToken) {
-      updateSourceSyncNotice('syncing');
-      const workspace = await resolveCloudWorkspace(profile, accessToken);
-      const upsert = { method: 'POST', accessToken, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } };
-      await cloudRestRequest("workspace_tabs", { ...upsert, body: workspaceState.tabs.map((tab, index) => ({ id: tab.id, workspace_id: workspace.id, name: tab.name, sort_order: index })) });
-      await cloudRestRequest("competitors", { ...upsert, body: workspaceState.tabs.flatMap(tab => tab.competitors.map(item => ({ id: item.id, workspace_id: workspace.id, tab_id: tab.id, name: item.name, website: item.website || '', positioning: item.positioning || '', is_sample: item.isSample === true }))) });
-      await cloudRestRequest("competitor_sources", { ...upsert, body: sourceCaptureState.sources.map(item => mapLocalSourceToCloud(item, workspace.id)) });
-      const cloudSources = await cloudRestRequest(`competitor_sources?workspace_id=eq.${encodeURIComponent(workspace.id)}&select=*`, { accessToken });
-      const candidates = await cloudRestRequest(`source_capture_candidates?workspace_id=eq.${encodeURIComponent(workspace.id)}&status=eq.pending&select=id,tab_id,competitor_id,source_url,title,summary,status,created_at&order=created_at.desc`, { accessToken });
-      sourceCaptureState.sources = cloudSources.map(mapCloudSourceToLocal);
-      sourceCaptureState.candidates = candidates.map(item => ({ id: item.id, tabId: item.tab_id, competitorId: item.competitor_id, sourceUrl: item.source_url, title: item.title, summary: item.summary, status: item.status, createdAt: item.created_at }));
-      sourceCaptureState.cloudSynced = true;
-      sourceCaptureState.cloudWorkspaceId = workspace.id;
-      persistSourceCaptureState();
-      updateSourceSyncNotice('synced');
+    const cloudSnapshotTables = [
+      'workspace_tabs', 'competitors', 'dimensions', 'evidence',
+      'evidence_dimensions', 'insights', 'insight_competitors',
+      'insight_dimensions', 'insight_evidence', 'matrix_cells',
+      'competitor_sources', 'source_capture_candidates'
+    ];
+
+    /* 一次读取所有 v3 实体及来源审核数据；查询只在当前成员 RLS 范围内执行。 */
+    async function fetchCloudSnapshot(workspaceId, accessToken) {
+      const pairs = await Promise.all(cloudSnapshotTables.map(async table => {
+        const pending = table === 'source_capture_candidates' ? '&status=eq.pending' : '';
+        const rows = await cloudRestRequest(`${table}?workspace_id=eq.${encodeURIComponent(workspaceId)}${pending}&select=*`, { accessToken });
+        return [table, rows];
+      }));
+      return Object.fromEntries(pairs);
+    }
+
+    /* 云表恢复为本机 v3：关系表重新聚合为数组，矩阵重新聚合为二维对象。 */
+    function mapCloudSnapshotToV3(snapshot) {
+      const workspace_tabs = snapshot.workspace_tabs || [];
+      const competitors = snapshot.competitors || [];
+      const dimensions = snapshot.dimensions || [];
+      const evidence = snapshot.evidence || [];
+      const evidence_dimensions = snapshot.evidence_dimensions || [];
+      const insights = snapshot.insights || [];
+      const insight_competitors = snapshot.insight_competitors || [];
+      const insight_dimensions = snapshot.insight_dimensions || [];
+      const insight_evidence = snapshot.insight_evidence || [];
+      const matrix_cells = snapshot.matrix_cells || [];
+      const competitor_sources = snapshot.competitor_sources || [];
+      const source_capture_candidates = snapshot.source_capture_candidates || [];
+      const refs = (rows, owner, ownerId, target) => rows.filter(row => row[owner] === ownerId).map(row => row[target]);
+      const tabs = [...workspace_tabs].sort((a, b) => a.sort_order - b.sort_order).map(tab => {
+        const tabCompetitors = competitors.filter(row => row.tab_id === tab.id).map(row => ({ id: row.id, name: row.name, website: row.website, positioning: row.positioning, isSample: row.is_sample, createdAt: row.created_at, updatedAt: row.updated_at }));
+        const tabDimensions = dimensions.filter(row => row.tab_id === tab.id).sort((a, b) => a.sort_order - b.sort_order).map(row => ({ id: row.id, name: row.name, isSample: row.is_sample, createdAt: row.created_at, updatedAt: row.updated_at }));
+        const tabEvidence = evidence.filter(row => row.tab_id === tab.id).map(row => ({ id: row.id, competitorId: row.competitor_id, title: row.title, contentHtml: row.content_html, images: row.images, dimensionIds: refs(evidence_dimensions, 'evidence_id', row.id, 'dimension_id'), isSample: row.is_sample, createdAt: row.created_at, updatedAt: row.updated_at }));
+        const tabInsights = insights.filter(row => row.tab_id === tab.id).map(row => ({ id: row.id, title: row.title, factSignals: row.fact_signals, commonPattern: row.common_pattern, keyDifference: row.key_difference, opportunityHypothesis: row.opportunity_hypothesis, actionRecommendation: row.action_recommendation, competitorIds: refs(insight_competitors, 'insight_id', row.id, 'competitor_id'), dimensionIds: refs(insight_dimensions, 'insight_id', row.id, 'dimension_id'), evidenceIds: refs(insight_evidence, 'insight_id', row.id, 'evidence_id'), isSample: row.is_sample, createdAt: row.created_at, updatedAt: row.updated_at }));
+        const values = {}; const sampleValues = {};
+        matrix_cells.filter(row => row.tab_id === tab.id).forEach(row => { values[row.dimension_id] = values[row.dimension_id] || {}; values[row.dimension_id][row.competitor_id] = row.value; if (row.is_sample) { sampleValues[row.dimension_id] = sampleValues[row.dimension_id] || {}; sampleValues[row.dimension_id][row.competitor_id] = true; } });
+        return { id: tab.id, name: tab.name, competitors: tabCompetitors, evidenceItems: tabEvidence, insights: tabInsights, comparisonData: { dimensions: tabDimensions, values, sampleValues }, createdAt: tab.created_at, updatedAt: tab.updated_at };
+      });
+      return {
+        workspace: { version: 3, activeTabId: tabs[0]?.id || null, tabs },
+        sources: competitor_sources.map(mapCloudSourceToLocal),
+        candidates: source_capture_candidates.map(item => ({ id: item.id, tabId: item.tab_id, competitorId: item.competitor_id, sourceUrl: item.source_url, title: item.title, summary: item.summary, status: item.status, createdAt: item.created_at, updatedAt: item.updated_at }))
+      };
+    }
+
+    function snapshotEntityKey(table, id) { return `${table}:${id}`; }
+
+    function setCloudBaseline(snapshot) {
+      cloudSyncState.baseline.clear();
+      cloudSnapshotTables.forEach(table => (snapshot[table] || []).forEach(row => cloudSyncState.baseline.set(snapshotEntityKey(table, row.id), row)));
+    }
+
+    /* 云端成为登录后的规范数据源；水合期间禁止产生反向本机写队列。 */
+    function hydrateCloudSnapshot(snapshot) {
+      const mapped = mapCloudSnapshotToV3(snapshot);
+      cloudSyncState.hydrating = true;
+      workspaceState = mapped.workspace;
+      activeWorkspaceTab = workspaceState.tabs[0];
+      competitors = activeWorkspaceTab.competitors; evidenceItems = activeWorkspaceTab.evidenceItems;
+      comparisonData = activeWorkspaceTab.comparisonData; insights = activeWorkspaceTab.insights;
+      sourceCaptureState.sources = mapped.sources; sourceCaptureState.candidates = mapped.candidates;
+      sourceCaptureState.cloudSynced = true; sourceCaptureState.cloudWorkspaceId = cloudSyncState.workspaceId;
+      persistWorkspaceState(); persistSourceCaptureState(); setCloudBaseline(snapshot);
+      cloudSyncState.hydrating = false;
       renderSourceList(); renderReviewQueue(); render();
     }
 
+    function downloadWorkspaceBackup() {
+      const backup = { format: 'competitor-insights-backup', version: 3, exportedAt: new Date().toISOString(), data: workspaceState };
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+      link.download = `competitor-insights-before-cloud-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click(); URL.revokeObjectURL(link.href);
+    }
+
+    /* 首导入为每类旧 ID 建立一致 UUID 映射，所有引用都通过相同映射表转换。 */
+    function buildInitialCloudSnapshot(workspaceId) {
+      const maps = Object.fromEntries(['tab','competitor','dimension','evidence','insight','source'].map(type => [type, new Map()]));
+      const mapId = (type, id) => { if (!maps[type].has(id)) maps[type].set(id, createId()); return maps[type].get(id); };
+      const payload = Object.fromEntries([...cloudSnapshotTables.slice(0, 10), 'competitor_sources'].map(table => [table, []]));
+      workspaceState.tabs.forEach((tab, sortOrder) => {
+        const tabId = mapId('tab', tab.id); payload.workspace_tabs.push({ id: tabId, workspace_id: workspaceId, name: tab.name, sort_order: sortOrder });
+        tab.competitors.forEach(item => payload.competitors.push({ id: mapId('competitor', item.id), workspace_id: workspaceId, tab_id: tabId, name: item.name, website: item.website || '', positioning: item.positioning || '', is_sample: item.isSample === true, created_at: item.createdAt, updated_at: item.updatedAt }));
+        tab.comparisonData.dimensions.forEach((item, index) => payload.dimensions.push({ id: mapId('dimension', item.id), workspace_id: workspaceId, tab_id: tabId, name: item.name, sort_order: index, is_sample: item.isSample === true }));
+        tab.evidenceItems.forEach(item => { const id = mapId('evidence', item.id); payload.evidence.push({ id, workspace_id: workspaceId, tab_id: tabId, competitor_id: mapId('competitor', item.competitorId), title: item.title, content_html: item.contentHtml || '', images: item.images || [], is_sample: item.isSample === true, created_at: item.createdAt, updated_at: item.updatedAt }); (item.dimensionIds || []).forEach(dimensionId => payload.evidence_dimensions.push({ id: createId(), workspace_id: workspaceId, tab_id: tabId, evidence_id: id, dimension_id: mapId('dimension', dimensionId) })); });
+        tab.insights.forEach(item => { const id = mapId('insight', item.id); payload.insights.push({ id, workspace_id: workspaceId, tab_id: tabId, title: item.title, fact_signals: item.factSignals || '', common_pattern: item.commonPattern || '', key_difference: item.keyDifference || '', opportunity_hypothesis: item.opportunityHypothesis || '', action_recommendation: item.actionRecommendation || '', is_sample: item.isSample === true, created_at: item.createdAt, updated_at: item.updatedAt }); [['competitorIds','insight_competitors','competitor','competitor_id'],['dimensionIds','insight_dimensions','dimension','dimension_id'],['evidenceIds','insight_evidence','evidence','evidence_id']].forEach(([field,table,type,target]) => (item[field] || []).forEach(reference => payload[table].push({ id: createId(), workspace_id: workspaceId, tab_id: tabId, insight_id: id, [target]: mapId(type, reference) }))); });
+        Object.entries(tab.comparisonData.values || {}).forEach(([dimensionId, row]) => Object.entries(row).forEach(([competitorId, value]) => payload.matrix_cells.push({ id: createId(), workspace_id: workspaceId, tab_id: tabId, dimension_id: mapId('dimension', dimensionId), competitor_id: mapId('competitor', competitorId), value, is_sample: tab.comparisonData.sampleValues?.[dimensionId]?.[competitorId] === true })));
+      });
+      sourceCaptureState.sources.forEach(item => payload.competitor_sources.push({ ...mapLocalSourceToCloud({ ...item, id: mapId('source', item.id), tabId: mapId('tab', item.tabId), competitorId: mapId('competitor', item.competitorId) }, workspaceId) }));
+      return payload;
+    }
+
+    async function importConfirmedLocalWorkspace() {
+      confirmCloudImportButton.disabled = true;
+      try {
+        downloadWorkspaceBackup();
+        await cloudRestRequest('rpc/import_initial_workspace_snapshot', { method: 'POST', body: { target_workspace_id: cloudSyncState.workspaceId, snapshot: buildInitialCloudSnapshot(cloudSyncState.workspaceId) } });
+        cloudImportDialog.close();
+        hydrateCloudSnapshot(await fetchCloudSnapshot(cloudSyncState.workspaceId, cloudSyncState.accessToken));
+        updateSourceSyncNotice('synced');
+      } finally { confirmCloudImportButton.disabled = false; }
+    }
+
+    /* 登录后先读取云端：有数据立即水合；空白时仅显示显式导入确认。 */
+    async function synchronizeCloudWorkspace(profile, accessToken) {
+      updateSourceSyncNotice('syncing');
+      const workspace = await resolveCloudWorkspace(profile, accessToken);
+      cloudSyncState.workspaceId = workspace.id; cloudSyncState.accessToken = accessToken;
+      sourceCaptureState.cloudWorkspaceId = workspace.id;
+      const snapshot = await fetchCloudSnapshot(workspace.id, accessToken);
+      if (snapshot.workspace_tabs.length) { hydrateCloudSnapshot(snapshot); updateSourceSyncNotice('synced'); await flushCloudOutbox(); }
+      else { cloudImportDialog.showModal(); updateSourceSyncNotice('local'); }
+    }
+
+    function readCloudQueue(key) {
+      try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; }
+      catch (error) { return []; }
+    }
+
+    function writeCloudQueue(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+
+    /* 实体级出站队列以 table + id 合并重复编辑，并保留首次编辑时的云端 updated_at 基线。 */
+    function enqueueCloudMutation(table, id, operation, row = null, baselineUpdatedAt = null) {
+      if (!cloudSyncState.workspaceId || cloudSyncState.hydrating) return;
+      const outbox = readCloudQueue(cloudOutboxStorageKey);
+      const index = outbox.findIndex(item => item.table === table && item.id === id);
+      const previous = index >= 0 ? outbox[index] : null;
+      const mutation = { table, id, operation, row, baselineUpdatedAt: previous?.baselineUpdatedAt || baselineUpdatedAt || null, queuedAt: new Date().toISOString() };
+      if (index >= 0) outbox[index] = mutation; else outbox.push(mutation);
+      writeCloudQueue(cloudOutboxStorageKey, outbox);
+      void flushCloudOutbox();
+    }
+
+    function addCloudConflict(mutation, remoteRow = null) {
+      const conflicts = readCloudQueue(cloudConflictStorageKey).filter(item => !(item.table === mutation.table && item.id === mutation.id));
+      conflicts.push({ ...mutation, remoteRow, detectedAt: new Date().toISOString() });
+      writeCloudQueue(cloudConflictStorageKey, conflicts); renderCloudConflicts();
+    }
+
+    function renderCloudConflicts() {
+      const conflicts = readCloudQueue(cloudConflictStorageKey);
+      cloudConflictPanel.hidden = conflicts.length === 0;
+      cloudConflictPanel.textContent = conflicts.length ? `发现 ${conflicts.length} 个云端同实体冲突。本机版本已保留，未覆盖云端；请先导出备份并人工处理。` : '';
+    }
+
+    /* 普通实体使用 updated_at 条件写；Tab 变更交给原子 RPC，零返回即判定冲突。 */
+    async function flushCloudOutbox() {
+      if (!cloudSyncState.workspaceId || !cloudSyncState.accessToken || !navigator.onLine) return;
+      const outbox = readCloudQueue(cloudOutboxStorageKey);
+      if (!outbox.length) return;
+      const remaining = [...outbox];
+      const tabMutations = outbox.filter(item => item.table === 'workspace_tabs' && item.operation === 'update');
+      if (tabMutations.length) {
+        try {
+          await cloudRestRequest('rpc/apply_workspace_tab_mutations', { method: 'POST', body: { target_workspace_id: cloudSyncState.workspaceId, mutations: tabMutations.map(item => ({ id: item.id, name: item.row.name, sort_order: item.row.sort_order, baseline_updated_at: item.baselineUpdatedAt })) } });
+          tabMutations.forEach(item => remaining.splice(remaining.findIndex(entry => entry.table === item.table && entry.id === item.id), 1));
+        } catch (error) { tabMutations.forEach(item => addCloudConflict(item)); }
+      }
+      for (const mutation of [...remaining]) {
+        try {
+          const condition = mutation.baselineUpdatedAt ? `&updated_at=eq.${encodeURIComponent(mutation.baselineUpdatedAt)}` : '';
+          let result;
+          if (mutation.operation === 'create') result = await cloudRestRequest(mutation.table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: mutation.row });
+          else if (mutation.operation === 'delete') result = await cloudRestRequest(`${mutation.table}?id=eq.${encodeURIComponent(mutation.id)}${condition}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
+          else result = await cloudRestRequest(`${mutation.table}?id=eq.${encodeURIComponent(mutation.id)}${condition}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: mutation.row });
+          if (mutation.baselineUpdatedAt && (!Array.isArray(result) || result.length === 0)) throw new Error('updated_at baseline conflict');
+          remaining.splice(remaining.findIndex(entry => entry.table === mutation.table && entry.id === mutation.id), 1);
+        } catch (error) {
+          if (/baseline|conflict|409|duplicate/i.test(error.message)) addCloudConflict(mutation);
+          break;
+        }
+      }
+      writeCloudQueue(cloudOutboxStorageKey, remaining);
+      /* 成功写入后刷新基线，避免下一次本机持久化把同一实体误判为新建。 */
+      if (remaining.length === 0) {
+        setCloudBaseline(await fetchCloudSnapshot(
+          cloudSyncState.workspaceId,
+          cloudSyncState.accessToken
+        ));
+      }
+    }
+
+    /* 无待发送编辑时才安全拉取；窗口焦点和可见恢复不会覆盖离线本机数据。 */
+    async function pullCloudWorkspaceSafely() {
+      if (cloudSyncState.pulling || !cloudSyncState.workspaceId || !navigator.onLine || readCloudQueue(cloudOutboxStorageKey).length || readCloudQueue(cloudConflictStorageKey).length) return;
+      cloudSyncState.pulling = true;
+      try { hydrateCloudSnapshot(await fetchCloudSnapshot(cloudSyncState.workspaceId, cloudSyncState.accessToken)); }
+      finally { cloudSyncState.pulling = false; }
+    }
+
+    async function approveCloudCandidate(candidateId, title, contentHtml = '') {
+      await cloudRestRequest('rpc/approve_source_capture_candidate', { method: 'POST', body: { candidate_id: candidateId, evidence_title: title, evidence_content_html: contentHtml } });
+      await pullCloudWorkspaceSafely();
+    }
+
     async function createCloudCompetitorSource(record) {
-      return cloudRestRequest('competitor_sources', { method: 'POST', headers: { Prefer: 'return=representation' }, body: mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId) });
+      enqueueCloudMutation('competitor_sources', record.id, 'create', mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId));
     }
 
     async function updateCloudCompetitorSource(record) {
-      return cloudRestRequest(`competitor_sources?id=eq.${encodeURIComponent(record.id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId) });
+      const baseline = cloudSyncState.baseline.get(snapshotEntityKey('competitor_sources', record.id));
+      enqueueCloudMutation('competitor_sources', record.id, 'update', mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId), baseline?.updated_at);
     }
 
     async function deleteCloudCompetitorSource(recordId) {
-      return cloudRestRequest(`competitor_sources?id=eq.${encodeURIComponent(recordId)}`, { method: 'DELETE' });
+      const baseline = cloudSyncState.baseline.get(snapshotEntityKey('competitor_sources', recordId));
+      enqueueCloudMutation('competitor_sources', recordId, 'delete', null, baseline?.updated_at);
     }
 
     function isPrivateSourceHostname(hostname = '') {
@@ -6517,7 +6758,7 @@
       const candidate = sourceCaptureState.candidates.find(item => item.id === candidateId && item.status === 'pending');
       if (!candidate) return;
       const sourceUrl = normalizePublicHttpsSourceUrl(candidate.sourceUrl);
-      pendingCandidateDraft = { title: candidate.title, summary: candidate.summary, sourceUrl };
+      pendingCandidateDraft = { id: candidate.id, title: candidate.title, summary: candidate.summary, sourceUrl };
       reviewQueueDialog.close();
       openEvidenceDialog(candidate.competitorId, null, '人工采纳候选证据');
     }
@@ -8260,6 +8501,7 @@
       const draft = pendingCandidateDraft;
       pendingCandidateDraft = null;
       if (draft) {
+        candidateBeingApprovedId = draft.id;
         evidenceTitle.value = Array.from(String(draft.title || '')).slice(0, 20).join('');
         const sourceUrl = normalizePublicHttpsSourceUrl(draft.sourceUrl);
         evidenceContentEditor.innerHTML = sanitizeRichHtml(
@@ -8549,6 +8791,14 @@
       saveEvidenceButton.disabled = true;
 
       try {
+        /* 云端候选只有用户提交此表单后才调用审批 RPC；审批前保持只读。 */
+        if (candidateBeingApprovedId && sourceCaptureState.cloudSynced) {
+          const approvedCandidateId = candidateBeingApprovedId;
+          candidateBeingApprovedId = null;
+          await approveCloudCandidate(approvedCandidateId, title, contentHtml);
+          evidenceDialog.close(); resetEvidenceForm(); render();
+          return;
+        }
         /* 编辑时先保留未被移除的旧图片 */
         const compressedImages = [
           ...retainedEvidenceImages
@@ -8824,6 +9074,7 @@
       savedEditorRange = null;
       hideRichToolbarTooltip();
       editingEvidenceIndex = null;
+      candidateBeingApprovedId = null;
       selectedEvidenceCompetitorId = null;
       selectedEvidenceDimensionIds = new Set();
       retainedEvidenceImages = [];
@@ -9576,6 +9827,49 @@
       removeLegacyStorageKeys();
     }
 
+    /* 将当前 v3 模型规范化为实体行，用于基线差分；关系行按端点复用云端主键。 */
+    function collectCurrentCloudRows() {
+      if (!cloudSyncState.workspaceId) return {};
+      const result = Object.fromEntries(cloudSnapshotTables.slice(0, 10).map(table => [table, []]));
+      const outbox = readCloudQueue(cloudOutboxStorageKey);
+      const relationId = (table, fields) => {
+        const matches = row => Object.entries(fields).every(([key, value]) => row[key] === value);
+        for (const [key, row] of cloudSyncState.baseline) if (key.startsWith(`${table}:`) && matches(row)) return row.id;
+        const queued = outbox.find(item => item.table === table && item.row && matches(item.row));
+        return queued?.id || createId();
+      };
+      workspaceState.tabs.forEach((tab, sortOrder) => {
+        result.workspace_tabs.push({ id: tab.id, workspace_id: cloudSyncState.workspaceId, name: tab.name, sort_order: sortOrder });
+        tab.competitors.forEach(item => result.competitors.push({ id: item.id, workspace_id: cloudSyncState.workspaceId, tab_id: tab.id, name: item.name, website: item.website || '', positioning: item.positioning || '', is_sample: item.isSample === true }));
+        tab.comparisonData.dimensions.forEach((item, sortOrder) => result.dimensions.push({ id: item.id, workspace_id: cloudSyncState.workspaceId, tab_id: tab.id, name: item.name, sort_order: sortOrder, is_sample: item.isSample === true }));
+        tab.evidenceItems.forEach(item => {
+          result.evidence.push({ id: item.id, workspace_id: cloudSyncState.workspaceId, tab_id: tab.id, competitor_id: item.competitorId, title: item.title, content_html: item.contentHtml || '', images: item.images || [], is_sample: item.isSample === true });
+          (item.dimensionIds || []).forEach(dimensionId => { const fields = { workspace_id: cloudSyncState.workspaceId, tab_id: tab.id, evidence_id: item.id, dimension_id: dimensionId }; result.evidence_dimensions.push({ id: relationId('evidence_dimensions', fields), ...fields }); });
+        });
+        tab.insights.forEach(item => {
+          result.insights.push({ id: item.id, workspace_id: cloudSyncState.workspaceId, tab_id: tab.id, title: item.title, fact_signals: item.factSignals || '', common_pattern: item.commonPattern || '', key_difference: item.keyDifference || '', opportunity_hypothesis: item.opportunityHypothesis || '', action_recommendation: item.actionRecommendation || '', is_sample: item.isSample === true });
+          [['competitorIds','insight_competitors','competitor_id'],['dimensionIds','insight_dimensions','dimension_id'],['evidenceIds','insight_evidence','evidence_id']].forEach(([field, table, target]) => (item[field] || []).forEach(reference => { const fields = { workspace_id: cloudSyncState.workspaceId, tab_id: tab.id, insight_id: item.id, [target]: reference }; result[table].push({ id: relationId(table, fields), ...fields }); }));
+        });
+        Object.entries(tab.comparisonData.values || {}).forEach(([dimensionId, row]) => Object.entries(row).forEach(([competitorId, value]) => { const fields = { workspace_id: cloudSyncState.workspaceId, tab_id: tab.id, dimension_id: dimensionId, competitor_id: competitorId }; result.matrix_cells.push({ id: relationId('matrix_cells', fields), ...fields, value, is_sample: tab.comparisonData.sampleValues?.[dimensionId]?.[competitorId] === true }); }));
+      });
+      return result;
+    }
+
+    function enqueueWorkspaceEntityDiff() {
+      if (!cloudSyncState.workspaceId || cloudSyncState.hydrating) return;
+      const current = collectCurrentCloudRows();
+      const comparable = row => JSON.stringify(Object.fromEntries(Object.entries(row || {}).filter(([key]) => !['created_at','updated_at'].includes(key))));
+      Object.entries(current).forEach(([table, rows]) => {
+        const currentIds = new Set(rows.map(row => row.id));
+        rows.forEach(row => {
+          const baseline = cloudSyncState.baseline.get(snapshotEntityKey(table, row.id));
+          if (!baseline) enqueueCloudMutation(table, row.id, 'create', row);
+          else if (comparable(row) !== comparable(baseline)) enqueueCloudMutation(table, row.id, 'update', row, baseline.updated_at);
+        });
+        for (const [key, baseline] of cloudSyncState.baseline) if (key.startsWith(`${table}:`) && !currentIds.has(baseline.id)) enqueueCloudMutation(table, baseline.id, 'delete', null, baseline.updated_at);
+      });
+    }
+
     function persistWorkspaceState() {
       activeWorkspaceTab.competitors = competitors;
       activeWorkspaceTab.evidenceItems = evidenceItems;
@@ -9585,6 +9879,7 @@
         workspaceStorageKey,
         JSON.stringify(workspaceState)
       );
+      enqueueWorkspaceEntityDiff();
     }
 
     function removeLegacyStorageKeys() {
@@ -9743,7 +10038,12 @@
       ) {
         return window.crypto.randomUUID();
       }
-      return `${Date.now()}-${Math.random()}`;
+      /* 旧浏览器也必须生成数据库可接受的 UUID v4，不能回退为时间戳字符串。 */
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
+        const random = Math.floor(Math.random() * 16);
+        const value = character === 'x' ? random : (random & 0x3) | 0x8;
+        return value.toString(16);
+      });
     }
 
     function formatDate(value) {
