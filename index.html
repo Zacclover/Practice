@@ -6348,6 +6348,18 @@
     evidenceSearchTrigger.addEventListener('click', openEvidenceSearchDialog);
     evidenceSearchClose.addEventListener('click', () => evidenceSearchDialog.close());
 
+    /* 搜索筛选下拉：点击弹窗内其他区域时收起；切换筛选时只保留当前一项。 */
+    function closeEvidenceSearchFilterMenus(except = null) {
+      document.querySelectorAll('.evidence-search-filter-select[open]').forEach(menu => {
+        if (menu !== except) menu.open = false;
+      });
+    }
+
+    evidenceSearchDialog.addEventListener('click', event => {
+      const activeFilter = event.target.closest('.evidence-search-filter-select');
+      closeEvidenceSearchFilterMenus(activeFilter);
+    });
+
     evidenceSearchInput.addEventListener('input', renderEvidenceSearchResults);
     evidenceSearchDialog.querySelector('.evidence-search-filters').addEventListener('click', event => {
       const removeButton = event.target.closest('[data-evidence-search-filter-remove]');

@@ -84,6 +84,12 @@ class EvidenceSearchContractTests(unittest.TestCase):
         self.assertIn('justify-content: flex-start !important;', self.source)
         self.assertIn('align-content: start;', self.source)
 
+    def test_clicking_outside_a_search_filter_closes_all_open_filter_menus(self):
+        self.assertIn('function closeEvidenceSearchFilterMenus(except = null)', self.source)
+        self.assertIn("document.querySelectorAll('.evidence-search-filter-select[open]')", self.source)
+        self.assertIn("evidenceSearchDialog.addEventListener('click', event =>", self.source)
+        self.assertIn("event.target.closest('.evidence-search-filter-select')", self.source)
+
     def test_input_focus_encloses_its_search_icon(self):
         self.assertIn('.evidence-search-input-wrap:focus-within', self.source)
 
