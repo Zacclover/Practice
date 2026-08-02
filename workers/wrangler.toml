@@ -8,5 +8,6 @@ crons = ["17 */6 * * *"]
 
 # 仅在 Cloudflare Worker 的加密环境变量中配置：
 # SUPABASE_URL=https://<project-ref>.supabase.co
+# SUPABASE_PUBLISHABLE_KEY=<public-anon-or-publishable-key，用于验证用户 JWT>
 # SUPABASE_SERVICE_ROLE_KEY=<secret>
 # 绝不可把 service-role key 放入 Pages、浏览器运行时配置或 Git。

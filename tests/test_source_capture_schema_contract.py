@@ -7,6 +7,9 @@ ROOT = Path(__file__).resolve().parents[1]
 MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260731010000_source_capture_review_queue.sql"
 )
+MANUAL_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260802000000_manual_source_capture.sql"
+)
 
 
 class SourceCaptureSchemaContractTests(unittest.TestCase):
@@ -55,6 +58,16 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
                 self.source,
                 rf'create policy "workspace members manage {table}"\s+on public\.{table}',
             )
+
+    def test_manual_capture_runs_are_queryable_per_source_and_created_at(self):
+        migration = MANUAL_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("add column source_id uuid", migration)
+        self.assertIn("foreign key (workspace_id, tab_id, source_id)", migration)
+        self.assertRegex(
+            migration,
+            r"source_capture_runs_manual_cooldown_idx[\s\S]*source_id, trigger_type, created_at desc",
+        )
+        self.assertNotIn("last_fetched_at", migration)
 
 
 if __name__ == "__main__":
