@@ -1272,22 +1272,37 @@
       box-shadow: none;
     }
 
-    /* Tooltip 使用 fixed 定位，避免被弹窗和编辑器边界裁切 */
+    /* Tooltip：按钮上方居中的深色对话气泡，尖角明确指向触发按钮。 */
     .rich-toolbar-tooltip {
       position: fixed;
       z-index: 10000;
       max-width: 180px;
-      padding: 6px 9px;
-      color: white;
-      background: #1d1c1d;
-      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--white);
+      background: var(--graphite);
+      border: 1px solid var(--graphite);
+      border-radius: 0;
       box-shadow: none;
+      font-family: var(--font-mono);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       line-height: 1.3;
       white-space: nowrap;
       pointer-events: none;
       transform: translate(-50%, 0);
+    }
+
+    .rich-toolbar-tooltip::after {
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-top: 6px solid var(--graphite);
+      border-right: 6px solid transparent;
+      border-left: 6px solid transparent;
+      content: '';
+      transform: translateX(-50%);
     }
 
     .rich-toolbar-tooltip[hidden] {
@@ -8409,17 +8424,15 @@
       const tooltipWidth = richToolbarTooltip.offsetWidth;
       const tooltipHeight = richToolbarTooltip.offsetHeight;
       const edgeGap = 8;
+      const tooltipArrowHeight = 6;
       let left = buttonRect.left + buttonRect.width / 2;
-      let top = buttonRect.bottom + edgeGap;
+      let top = buttonRect.top - tooltipHeight - edgeGap - tooltipArrowHeight;
 
       left = Math.max(
         tooltipWidth / 2 + edgeGap,
         Math.min(window.innerWidth - tooltipWidth / 2 - edgeGap, left)
       );
-
-      if (top + tooltipHeight > window.innerHeight - edgeGap) {
-        top = buttonRect.top - tooltipHeight - edgeGap;
-      }
+      top = Math.max(edgeGap, top);
 
       richToolbarTooltip.style.left = `${left}px`;
       richToolbarTooltip.style.top = `${top}px`;

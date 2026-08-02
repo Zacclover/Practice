@@ -224,6 +224,13 @@ components:
 - 标准文字按钮使用 Body 字体、继承 `14px / 700 / 1.2`，配 `16px` 线性 SVG Icon 和 `8px` 间距；紧凑上下文按钮只能在明确的次级场景使用，且仍须满足 `40px` 点击高度。
 - Primary、Secondary、Destructive 和 Icon Button 是视觉语义，不是按页面临时命名的样式；新按钮必须复用对应组件规则，禁止新增独立颜色、字号、圆角、斜切或 Hover 语言。
 
+### Tooltip
+
+- Tooltip 固定显示在触发按钮上方并水平居中；仅在距视口顶端不足时贴齐安全边距，不能默认显示在按钮下方。
+- 使用 Graphite / `#343434` 实底与 White / `#FFFFFF` 文字，`0px` 圆角、无阴影；底部必须有居中的 `6px` 三角尖角，明确指向触发按钮，形成工业化对话气泡。
+- 文案使用 Mono 技术标签角色（`12px / 700`），只承载简短操作名称；通过 hover 与键盘 focus 同时触发，并以 `aria-describedby` 暴露给辅助技术。
+- Tooltip 必须使用 fixed 定位且高于弹窗内容，避免被卡片、弹窗或编辑器边界裁切；不得拦截鼠标或键盘操作。
+
 ### Component Reuse Contract
 
 - 新增 UI 必须先映射到既有组件等级：业务区块 Header、卡片、弹窗、表单控件、Fieldset、选择项、标签、空状态、证据回链、Tooltip 和四类按钮。存在同级组件时必须直接复用其 Token、排版、边界、间距和状态。

@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 SOURCE = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+DESIGN = (Path(__file__).resolve().parents[1] / "DESIGN.md").read_text(encoding="utf-8")
 
 
 class SourceCaptureUiContractTests(unittest.TestCase):
@@ -63,6 +64,9 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn('id="icon-capture-loader"', SOURCE)
         self.assertIn('href="#icon-source-capture-hand"', SOURCE)
         self.assertIn('data-tooltip="立即抓取此来源"', SOURCE)
+        self.assertIn('.rich-toolbar-tooltip::after', SOURCE)
+        self.assertIn('top = buttonRect.top - tooltipHeight - edgeGap - tooltipArrowHeight', SOURCE)
+        self.assertIn('Tooltip 固定显示在触发按钮上方并水平居中', DESIGN)
         self.assertIn("sourceList.addEventListener('mouseover'", SOURCE)
         self.assertIn("sourceList.addEventListener('focusin'", SOURCE)
         self.assertIn("classList.add('is-loading')", SOURCE)
