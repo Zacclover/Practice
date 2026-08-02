@@ -4281,8 +4281,14 @@
     .source-list-item h3, .review-candidate h3 { margin: 0; font-size: 16px; }
     .source-list-item a, .review-candidate a { color: var(--ink); text-decoration-color: var(--orange); }
     .source-item-meta, .review-candidate-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0 0; color: var(--line-medium); font-family: var(--font-mono); font-size: 10px; }
-    .source-item-actions { display: flex; gap: 8px; }
+    /* 来源条目上下文操作：桌面悬停或键盘聚焦时显示，触屏与窄屏常显以保证可操作。 */
+    .source-item-actions { display: flex; gap: 8px; min-width: 88px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 140ms ease; }
+    .source-list-item:hover .source-item-actions,
+    .source-list-item:focus-within .source-item-actions { opacity: 1; visibility: visible; pointer-events: auto; }
     .source-item-actions button { min-width: 40px; min-height: 40px; padding: 8px; }
+    @media (hover: none), (max-width: 640px) {
+      .source-item-actions { opacity: 1; visibility: visible; pointer-events: auto; }
+    }
     .review-candidate-summary { margin: 12px 0; color: var(--line-medium); }
     .review-queue-empty { padding: 22px; text-align: center; background: var(--gray-100); border: 1px dashed var(--line-medium); }
     @media (max-width: 680px) { .source-form-grid { grid-template-columns: 1fr; } .source-dialog-header, .source-dialog-body { padding-right: 16px; padding-left: 16px; } }

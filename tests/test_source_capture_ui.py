@@ -41,6 +41,18 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn('persistSourceCaptureState(); showSourceListMode(); render();', SOURCE)
         self.assertIn("cancelSourceEditButton.addEventListener('click', showSourceListMode)", SOURCE)
 
+    def test_source_actions_are_revealed_on_hover_or_keyboard_focus(self):
+        self.assertRegex(
+            SOURCE,
+            r"\.source-item-actions\s*\{[^}]*opacity:\s*0[^}]*visibility:\s*hidden",
+        )
+        self.assertIn(
+            ".source-list-item:hover .source-item-actions,\n"
+            "    .source-list-item:focus-within .source-item-actions",
+            SOURCE,
+        )
+        self.assertIn("@media (hover: none), (max-width: 640px)", SOURCE)
+
     def test_source_dialog_reports_capture_state_without_claiming_global_sync(self):
         self.assertIn("const sourceCaptureStorageKey =\n      'competitor-insights-source-capture-v1';", SOURCE)
         notice = re.search(r'<p id="sourceSyncNotice".*?</p>', SOURCE, re.S)
