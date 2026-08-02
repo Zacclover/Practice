@@ -228,8 +228,8 @@ components:
 
 - Tooltip 固定显示在触发按钮上方并水平居中；仅在距视口顶端不足时贴齐安全边距，不能默认显示在按钮下方。
 - Tooltip 对话气泡允许使用 `6px` 圆角，使用 Graphite / `#343434` 实底与 White / `#FFFFFF` 文字、无边框、无阴影；底部必须有居中的 `7px` 三角尖角，明确指向触发按钮，形成简洁对话气泡。
-- 文案使用 Body 字体角色（`14px / 700`），内边距 `12px 16px`，只承载简短操作名称；通过 hover 与键盘 focus 同时触发，并以 `aria-describedby` 暴露给辅助技术。
-- Tooltip 必须使用 fixed 定位且高于弹窗内容，避免被卡片、弹窗或编辑器边界裁切；不得拦截鼠标或键盘操作。
+- 文案使用 Body 字体角色（`12px / 400`），内边距 `12px 16px`，只承载简短操作名称；通过 hover 与键盘 focus 同时触发，并以 `aria-describedby` 暴露给辅助技术。
+- Tooltip 不得拦截鼠标或键盘操作；跨容器工具栏可用 fixed 定位避免裁切，卡片内 Icon Button 必须优先使用按钮自身的相对定位气泡，避免共享全局浮层。
 
 ### Component Reuse Contract
 

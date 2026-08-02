@@ -65,6 +65,7 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn('aria-describedby="source-capture-tooltip-${escapeHtml(item.id)}"', SOURCE)
         self.assertIn('.source-capture-button:hover .source-action-tooltip', SOURCE)
         self.assertIn('.source-capture-button:focus-visible .source-action-tooltip', SOURCE)
+        self.assertRegex(SOURCE, r'\.source-action-tooltip \{[^}]*font-size: 12px[^}]*font-weight: 400')
         self.assertNotIn("sourceList.addEventListener('mouseover'", SOURCE)
         self.assertNotIn('title="立即抓取此来源"', SOURCE)
 
