@@ -1047,6 +1047,18 @@
       border: 2px solid var(--line-strong);
     }
 
+    /* 全局工作区同步状态：账户区是云端整体状态的唯一展示位置 */
+    .cloud-workspace-sync-status {
+      max-width: 260px;
+      margin: 0 0 8px;
+      padding: 9px 12px;
+      color: var(--ink);
+      background: var(--gray-100);
+      border-left: 3px solid var(--orange);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
     .cloud-account-panel button {
       width: 100%;
       justify-content: flex-start;
@@ -4389,6 +4401,7 @@
             <span id="cloudAccountName" class="cloud-account-name">GitHub 用户</span>
           </button>
           <div id="cloudAccountPanel" class="cloud-account-panel" hidden>
+            <p id="cloudWorkspaceSyncStatus" class="cloud-workspace-sync-status" role="status">工作区同步：正在连接</p>
             <button id="cloudLogoutButton" type="button">
               <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-exit"></use></svg>
               退出登录
@@ -4739,7 +4752,7 @@
 
   <!-- ==============================
        公开来源管理弹窗
-       为单个竞品维护公开 HTTPS 来源，登录后显示真实云端同步状态
+       为单个竞品维护公开 HTTPS 来源，仅说明来源采集自身状态
        ============================== -->
   <dialog id="sourceManagementDialog" class="source-dialog" aria-labelledby="sourceDialogTitle">
     <div class="source-dialog-header">
@@ -4747,7 +4760,7 @@
       <h2 id="sourceDialogTitle">来源管理</h2>
     </div>
     <div class="source-dialog-body">
-      <p id="sourceSyncNotice" class="source-sync-notice" role="status"><strong>本机保存，尚未同步</strong><br>登录 GitHub 后将通过受 RLS 保护的云端接口同步来源与候选。</p>
+      <p id="sourceSyncNotice" class="source-sync-notice" role="status"><strong>来源采集状态：本机已保存</strong><br>当前来源与候选保留在此浏览器。</p>
       <form id="sourceForm">
         <input id="sourceId" type="hidden">
         <label>来源名称<input id="sourceLabel" maxlength="80" required placeholder="例如：产品更新日志"></label>
@@ -5456,6 +5469,7 @@
         renderCloudAccount(profile);
         void synchronizeCloudWorkspace(profile, accessToken).catch(error => {
           sourceCaptureState.cloudSynced = false;
+          updateCloudWorkspaceSyncStatus('failure', error.message);
           updateSourceSyncNotice('error', error.message);
           renderSourceList();
         });
@@ -5555,6 +5569,8 @@
       document.querySelector('#cloudAccountName');
     const cloudAccountPanel =
       document.querySelector('#cloudAccountPanel');
+    const cloudWorkspaceSyncStatus =
+      document.querySelector('#cloudWorkspaceSyncStatus');
     const cloudLogoutButton =
       document.querySelector('#cloudLogoutButton');
     const cloudImportDialog = document.querySelector('#cloudImportDialog');
@@ -6073,6 +6089,7 @@
     cloudLogoutButton.addEventListener('click', signOutCloudAccount);
     confirmCloudImportButton.addEventListener('click', () => {
       void importConfirmedLocalWorkspace().catch(error => {
+        updateCloudWorkspaceSyncStatus('failure', error.message);
         updateSourceSyncNotice('error', error.message);
         window.alert(`云端导入未完成，本机数据与备份仍保留：${error.message}`);
       });
@@ -6396,13 +6413,26 @@
        来源采集云端 REST 会话
        仅使用公开运行时配置与当前用户 Bearer Token，所有访问继续受 RLS 约束
        ============================== */
+    function updateCloudWorkspaceSyncStatus(state, detail = '') {
+      if (!cloudWorkspaceSyncStatus) return;
+      const messages = {
+        'syncing': '工作区同步：正在同步',
+        'synchronized': '工作区同步：已同步',
+        'requires-import': '工作区同步：需要导入本机数据',
+        'conflict': '工作区同步：存在冲突，请先导出备份并处理',
+        'failure': `工作区同步：失败${detail ? `（${detail}）` : ''}`
+      };
+      cloudWorkspaceSyncStatus.textContent = messages[state] || messages.failure;
+      cloudWorkspaceSyncStatus.dataset.state = state;
+    }
+
     function updateSourceSyncNotice(state, detail = '') {
       if (!sourceSyncNotice) return;
       const messages = {
-        local: '<strong>本机保存，尚未同步</strong><br>登录 GitHub 后将通过受 RLS 保护的云端接口同步来源与候选。',
-        syncing: '<strong>正在同步云端</strong><br>正在准备工作区、Tab、竞品和来源外键关系。',
-        synced: '<strong>云端已同步</strong><br>来源变更由 Supabase RLS 保护；候选仍须人工审核。',
-        error: `<strong>云端同步失败，已保留本机数据</strong><br>${escapeHtml(detail || '可稍后重试，当前不会丢失本机来源。')}`
+        local: '<strong>来源采集状态：本机已保存</strong><br>当前来源与候选保留在此浏览器。',
+        syncing: '<strong>来源采集状态：正在连接</strong><br>正在读取来源与待审核候选。',
+        synced: '<strong>来源采集状态：云端来源已连接</strong><br>候选仍须人工审核后才能成为证据。',
+        error: `<strong>来源采集状态：连接失败，本机数据已保留</strong><br>${escapeHtml(detail || '可稍后重试。')}`
       };
       sourceSyncNotice.innerHTML = messages[state] || messages.local;
     }
@@ -6573,18 +6603,32 @@
         cloudImportDialog.close();
         hydrateCloudSnapshot(await fetchCloudSnapshot(cloudSyncState.workspaceId, cloudSyncState.accessToken));
         updateSourceSyncNotice('synced');
+        updateCloudWorkspaceSyncStatus('synchronized');
       } finally { confirmCloudImportButton.disabled = false; }
     }
 
     /* 登录后先读取云端：有数据立即水合；空白时仅显示显式导入确认。 */
     async function synchronizeCloudWorkspace(profile, accessToken) {
+      updateCloudWorkspaceSyncStatus('syncing');
       updateSourceSyncNotice('syncing');
       const workspace = await resolveCloudWorkspace(profile, accessToken);
       cloudSyncState.workspaceId = workspace.id; cloudSyncState.accessToken = accessToken;
       sourceCaptureState.cloudWorkspaceId = workspace.id;
       const snapshot = await fetchCloudSnapshot(workspace.id, accessToken);
-      if (snapshot.workspace_tabs.length) { hydrateCloudSnapshot(snapshot); updateSourceSyncNotice('synced'); await flushCloudOutbox(); }
-      else { cloudImportDialog.showModal(); updateSourceSyncNotice('local'); }
+      if (snapshot.workspace_tabs.length) {
+        hydrateCloudSnapshot(snapshot);
+        updateSourceSyncNotice('synced');
+        await flushCloudOutbox();
+        if (readCloudQueue(cloudConflictStorageKey).length) {
+          updateCloudWorkspaceSyncStatus('conflict');
+        } else {
+          updateCloudWorkspaceSyncStatus('synchronized');
+        }
+      } else {
+        cloudImportDialog.showModal();
+        updateSourceSyncNotice('local');
+        updateCloudWorkspaceSyncStatus('requires-import');
+      }
     }
 
     function readCloudQueue(key) {
@@ -6616,6 +6660,7 @@
       const conflicts = readCloudQueue(cloudConflictStorageKey);
       cloudConflictPanel.hidden = conflicts.length === 0;
       cloudConflictPanel.textContent = conflicts.length ? `发现 ${conflicts.length} 个云端同实体冲突。本机版本已保留，未覆盖云端；请先导出备份并人工处理。` : '';
+      if (conflicts.length) updateCloudWorkspaceSyncStatus('conflict');
     }
 
     /* 普通实体使用 updated_at 条件写；Tab 变更交给原子 RPC，零返回即判定冲突。 */
@@ -6737,7 +6782,7 @@
         <article class="source-list-item">
           <div class="source-list-heading"><div><h3>${escapeHtml(item.label)}</h3><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a></div>
           <div class="source-item-actions"><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
-          <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>${sourceCaptureState.cloudSynced ? '云端已同步' : '本机保存'}</span></p>
+          <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>${sourceCaptureState.cloudSynced ? '来源已连接' : '本机保存'}</span></p>
         </article>`).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
     }
 

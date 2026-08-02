@@ -40,7 +40,7 @@ class CloudSourceSyncTests(unittest.TestCase):
         self.assertIn("status=eq.pending", SOURCE)
         self.assertIn("sourceCaptureState.candidates =", SOURCE)
         self.assertIn("sourceCaptureState.cloudSynced = true", SOURCE)
-        self.assertIn("云端已同步", SOURCE)
+        self.assertIn("来源已连接", SOURCE)
         self.assertIn("本机保存", SOURCE)
 
     def test_login_sync_never_blindly_upserts_research_outputs(self):

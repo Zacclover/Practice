@@ -7,6 +7,23 @@ SOURCE = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding
 
 
 class CloudWorkspaceSyncRuntimeTests(unittest.TestCase):
+    def test_account_area_owns_the_global_workspace_sync_states(self):
+        self.assertIn('id="cloudWorkspaceSyncStatus"', SOURCE)
+        for state in ("syncing", "synchronized", "requires-import", "conflict", "failure"):
+            self.assertIn(f"'{state}':", SOURCE)
+        self.assertIn("updateCloudWorkspaceSyncStatus('failure'", SOURCE)
+
+    def test_bootstrap_must_finish_before_workspace_can_report_synchronized(self):
+        sync = re.search(
+            r"async function synchronizeCloudWorkspace\(profile, accessToken\) \{(?P<body>.*?)\n    \}",
+            SOURCE,
+            re.S,
+        )
+        self.assertIsNotNone(sync)
+        body = sync.group("body")
+        self.assertLess(body.find("resolveCloudWorkspace"), body.find("updateCloudWorkspaceSyncStatus('synchronized'"))
+        self.assertNotIn("updateCloudWorkspaceSyncStatus('synchronized'", body[:body.find("resolveCloudWorkspace")])
+
     def test_first_login_import_requires_confirmation_and_downloads_backup(self):
         self.assertIn('id="cloudImportDialog"', SOURCE)
         self.assertIn('id="confirmCloudImportButton"', SOURCE)
