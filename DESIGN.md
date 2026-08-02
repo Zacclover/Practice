@@ -201,7 +201,7 @@ components:
 
 ## Shapes
 
-- 功能性容器统一 `0px` 圆角：Hero、卡片、Tab、弹窗、输入框、Tooltip、矩阵和证据图块。
+- 功能性容器统一 `0px` 圆角：Hero、卡片、Tab、弹窗、输入框、矩阵和证据图块。Tooltip 对话气泡遵循 Tooltip 章节的唯一例外。
 - Primary Button 左上角和右下角斜切 `9px`：
   `polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px)`。
 - Secondary Button 保持完整矩形，不使用斜切。
@@ -227,8 +227,8 @@ components:
 ### Tooltip
 
 - Tooltip 固定显示在触发按钮上方并水平居中；仅在距视口顶端不足时贴齐安全边距，不能默认显示在按钮下方。
-- 使用 Graphite / `#343434` 实底与 White / `#FFFFFF` 文字，`0px` 圆角、无阴影；底部必须有居中的 `6px` 三角尖角，明确指向触发按钮，形成工业化对话气泡。
-- 文案使用 Mono 技术标签角色（`12px / 700`），只承载简短操作名称；通过 hover 与键盘 focus 同时触发，并以 `aria-describedby` 暴露给辅助技术。
+- Tooltip 对话气泡允许使用 `6px` 圆角，使用 Graphite / `#343434` 实底与 White / `#FFFFFF` 文字、无边框、无阴影；底部必须有居中的 `7px` 三角尖角，明确指向触发按钮，形成简洁对话气泡。
+- 文案使用 Body 字体角色（`14px / 700`），内边距 `12px 16px`，只承载简短操作名称；通过 hover 与键盘 focus 同时触发，并以 `aria-describedby` 暴露给辅助技术。
 - Tooltip 必须使用 fixed 定位且高于弹窗内容，避免被卡片、弹窗或编辑器边界裁切；不得拦截鼠标或键盘操作。
 
 ### Component Reuse Contract
@@ -285,7 +285,7 @@ components:
 - 弹窗白底、Strong 边框、无圆角、无阴影。
 - 输入框白底、Subtle 边框；Focus 使用黑色边框和 `2px` 橙色 outline。
 - 富文本工具栏保持纯 Icon + Tooltip；SVG 必须显式使用 `fill: none` 和 `stroke: currentColor`，避免旧规则同时填充与描边。
-- Tooltip 使用黑底白字、Mono 标签、无圆角。
+- Tooltip 必须复用本规范的 `### Tooltip` 对话气泡规则，不得在富文本或其他局部改回黑底 Mono 无圆角样式。
 
 ### Motion and Accessibility
 
