@@ -42,10 +42,14 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn("cancelSourceEditButton.addEventListener('click', showSourceListMode)", SOURCE)
 
     def test_source_actions_are_revealed_on_hover_or_keyboard_focus(self):
-        self.assertRegex(
-            SOURCE,
-            r"\.source-item-actions\s*\{[^}]*opacity:\s*0[^}]*visibility:\s*hidden",
+        actions_rule = re.search(
+            r"\.source-item-actions\s*\{(?P<body>[^}]*)\}", SOURCE
         )
+        self.assertIsNotNone(actions_rule)
+        assert actions_rule is not None
+        self.assertIn("opacity: 0", actions_rule.group("body"))
+        self.assertIn("pointer-events: none", actions_rule.group("body"))
+        self.assertNotIn("visibility: hidden", actions_rule.group("body"))
         self.assertIn(
             ".source-list-item:hover .source-item-actions,\n"
             "    .source-list-item:focus-within .source-item-actions",
