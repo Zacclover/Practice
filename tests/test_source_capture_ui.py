@@ -58,6 +58,16 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn("@media (max-width: 640px)", SOURCE)
         self.assertNotIn("@media (hover: none), (max-width: 640px)", SOURCE)
 
+    def test_manual_capture_icon_has_a_disabled_rotating_loading_state(self):
+        self.assertIn('id="icon-capture"', SOURCE)
+        self.assertIn('data-capture-source-id="${escapeHtml(item.id)}"', SOURCE)
+        self.assertIn('data-tooltip="立即抓取此来源"', SOURCE)
+        self.assertIn("classList.add('is-loading')", SOURCE)
+        self.assertIn('disabled', SOURCE)
+        self.assertIn('@keyframes source-capture-spin', SOURCE)
+        self.assertIn('prefers-reduced-motion: reduce', SOURCE)
+        self.assertIn("function requestManualSourceCapture(sourceId)", SOURCE)
+
     def test_source_dialog_reports_capture_state_without_claiming_global_sync(self):
         self.assertIn("const sourceCaptureStorageKey =\n      'competitor-insights-source-capture-v1';", SOURCE)
         notice = re.search(r'<p id="sourceSyncNotice".*?</p>', SOURCE, re.S)

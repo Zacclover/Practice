@@ -4282,10 +4282,15 @@
     .source-list-item a, .review-candidate a { color: var(--ink); text-decoration-color: var(--orange); }
     .source-item-meta, .review-candidate-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0 0; color: var(--line-medium); font-family: var(--font-mono); font-size: 10px; }
     /* 来源条目上下文操作：桌面悬停或键盘聚焦时显示，触屏与窄屏常显以保证可操作。 */
-    .source-item-actions { display: flex; gap: 8px; min-width: 88px; opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
+    .source-item-actions { display: flex; gap: 8px; min-width: 136px; opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
     .source-list-item:hover .source-item-actions,
     .source-list-item:focus-within .source-item-actions { opacity: 1; pointer-events: auto; }
     .source-item-actions button { min-width: 40px; min-height: 40px; padding: 8px; }
+    /* 手动抓取：处理中替换为工业风旋转圆环，并锁定按钮避免重复触发。 */
+    .source-capture-button.is-loading { cursor: wait; }
+    .source-capture-button.is-loading svg { animation: source-capture-spin 780ms linear infinite; }
+    @keyframes source-capture-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .source-capture-button.is-loading svg { animation: none; } }
     @media (max-width: 640px) {
       .source-item-actions { opacity: 1; visibility: visible; pointer-events: auto; }
     }
@@ -4329,6 +4334,7 @@
        ================================================================ -->
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
     <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+    <symbol id="icon-capture" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0 1.3 4.4M20 5v6h-6"></path></symbol>
     <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"></path></symbol>
     <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></symbol>
     <symbol id="icon-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"></path></symbol>
@@ -5305,7 +5311,8 @@
       const disabledConfig = {
         enabled: false,
         url: null,
-        publishableKey: null
+        publishableKey: null,
+        sourceCaptureWorkerUrl: null
       };
       const config = window.COMPETITOR_INSIGHTS_CLOUD_CONFIG;
 
@@ -5321,6 +5328,10 @@
           ? config.SUPABASE_PUBLISHABLE_KEY.trim()
           : '';
 
+      const sourceCaptureWorkerUrl = typeof config.SOURCE_CAPTURE_WORKER_URL === 'string'
+        ? config.SOURCE_CAPTURE_WORKER_URL.trim().replace(/\/$/, '')
+        : '';
+
       try {
         const parsedUrl = new URL(url);
         const isSupabaseUrl =
@@ -5334,10 +5345,17 @@
         return disabledConfig;
       }
 
+      let safeSourceCaptureWorkerUrl = '';
+      try {
+        const parsedWorkerUrl = new URL(sourceCaptureWorkerUrl);
+        if (parsedWorkerUrl.protocol === 'https:' && !parsedWorkerUrl.username && !parsedWorkerUrl.password) safeSourceCaptureWorkerUrl = parsedWorkerUrl.toString().replace(/\/$/, '');
+      } catch { /* Worker URL 未配置时仅禁用手动抓取，不影响云端同步。 */ }
+
       return {
         enabled: true,
         url,
-        publishableKey
+        publishableKey,
+        sourceCaptureWorkerUrl: safeSourceCaptureWorkerUrl
       };
     }
 
@@ -6690,6 +6708,22 @@
       finally { cloudSyncState.pulling = false; }
     }
 
+    /* 立即抓取只调用受控 Worker：浏览器不直接读取任意第三方 URL。 */
+    async function requestManualSourceCapture(sourceId) {
+      const config = getCloudRuntimeConfig();
+      if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken) throw new Error('请先登录并完成来源云端同步。');
+      if (!config.sourceCaptureWorkerUrl) throw new Error('手动抓取服务暂未配置。');
+      const response = await fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cloudSyncState.accessToken}` },
+        body: JSON.stringify({ sourceId })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || '手动抓取失败。');
+      await pullCloudWorkspaceSafely();
+      return payload;
+    }
+
     async function approveCloudCandidate(candidateId, title, contentHtml = '') {
       await cloudRestRequest('rpc/approve_source_capture_candidate', { method: 'POST', body: { candidate_id: candidateId, evidence_title: title, evidence_content_html: contentHtml } });
       await pullCloudWorkspaceSafely();
@@ -6786,7 +6820,7 @@
       sourceList.innerHTML = sources.length ? sources.map(item => `
         <article class="source-list-item">
           <div class="source-list-heading"><div><h3>${escapeHtml(item.label)}</h3><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a></div>
-          <div class="source-item-actions"><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
+          <div class="source-item-actions"><button class="secondary source-capture-button" type="button" data-capture-source-id="${escapeHtml(item.id)}" aria-label="立即抓取此来源" data-tooltip="立即抓取此来源"><svg aria-hidden="true"><use href="#icon-capture"></use></svg></button><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
           <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>${sourceCaptureState.cloudSynced ? '来源已连接' : '本机保存'}</span></p>
         </article>`).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
     }
@@ -6837,11 +6871,30 @@
     });
 
     sourceList.addEventListener('click', async event => {
+      const captureButton = event.target.closest('[data-capture-source-id]');
       const editButton = event.target.closest('[data-edit-source-id]');
       const deleteButton = event.target.closest('[data-delete-source-id]');
-      const id = editButton?.dataset.editSourceId || deleteButton?.dataset.deleteSourceId;
+      const id = captureButton?.dataset.captureSourceId || editButton?.dataset.editSourceId || deleteButton?.dataset.deleteSourceId;
       const item = sourceCaptureState.sources.find(entry => entry.id === id);
       if (!item) return;
+      if (captureButton) {
+        captureButton.disabled = true;
+        captureButton.classList.add('is-loading');
+        captureButton.setAttribute('aria-label', '正在抓取此来源');
+        updateSourceSyncNotice('pending', '正在抓取此来源…');
+        try {
+          const result = await requestManualSourceCapture(id);
+          updateSourceSyncNotice('success', result.result?.candidateQueued ? '已生成待审核候选。' : '抓取完成，未发现内容变化。');
+          renderSourceList(); renderReviewQueue();
+        } catch (error) {
+          updateSourceSyncNotice('error', error.message);
+          window.alert(`抓取失败：${error.message}`);
+          captureButton.disabled = false;
+          captureButton.classList.remove('is-loading');
+          captureButton.setAttribute('aria-label', '立即抓取此来源');
+        }
+        return;
+      }
       if (editButton) { showSourceFormMode(item); return; }
       if (window.confirm(`确定删除来源“${item.label}”吗？`)) {
         if (sourceCaptureState.cloudSynced) {
