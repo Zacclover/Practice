@@ -16,6 +16,18 @@ class CloudWorkspaceSyncRuntimeTests(unittest.TestCase):
             self.assertIn(f"'{state}':", SOURCE)
         self.assertIn("updateCloudWorkspaceSyncStatus('failure'", SOURCE)
 
+    def test_global_sync_status_uses_data_sync_user_facing_copy(self):
+        self.assertNotIn("工作区同步：", SOURCE)
+        for message in (
+            "数据同步：正在连接",
+            "数据同步：正在同步",
+            "数据同步：已同步",
+            "数据同步：需要导入本机数据",
+            "数据同步：存在冲突，请先导出备份并处理",
+            "数据同步：失败",
+        ):
+            self.assertIn(message, SOURCE)
+
     def test_bootstrap_must_finish_before_workspace_can_report_synchronized(self):
         sync = re.search(
             r"async function synchronizeCloudWorkspace\(profile, accessToken\) \{(?P<body>.*?)\n    \}",

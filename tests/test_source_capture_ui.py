@@ -28,6 +28,19 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn("parsedUrl.protocol !== 'https:'", SOURCE)
         self.assertIn("isPrivateSourceHostname(parsedUrl.hostname)", SOURCE)
 
+    def test_source_dialog_starts_in_list_mode_and_opens_form_on_demand(self):
+        self.assertIn('id="sourceListMode"', SOURCE)
+        self.assertIn('id="addSourceButton"', SOURCE)
+        self.assertIn('id="sourceForm" hidden', SOURCE)
+        self.assertIn('function showSourceListMode()', SOURCE)
+        self.assertIn('function showSourceFormMode(source = null)', SOURCE)
+        self.assertIn("addSourceButton.addEventListener('click', () => showSourceFormMode())", SOURCE)
+
+    def test_source_create_edit_save_and_cancel_return_to_list_mode(self):
+        self.assertIn("if (editButton) { showSourceFormMode(item); return; }", SOURCE)
+        self.assertIn('persistSourceCaptureState(); showSourceListMode(); render();', SOURCE)
+        self.assertIn("cancelSourceEditButton.addEventListener('click', showSourceListMode)", SOURCE)
+
     def test_source_dialog_reports_capture_state_without_claiming_global_sync(self):
         self.assertIn("const sourceCaptureStorageKey =\n      'competitor-insights-source-capture-v1';", SOURCE)
         notice = re.search(r'<p id="sourceSyncNotice".*?</p>', SOURCE, re.S)

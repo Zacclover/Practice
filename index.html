@@ -4270,6 +4270,9 @@
     .source-dialog-header h2 { margin: 4px 0 0; }
     .source-dialog-kicker { margin: 0; color: var(--orange); font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
     .source-dialog-body { display: grid; gap: 16px; padding: 20px 24px; }
+    /* 来源弹窗模式容器：列表和表单互斥显示，并沿用弹窗统一间距 */
+    .source-dialog-mode { display: grid; gap: 16px; }
+    .source-list-actions { justify-content: flex-start; }
     .source-sync-notice { margin: 0; padding: 12px; color: var(--ink); background: var(--gray-100); border-left: 3px solid var(--orange); }
     .source-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .source-list, .review-queue-list { display: grid; gap: 10px; }
@@ -4403,7 +4406,7 @@
             <span id="cloudAccountName" class="cloud-account-name">GitHub 用户</span>
           </button>
           <div id="cloudAccountPanel" class="cloud-account-panel" hidden>
-            <p id="cloudWorkspaceSyncStatus" class="cloud-workspace-sync-status" role="status">工作区同步：正在连接</p>
+            <p id="cloudWorkspaceSyncStatus" class="cloud-workspace-sync-status" role="status">数据同步：正在连接</p>
             <button id="cloudLogoutButton" type="button">
               <svg class="button-icon" aria-hidden="true" focusable="false"><use href="#icon-exit"></use></svg>
               退出登录
@@ -4762,8 +4765,17 @@
       <h2 id="sourceDialogTitle">来源管理</h2>
     </div>
     <div class="source-dialog-body">
-      <p id="sourceSyncNotice" class="source-sync-notice" role="status"><strong>来源采集状态：本机已保存</strong><br>当前来源与候选保留在此浏览器。</p>
-      <form id="sourceForm">
+      <!-- 来源列表模式：只展示采集状态、已有来源和列表操作 -->
+      <section id="sourceListMode" class="source-dialog-mode" aria-label="已有来源">
+        <p id="sourceSyncNotice" class="source-sync-notice" role="status"><strong>来源采集状态：本机已保存</strong><br>当前来源与候选保留在此浏览器。</p>
+        <div class="actions source-list-actions">
+          <button id="addSourceButton" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-plus"></use></svg>添加来源</button>
+        </div>
+        <div id="sourceList" class="source-list"></div>
+        <div class="actions"><button id="closeSourceDialogButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>关闭</button></div>
+      </section>
+      <!-- 来源表单模式：新增与编辑复用既有控件，取消后返回列表 -->
+      <form id="sourceForm" hidden>
         <input id="sourceId" type="hidden">
         <label>来源名称<input id="sourceLabel" maxlength="80" required placeholder="例如：产品更新日志"></label>
         <label>公开 HTTPS 地址<input id="sourceUrl" type="url" inputmode="url" required placeholder="https://example.com/changelog"></label>
@@ -4772,12 +4784,10 @@
           <label>检查频率<select id="sourceFrequency" required><option value="24">每天</option><option value="72">每 3 天</option><option value="168" selected>每周</option><option value="336">每 2 周</option><option value="720">每月</option></select></label>
         </div>
         <div class="actions">
-          <button id="cancelSourceEditButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>清空</button>
+          <button id="cancelSourceEditButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>取消</button>
           <button id="saveSourceButton" type="submit"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">添加来源</span></button>
         </div>
       </form>
-      <div id="sourceList" class="source-list"></div>
-      <div class="actions"><button id="closeSourceDialogButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>关闭</button></div>
     </div>
   </dialog>
 
@@ -5593,6 +5603,7 @@
     /* 获取来源管理与人工审核队列相关页面元素 */
     const sourceManagementDialog = document.querySelector('#sourceManagementDialog');
     const sourceDialogTitle = document.querySelector('#sourceDialogTitle');
+    const sourceListMode = document.querySelector('#sourceListMode');
     const sourceForm = document.querySelector('#sourceForm');
     const sourceId = document.querySelector('#sourceId');
     const sourceLabel = document.querySelector('#sourceLabel');
@@ -5601,6 +5612,8 @@
     const sourceFrequency = document.querySelector('#sourceFrequency');
     const sourceList = document.querySelector('#sourceList');
     const sourceSyncNotice = document.querySelector('#sourceSyncNotice');
+    const addSourceButton = document.querySelector('#addSourceButton');
+    const cancelSourceEditButton = document.querySelector('#cancelSourceEditButton');
     const reviewQueueButton = document.querySelector('#reviewQueueButton');
     const reviewQueueCount = document.querySelector('#reviewQueueCount');
     const reviewQueueDialog = document.querySelector('#reviewQueueDialog');
@@ -6392,11 +6405,11 @@
     function updateCloudWorkspaceSyncStatus(state, detail = '') {
       if (!cloudWorkspaceSyncStatus) return;
       const messages = {
-        'syncing': '工作区同步：正在同步',
-        'synchronized': '工作区同步：已同步',
-        'requires-import': '工作区同步：需要导入本机数据',
-        'conflict': '工作区同步：存在冲突，请先导出备份并处理',
-        'failure': `工作区同步：失败${detail ? `（${detail}）` : ''}`
+        'syncing': '数据同步：正在同步',
+        'synchronized': '数据同步：已同步',
+        'requires-import': '数据同步：需要导入本机数据',
+        'conflict': '数据同步：存在冲突，请先导出备份并处理',
+        'failure': `数据同步：失败${detail ? `（${detail}）` : ''}`
       };
       cloudWorkspaceSyncStatus.textContent = messages[state] || messages.failure;
       cloudWorkspaceSyncStatus.dataset.state = state;
@@ -6727,13 +6740,36 @@
       setButtonLabel(document.querySelector('#saveSourceButton'), '添加来源');
     }
 
+    /* 来源管理模式切换：列表模式不渲染表单布局，表单模式承载新增或编辑 */
+    function showSourceListMode() {
+      resetSourceForm();
+      sourceForm.hidden = true;
+      sourceListMode.hidden = false;
+      renderSourceList();
+      addSourceButton.focus();
+    }
+
+    function showSourceFormMode(source = null) {
+      resetSourceForm();
+      if (source) {
+        sourceId.value = source.id;
+        sourceLabel.value = source.label;
+        sourceUrl.value = source.url;
+        sourceType.value = source.type;
+        sourceFrequency.value = String(source.frequencyHours);
+        setButtonLabel(document.querySelector('#saveSourceButton'), '保存修改');
+      }
+      sourceListMode.hidden = true;
+      sourceForm.hidden = false;
+      sourceLabel.focus();
+    }
+
     function openSourceManagement(competitorId) {
       const competitor = competitors.find(item => item.id === competitorId);
       if (!competitor) return;
       selectedSourceCompetitorId = competitorId;
       sourceDialogTitle.textContent = `${competitor.name} · 来源管理`;
-      resetSourceForm();
-      renderSourceList();
+      showSourceListMode();
       sourceManagementDialog.showModal();
     }
 
@@ -6791,7 +6827,7 @@
         }
       }
       if (existingIndex >= 0) sourceCaptureState.sources[existingIndex] = record; else sourceCaptureState.sources.push(record);
-      persistSourceCaptureState(); resetSourceForm(); renderSourceList(); render();
+      persistSourceCaptureState(); showSourceListMode(); render();
     });
 
     sourceList.addEventListener('click', async event => {
@@ -6800,7 +6836,7 @@
       const id = editButton?.dataset.editSourceId || deleteButton?.dataset.deleteSourceId;
       const item = sourceCaptureState.sources.find(entry => entry.id === id);
       if (!item) return;
-      if (editButton) { sourceId.value = item.id; sourceLabel.value = item.label; sourceUrl.value = item.url; sourceType.value = item.type; sourceFrequency.value = String(item.frequencyHours); setButtonLabel(document.querySelector('#saveSourceButton'), '保存修改'); sourceLabel.focus(); return; }
+      if (editButton) { showSourceFormMode(item); return; }
       if (window.confirm(`确定删除来源“${item.label}”吗？`)) {
         if (sourceCaptureState.cloudSynced) {
           try { await deleteCloudCompetitorSource(id); }
@@ -6810,7 +6846,8 @@
         persistSourceCaptureState(); renderSourceList(); render();
       }
     });
-    document.querySelector('#cancelSourceEditButton').addEventListener('click', resetSourceForm);
+    addSourceButton.addEventListener('click', () => showSourceFormMode());
+    cancelSourceEditButton.addEventListener('click', showSourceListMode);
     document.querySelector('#closeSourceDialogButton').addEventListener('click', () => sourceManagementDialog.close());
     reviewQueueButton.addEventListener('click', () => { renderReviewQueue(); reviewQueueDialog.showModal(); });
     document.querySelector('#closeReviewQueueButton').addEventListener('click', () => reviewQueueDialog.close());
