@@ -27,10 +27,24 @@ class CloudWorkspaceSyncRuntimeTests(unittest.TestCase):
         self.assertLess(body.find("resolveCloudWorkspace"), body.find("updateCloudWorkspaceSyncStatus('synchronized'"))
         self.assertNotIn("updateCloudWorkspaceSyncStatus('synchronized'", body[:body.find("resolveCloudWorkspace")])
 
-    def test_first_login_import_requires_confirmation_and_downloads_backup(self):
-        self.assertIn('id="cloudImportDialog"', SOURCE)
-        self.assertIn('id="confirmCloudImportButton"', SOURCE)
-        self.assertIn("downloadWorkspaceBackup", SOURCE)
+    def test_first_login_automatically_imports_local_workspace_without_prompt_or_backup(self):
+        sync = re.search(
+            r"async function synchronizeCloudWorkspace\(profile, accessToken\) \{(?P<body>.*?)\n    \}",
+            SOURCE,
+            re.S,
+        )
+        self.assertIsNotNone(sync)
+        body = sync.group("body") if sync else ""
+        self.assertIn("await importInitialLocalWorkspace()", body)
+        self.assertNotIn("cloudImportDialog.showModal()", body)
+        self.assertNotIn('id="cloudImportDialog"', SOURCE)
+        importer = re.search(
+            r"async function importInitialLocalWorkspace\(\) \{(?P<body>.*?)\n    \}",
+            SOURCE,
+            re.S,
+        )
+        self.assertIsNotNone(importer)
+        self.assertNotIn("downloadWorkspaceBackup", importer.group("body") if importer else "")
         self.assertIn("import_initial_workspace_snapshot", SOURCE)
         self.assertNotIn("void synchronizeCloudSourceCapture(profile, accessToken)", SOURCE)
 

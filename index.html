@@ -4794,23 +4794,6 @@
     </div>
   </dialog>
 
-  <!-- ==============================
-       首次云端导入确认
-       先下载本机 v3 备份，再通过原子 RPC 导入空白云工作区
-       ============================== -->
-  <dialog id="cloudImportDialog" aria-labelledby="cloudImportTitle">
-    <div class="source-dialog-header">
-      <p class="source-dialog-kicker">CLOUD IMPORT / EXPLICIT</p>
-      <h2 id="cloudImportTitle">将本机数据导入空白云空间？</h2>
-    </div>
-    <div class="source-dialog-body">
-      <p>云端登录后以云工作区为准。确认后会先下载完整 v3 备份，再原子导入当前 Tab、竞品、维度、证据、洞察、矩阵与来源；不会覆盖已有云数据。</p>
-      <div class="actions">
-        <button id="cancelCloudImportButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>暂不导入</button>
-        <button id="confirmCloudImportButton" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>备份并导入</button>
-      </div>
-    </div>
-  </dialog>
 
   <!-- ==============================
        Tab 新增与重命名弹窗
@@ -5575,9 +5558,7 @@
       document.querySelector('#cloudWorkspaceSyncStatus');
     const cloudLogoutButton =
       document.querySelector('#cloudLogoutButton');
-    const cloudImportDialog = document.querySelector('#cloudImportDialog');
-    const confirmCloudImportButton = document.querySelector('#confirmCloudImportButton');
-    const cancelCloudImportButton = document.querySelector('#cancelCloudImportButton');
+
     const cloudConflictPanel = document.querySelector('#cloudConflictPanel');
     const tabDialog = document.querySelector('#tabDialog');
     const tabForm = document.querySelector('#tabForm');
@@ -6089,14 +6070,7 @@
     });
 
     cloudLogoutButton.addEventListener('click', signOutCloudAccount);
-    confirmCloudImportButton.addEventListener('click', () => {
-      void importConfirmedLocalWorkspace().catch(error => {
-        updateCloudWorkspaceSyncStatus('failure', error.message);
-        updateSourceSyncNotice('error', error.message);
-        window.alert(`云端导入未完成，本机数据与备份仍保留：${error.message}`);
-      });
-    });
-    cancelCloudImportButton.addEventListener('click', () => cloudImportDialog.close());
+
     window.addEventListener('online', () => void flushCloudOutbox());
     window.addEventListener('focus', () => void pullCloudWorkspaceSafely());
     document.addEventListener('visibilitychange', () => {
@@ -6572,13 +6546,6 @@
       renderSourceList(); renderReviewQueue(); render();
     }
 
-    function downloadWorkspaceBackup() {
-      const backup = { format: 'competitor-insights-backup', version: 3, exportedAt: new Date().toISOString(), data: workspaceState };
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
-      link.download = `competitor-insights-before-cloud-${new Date().toISOString().slice(0, 10)}.json`;
-      link.click(); URL.revokeObjectURL(link.href);
-    }
 
     /* 首导入为每类旧 ID 建立一致 UUID 映射，所有引用都通过相同映射表转换。 */
     function buildInitialCloudSnapshot(workspaceId) {
@@ -6597,19 +6564,15 @@
       return payload;
     }
 
-    async function importConfirmedLocalWorkspace() {
-      confirmCloudImportButton.disabled = true;
-      try {
-        downloadWorkspaceBackup();
-        await cloudRestRequest('rpc/import_initial_workspace_snapshot', { method: 'POST', body: { target_workspace_id: cloudSyncState.workspaceId, snapshot: buildInitialCloudSnapshot(cloudSyncState.workspaceId) } });
-        cloudImportDialog.close();
-        hydrateCloudSnapshot(await fetchCloudSnapshot(cloudSyncState.workspaceId, cloudSyncState.accessToken));
-        updateSourceSyncNotice('synced');
-        updateCloudWorkspaceSyncStatus('synchronized');
-      } finally { confirmCloudImportButton.disabled = false; }
+    /* 首次登录遇到空云工作区时，直接原子导入当前本机工作区；常规导出仍由工具栏提供。 */
+    async function importInitialLocalWorkspace() {
+      await cloudRestRequest('rpc/import_initial_workspace_snapshot', { method: 'POST', body: { target_workspace_id: cloudSyncState.workspaceId, snapshot: buildInitialCloudSnapshot(cloudSyncState.workspaceId) } });
+      hydrateCloudSnapshot(await fetchCloudSnapshot(cloudSyncState.workspaceId, cloudSyncState.accessToken));
+      updateSourceSyncNotice('synced');
+      updateCloudWorkspaceSyncStatus('synchronized');
     }
 
-    /* 登录后先读取云端：有数据立即水合；空白时仅显示显式导入确认。 */
+    /* 登录后先读取云端：有数据立即水合；空白时自动原子导入当前本机工作区。 */
     async function synchronizeCloudWorkspace(profile, accessToken) {
       updateCloudWorkspaceSyncStatus('syncing');
       updateSourceSyncNotice('syncing');
@@ -6627,9 +6590,7 @@
           updateCloudWorkspaceSyncStatus('synchronized');
         }
       } else {
-        cloudImportDialog.showModal();
-        updateSourceSyncNotice('local');
-        updateCloudWorkspaceSyncStatus('requires-import');
+        await importInitialLocalWorkspace();
       }
     }
 
