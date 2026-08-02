@@ -58,14 +58,18 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn("@media (max-width: 640px)", SOURCE)
         self.assertNotIn("@media (hover: none), (max-width: 640px)", SOURCE)
 
-    def test_manual_capture_icon_has_a_disabled_rotating_loading_state(self):
-        self.assertIn('id="icon-capture"', SOURCE)
-        self.assertIn('data-capture-source-id="${escapeHtml(item.id)}"', SOURCE)
+    def test_manual_capture_uses_a_scan_icon_and_an_actual_hover_or_focus_tooltip(self):
+        self.assertIn('id="icon-source-capture"', SOURCE)
+        self.assertIn('id="icon-capture-loader"', SOURCE)
+        self.assertIn('href="#icon-source-capture"', SOURCE)
         self.assertIn('data-tooltip="立即抓取此来源"', SOURCE)
+        self.assertIn("sourceList.addEventListener('mouseover'", SOURCE)
+        self.assertIn("sourceList.addEventListener('focusin'", SOURCE)
         self.assertIn("classList.add('is-loading')", SOURCE)
+        self.assertIn("setAttribute('href', '#icon-capture-loader')", SOURCE)
         self.assertIn('disabled', SOURCE)
         self.assertIn('@keyframes source-capture-spin', SOURCE)
-        self.assertIn('prefers-reduced-motion: reduce', SOURCE)
+        self.assertNotIn('@media (prefers-reduced-motion: reduce) { .source-capture-button', SOURCE)
         self.assertIn("function requestManualSourceCapture(sourceId)", SOURCE)
 
     def test_source_dialog_reports_capture_state_without_claiming_global_sync(self):
