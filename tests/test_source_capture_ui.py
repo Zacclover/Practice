@@ -58,10 +58,10 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn("@media (max-width: 640px)", SOURCE)
         self.assertNotIn("@media (hover: none), (max-width: 640px)", SOURCE)
 
-    def test_manual_capture_uses_a_scan_icon_and_an_actual_hover_or_focus_tooltip(self):
-        self.assertIn('id="icon-source-capture"', SOURCE)
+    def test_manual_capture_uses_a_hand_icon_and_an_actual_hover_or_focus_tooltip(self):
+        self.assertIn('id="icon-source-capture-hand"', SOURCE)
         self.assertIn('id="icon-capture-loader"', SOURCE)
-        self.assertIn('href="#icon-source-capture"', SOURCE)
+        self.assertIn('href="#icon-source-capture-hand"', SOURCE)
         self.assertIn('data-tooltip="立即抓取此来源"', SOURCE)
         self.assertIn("sourceList.addEventListener('mouseover'", SOURCE)
         self.assertIn("sourceList.addEventListener('focusin'", SOURCE)
