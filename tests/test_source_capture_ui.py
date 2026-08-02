@@ -65,6 +65,7 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn('href="#icon-source-capture-hand"', SOURCE)
         self.assertIn('data-tooltip="立即抓取此来源"', SOURCE)
         self.assertIn('.rich-toolbar-tooltip::after', SOURCE)
+        self.assertEqual(SOURCE.count('.rich-toolbar-tooltip {'), 1)
         self.assertIn('top = buttonRect.top - tooltipHeight - edgeGap - tooltipArrowHeight', SOURCE)
         self.assertIn('Tooltip 固定显示在触发按钮上方并水平居中', DESIGN)
         self.assertIn("sourceList.addEventListener('mouseover'", SOURCE)
