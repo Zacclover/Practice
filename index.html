@@ -7896,7 +7896,11 @@
       }`;
       const collage = previewImages
         .map(image => `
-          <img src="${escapeHtml(image)}" alt="证据图片">
+          <img
+            src="${escapeHtml(image)}"
+            alt="证据图片"
+            loading="lazy"
+            decoding="async">
         `)
         .join('');
       const linkedDimensions = evidence.dimensionIds
@@ -9009,7 +9013,9 @@
               <img
                 class="detail-image"
                 src="${escapeHtml(image)}"
-                alt="证据图片 ${index + 1}">
+                alt="证据图片 ${index + 1}"
+                loading="lazy"
+                decoding="async">
             `)
             .join('')
         : `
@@ -9072,7 +9078,9 @@
               src="${escapeHtml(
                 entry.evidence.images[0] || fallbackImage
               )}"
-              alt="关联证据缩略图">
+              alt="关联证据缩略图"
+              loading="lazy"
+              decoding="async">
             <div>
               <strong>
                 ${escapeHtml(entry.evidence.title)}
