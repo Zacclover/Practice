@@ -9,6 +9,9 @@ SOURCE = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding
 class CloudWorkspaceSyncRuntimeTests(unittest.TestCase):
     def test_account_area_owns_the_global_workspace_sync_states(self):
         self.assertIn('id="cloudWorkspaceSyncStatus"', SOURCE)
+        self.assertIn('.cloud-account-panel .cloud-workspace-sync-status', SOURCE)
+        self.assertIn('display: block !important;', SOURCE)
+        self.assertIn('visibility: visible !important;', SOURCE)
         for state in ("syncing", "synchronized", "requires-import", "conflict", "failure"):
             self.assertIn(f"'{state}':", SOURCE)
         self.assertIn("updateCloudWorkspaceSyncStatus('failure'", SOURCE)

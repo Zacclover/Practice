@@ -1047,8 +1047,10 @@
       border: 2px solid var(--line-strong);
     }
 
-    /* 全局工作区同步状态：账户区是云端整体状态的唯一展示位置 */
-    .cloud-workspace-sync-status {
+    /* 全局工作区同步状态：保留在账户菜单内，并强制作为首项显示。 */
+    .cloud-account-panel .cloud-workspace-sync-status {
+      display: block !important;
+      visibility: visible !important;
       max-width: 260px;
       margin: 0 0 8px;
       padding: 9px 12px;
