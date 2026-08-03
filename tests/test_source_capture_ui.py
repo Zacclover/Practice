@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 SOURCE = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+DESIGN = (Path(__file__).resolve().parents[1] / "DESIGN.md").read_text(encoding="utf-8")
 
 
 class SourceCaptureUiContractTests(unittest.TestCase):
@@ -28,11 +29,53 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         self.assertIn("parsedUrl.protocol !== 'https:'", SOURCE)
         self.assertIn("isPrivateSourceHostname(parsedUrl.hostname)", SOURCE)
 
-    def test_sources_keep_local_fallback_and_report_successful_cloud_sync_honestly(self):
+    def test_source_dialog_starts_in_list_mode_and_opens_form_on_demand(self):
+        self.assertIn('id="sourceListMode"', SOURCE)
+        self.assertIn('id="addSourceButton"', SOURCE)
+        self.assertIn('id="sourceForm" hidden', SOURCE)
+        self.assertIn('function showSourceListMode()', SOURCE)
+        self.assertIn('function showSourceFormMode(source = null)', SOURCE)
+        self.assertIn("addSourceButton.addEventListener('click', () => showSourceFormMode())", SOURCE)
+
+    def test_source_create_edit_save_and_cancel_return_to_list_mode(self):
+        self.assertIn("if (editButton) { showSourceFormMode(item); return; }", SOURCE)
+        self.assertIn('persistSourceCaptureState(); showSourceListMode(); render();', SOURCE)
+        self.assertIn("cancelSourceEditButton.addEventListener('click', showSourceListMode)", SOURCE)
+
+    def test_source_actions_are_revealed_on_hover_or_keyboard_focus(self):
+        actions_rule = re.search(
+            r"\.source-item-actions\s*\{(?P<body>[^}]*)\}", SOURCE
+        )
+        self.assertIsNotNone(actions_rule)
+        assert actions_rule is not None
+        self.assertIn("opacity: 0", actions_rule.group("body"))
+        self.assertIn("pointer-events: none", actions_rule.group("body"))
+        self.assertNotIn("visibility: hidden", actions_rule.group("body"))
+        self.assertIn(
+            ".source-list-item:hover .source-item-actions,\n"
+            "    .source-list-item:focus-within .source-item-actions",
+            SOURCE,
+        )
+        self.assertIn("@media (max-width: 640px)", SOURCE)
+        self.assertNotIn("@media (hover: none), (max-width: 640px)", SOURCE)
+
+    def test_manual_capture_uses_a_source_local_bubble_tooltip(self):
+        self.assertIn('class="source-action-tooltip"', SOURCE)
+        self.assertIn('role="tooltip"', SOURCE)
+        self.assertIn('aria-describedby="source-capture-tooltip-${escapeHtml(item.id)}"', SOURCE)
+        self.assertIn('.source-capture-button:hover .source-action-tooltip', SOURCE)
+        self.assertIn('.source-capture-button:focus-visible .source-action-tooltip', SOURCE)
+        self.assertRegex(SOURCE, r'\.source-action-tooltip \{[^}]*font-size: 12px[^}]*font-weight: 400')
+        self.assertNotIn("sourceList.addEventListener('mouseover'", SOURCE)
+        self.assertNotIn('title="立即抓取此来源"', SOURCE)
+
+    def test_source_dialog_reports_capture_state_without_claiming_global_sync(self):
         self.assertIn("const sourceCaptureStorageKey =\n      'competitor-insights-source-capture-v1';", SOURCE)
-        self.assertIn('本机保存，尚未同步', SOURCE)
-        self.assertIn('登录 GitHub 后将通过受 RLS 保护的云端接口同步来源与候选。', SOURCE)
-        self.assertIn('云端已同步', SOURCE)
+        notice = re.search(r'<p id="sourceSyncNotice".*?</p>', SOURCE, re.S)
+        self.assertIsNotNone(notice)
+        self.assertIn('来源采集状态', notice.group(0))
+        self.assertNotIn('云端已同步', notice.group(0))
+        self.assertNotIn('工作区同步', notice.group(0))
         self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY", SOURCE)
 
     def test_review_queue_exposes_pending_metadata_and_human_preparation_action(self):

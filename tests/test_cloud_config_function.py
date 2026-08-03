@@ -35,6 +35,7 @@ class CloudConfigFunctionTests(unittest.TestCase):
         result = self.invoke({
             "SUPABASE_URL": "https://example.supabase.co",
             "SUPABASE_PUBLISHABLE_KEY": "public-key",
+            "SOURCE_CAPTURE_WORKER_URL": "https://source-capture.example.workers.dev/",
         })
 
         self.assertEqual(result["status"], 200)
@@ -42,7 +43,7 @@ class CloudConfigFunctionTests(unittest.TestCase):
         self.assertEqual(result["headers"]["content-type"], "application/javascript; charset=utf-8")
         self.assertEqual(
             result["body"],
-            'window.COMPETITOR_INSIGHTS_CLOUD_CONFIG = {"SUPABASE_URL":"https://example.supabase.co","SUPABASE_PUBLISHABLE_KEY":"public-key"};',
+            'window.COMPETITOR_INSIGHTS_CLOUD_CONFIG = {"SUPABASE_URL":"https://example.supabase.co","SUPABASE_PUBLISHABLE_KEY":"public-key","SOURCE_CAPTURE_WORKER_URL":"https://source-capture.example.workers.dev"};',
         )
 
     def test_serialization_cannot_break_out_of_javascript_data(self):

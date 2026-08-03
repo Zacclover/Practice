@@ -10,6 +10,8 @@ export function onRequest({ env }) {
     ? env.SUPABASE_PUBLISHABLE_KEY.trim()
     : "";
 
+  const sourceCaptureWorkerUrl = normalizePublicWorkerUrl(env?.SOURCE_CAPTURE_WORKER_URL);
+
   if (!isHttpsUrl(url) || !publishableKey) {
     return new Response("", { headers: RESPONSE_HEADERS });
   }
@@ -17,6 +19,7 @@ export function onRequest({ env }) {
   const config = safeJson({
     SUPABASE_URL: url,
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
+    ...(sourceCaptureWorkerUrl ? { SOURCE_CAPTURE_WORKER_URL: sourceCaptureWorkerUrl } : {}),
   });
   return new Response(
     `window.COMPETITOR_INSIGHTS_CLOUD_CONFIG = ${config};`,
@@ -29,6 +32,17 @@ function isHttpsUrl(value) {
     return new URL(value).protocol === "https:";
   } catch {
     return false;
+  }
+}
+
+function normalizePublicWorkerUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const parsed = new URL(value.trim());
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) return "";
+    return parsed.href.replace(/\/$/, "");
+  } catch {
+    return "";
   }
 }
 

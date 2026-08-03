@@ -13,9 +13,9 @@ class CloudSourceSyncTests(unittest.TestCase):
         self.assertIn("Authorization: `Bearer ${accessToken}`", SOURCE)
         self.assertNotRegex(SOURCE.lower(), r"service_role|service-role|secret[_-]?key")
 
-    def test_sync_resolves_workspace_then_upserts_fk_prerequisites_before_sources(self):
+    def test_sync_resolves_unique_workspace_then_reads_canonical_snapshot(self):
         function = re.search(
-            r"async function synchronizeCloudSourceCapture\(profile, accessToken\) \{(?P<body>.*?)\n    \}",
+            r"async function synchronizeCloudWorkspace\(profile, accessToken\) \{(?P<body>.*?)\n    \}",
             SOURCE,
             re.S,
         )
@@ -23,10 +23,8 @@ class CloudSourceSyncTests(unittest.TestCase):
         body = function.group("body")
         ordered_markers = [
             "resolveCloudWorkspace",
-            'cloudRestRequest("workspace_tabs"',
-            'cloudRestRequest("competitors"',
-            'cloudRestRequest("competitor_sources"',
-            'cloudRestRequest(`source_capture_candidates?',
+            "fetchCloudSnapshot",
+            "hydrateCloudSnapshot",
         ]
         positions = [body.find(marker) for marker in ordered_markers]
         self.assertTrue(all(position >= 0 for position in positions), positions)
@@ -42,19 +40,19 @@ class CloudSourceSyncTests(unittest.TestCase):
         self.assertIn("status=eq.pending", SOURCE)
         self.assertIn("sourceCaptureState.candidates =", SOURCE)
         self.assertIn("sourceCaptureState.cloudSynced = true", SOURCE)
-        self.assertIn("云端已同步", SOURCE)
+        self.assertIn("来源已连接", SOURCE)
         self.assertIn("本机保存", SOURCE)
 
-    def test_sync_scope_never_writes_research_outputs(self):
+    def test_login_sync_never_blindly_upserts_research_outputs(self):
         function = re.search(
-            r"async function synchronizeCloudSourceCapture\(profile, accessToken\) \{(?P<body>.*?)\n    \}",
+            r"async function synchronizeCloudWorkspace\(profile, accessToken\) \{(?P<body>.*?)\n    \}",
             SOURCE,
             re.S,
         )
         self.assertIsNotNone(function)
         body = function.group("body")
-        for forbidden_table in ["evidence", "dimensions", "matrix_cells", "insights"]:
-            self.assertNotIn(f'cloudRestRequest("{forbidden_table}"', body)
+        self.assertNotIn("resolution=merge-duplicates", body)
+        self.assertNotIn("workspace_tabs', { method: 'POST'", body)
 
 
 if __name__ == "__main__":

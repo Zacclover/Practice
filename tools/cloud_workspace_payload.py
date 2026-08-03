@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from uuid import NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 
 # 输出结构：顺序与云端迁移时父表、关系表的写入顺序保持一致。
@@ -25,6 +25,23 @@ TABLE_NAMES = (
 RELATION_ID_NAMESPACE = uuid5(
     NAMESPACE_URL, "competitor-insights/cloud-workspace-payload/v1"
 )
+
+
+# 旧版浏览器主键可能不是 UUID；按实体类型和原值生成稳定 UUID，避免不同表同名主键碰撞。
+def _entity_id(entity_type: str, workspace_id: str, legacy_id: Any) -> str:
+    if not isinstance(legacy_id, str) or not legacy_id.strip():
+        raise ValueError(f"{entity_type} id 不能为空。")
+    try:
+        return str(UUID(legacy_id))
+    except ValueError:
+        return _relation_id("entity", workspace_id, entity_type, legacy_id)
+
+
+# 外键必须指向同一 Tab 已声明实体；拒绝悬空引用，绝不静默输出 null。
+def _mapped_reference(mapping: dict[Any, str], entity_type: str, legacy_id: Any) -> str:
+    if legacy_id not in mapping:
+        raise ValueError(f"未知 {entity_type} 引用：{legacy_id}。")
+    return mapping[legacy_id]
 
 
 def _relation_id(table_name: str, *values: Any) -> str:
@@ -89,9 +106,7 @@ def build_workspace_payload(
     }
 
     for tab_order, tab in enumerate(tabs):
-        tab_id = tab.get("id")
-        if not isinstance(tab_id, str) or not tab_id:
-            raise ValueError("Tab id 不能为空。")
+        tab_id = _entity_id("workspace_tabs", workspace_id, tab.get("id"))
 
         tab_row = {
             "id": tab_id,
@@ -103,9 +118,13 @@ def build_workspace_payload(
 
         # 竞品实体：字段名与 Supabase competitors 表保持一致。
         competitors = _items(tab, "competitors")
+        competitor_ids = {
+            item.get("id"): _entity_id("competitors", workspace_id, item.get("id"))
+            for item in competitors
+        }
         for competitor in competitors:
             row = {
-                "id": competitor.get("id"),
+                "id": competitor_ids[competitor.get("id")],
                 "workspace_id": workspace_id,
                 "tab_id": tab_id,
                 "name": competitor.get("name", ""),
@@ -122,9 +141,13 @@ def build_workspace_payload(
 
         # 维度实体：数组位置直接转换为稳定的数据库排序值。
         dimensions = _items(comparison, "dimensions")
+        dimension_ids = {
+            item.get("id"): _entity_id("dimensions", workspace_id, item.get("id"))
+            for item in dimensions
+        }
         for dimension_order, dimension in enumerate(dimensions):
             row = {
-                "id": dimension.get("id"),
+                "id": dimension_ids[dimension.get("id")],
                 "workspace_id": workspace_id,
                 "tab_id": tab_id,
                 "name": dimension.get("name", ""),
@@ -136,13 +159,17 @@ def build_workspace_payload(
 
         # 证据实体及证据维度关系：关系顺序沿用备份中的引用顺序。
         evidence_items = _items(tab, "evidenceItems")
+        evidence_ids = {
+            item.get("id"): _entity_id("evidence", workspace_id, item.get("id"))
+            for item in evidence_items
+        }
         for evidence in evidence_items:
-            evidence_id = evidence.get("id")
+            evidence_id = evidence_ids[evidence.get("id")]
             row = {
                 "id": evidence_id,
                 "workspace_id": workspace_id,
                 "tab_id": tab_id,
-                "competitor_id": evidence.get("competitorId"),
+                "competitor_id": _mapped_reference(competitor_ids, "competitors", evidence.get("competitorId")),
                 "title": evidence.get("title", ""),
                 "content_html": evidence.get("contentHtml", ""),
                 "images": evidence.get("images", []),
@@ -150,8 +177,8 @@ def build_workspace_payload(
             payload["evidence"].append(
                 _with_common_fields(row, evidence, include_sample=True)
             )
-            dimension_ids = evidence.get("dimensionIds", [])
-            if not isinstance(dimension_ids, list):
+            evidence_dimension_refs = evidence.get("dimensionIds", [])
+            if not isinstance(evidence_dimension_refs, list):
                 raise ValueError("dimensionIds 必须是数组。")
             payload["evidence_dimensions"].extend(
                 {
@@ -160,20 +187,24 @@ def build_workspace_payload(
                         workspace_id,
                         tab_id,
                         evidence_id,
-                        dimension_id,
+                        _mapped_reference(dimension_ids, "dimensions", dimension_id),
                     ),
                     "workspace_id": workspace_id,
                     "tab_id": tab_id,
                     "evidence_id": evidence_id,
-                    "dimension_id": dimension_id,
+                    "dimension_id": _mapped_reference(dimension_ids, "dimensions", dimension_id),
                 }
-                for dimension_id in dimension_ids
+                for dimension_id in evidence_dimension_refs
             )
 
         # 洞察实体及三类引用关系：只拆分引用，不生成或替换原始 ID。
         insights = _items(tab, "insights")
+        insight_ids = {
+            item.get("id"): _entity_id("insights", workspace_id, item.get("id"))
+            for item in insights
+        }
         for insight in insights:
-            insight_id = insight.get("id")
+            insight_id = insight_ids[insight.get("id")]
             row = {
                 "id": insight_id,
                 "workspace_id": workspace_id,
@@ -196,6 +227,11 @@ def build_workspace_payload(
                 reference_ids = insight.get(source_field, [])
                 if not isinstance(reference_ids, list):
                     raise ValueError(f"{source_field} 必须是数组。")
+                reference_map = {
+                    "competitorIds": competitor_ids,
+                    "dimensionIds": dimension_ids,
+                    "evidenceIds": evidence_ids,
+                }[source_field]
                 payload[table_name].extend(
                     {
                         "id": _relation_id(
@@ -203,12 +239,12 @@ def build_workspace_payload(
                             workspace_id,
                             tab_id,
                             insight_id,
-                            reference_id,
+                            _mapped_reference(reference_map, target_field, reference_id),
                         ),
                         "workspace_id": workspace_id,
                         "tab_id": tab_id,
                         "insight_id": insight_id,
-                        target_field: reference_id,
+                        target_field: _mapped_reference(reference_map, target_field, reference_id),
                     }
                     for reference_id in reference_ids
                 )
@@ -224,19 +260,21 @@ def build_workspace_payload(
             samples = sample_values.get(dimension_id, {})
             samples = samples if isinstance(samples, dict) else {}
             for competitor_id, value in cells.items():
+                mapped_dimension_id = _mapped_reference(dimension_ids, "dimensions", dimension_id)
+                mapped_competitor_id = _mapped_reference(competitor_ids, "competitors", competitor_id)
                 payload["matrix_cells"].append(
                     {
                         "id": _relation_id(
                             "matrix_cells",
                             workspace_id,
                             tab_id,
-                            dimension_id,
-                            competitor_id,
+                            mapped_dimension_id,
+                            mapped_competitor_id,
                         ),
                         "workspace_id": workspace_id,
                         "tab_id": tab_id,
-                        "dimension_id": dimension_id,
-                        "competitor_id": competitor_id,
+                        "dimension_id": mapped_dimension_id,
+                        "competitor_id": mapped_competitor_id,
                         "value": value,
                         "is_sample": samples.get(competitor_id) is True,
                     }
