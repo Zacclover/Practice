@@ -247,6 +247,10 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertIn("order=created_at.desc", cooldown_call)
         self.assertNotIn("last_fetched_at", cooldown_call)
 
+    def test_snapshot_write_uses_unique_conflict_target_so_unchanged_fetches_succeed(self):
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn("source_capture_snapshots?on_conflict=source_id%2Ccontent_hash", source)
+
     def test_successful_manual_capture_reuses_review_pipeline_with_manual_trigger(self):
         result = self.run_module(
             "async (module) => { const calls = []; globalThis.fetch = async (url, init = {}) => { "
@@ -261,7 +265,7 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "if (value.endsWith('/rest/v1/source_capture_runs') && method === 'POST') return Response.json([body]); "
             "if (value.includes('/source_capture_snapshots?') && method === 'GET') return Response.json([]); "
             "if (value === 'https://public.example/page') return new Response('<title>Release</title><main>New release</main>', {headers: {'content-type': 'text/html'}}); "
-            "if (value.endsWith('/rest/v1/source_capture_snapshots') && method === 'POST') return Response.json([body]); "
+            "if (value.startsWith('https://project.supabase.co/rest/v1/source_capture_snapshots?on_conflict=source_id%2Ccontent_hash') && method === 'POST') return Response.json([body]); "
             "if (value.endsWith('/rest/v1/source_capture_candidates') && method === 'POST') return Response.json([body]); "
             "if (method === 'PATCH') return new Response(null, {status: 204}); throw new Error('unexpected request ' + value); }; "
             "const env = {SUPABASE_URL: 'https://project.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'service-secret', "

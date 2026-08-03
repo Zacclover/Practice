@@ -141,7 +141,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     const snapshot = await createSnapshot(page.extractedText);
     const isChanged = shouldQueueCandidate(previousSnapshot?.content_hash, snapshot.contentHash);
 
-    const savedSnapshot = await insertRecord(env, "source_capture_snapshots", {
+    const savedSnapshot = await insertRecord(env, "source_capture_snapshots?on_conflict=source_id%2Ccontent_hash", {
       id: crypto.randomUUID(),
       workspace_id: source.workspace_id,
       tab_id: source.tab_id,
