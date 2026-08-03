@@ -10,6 +10,9 @@ MIGRATION_PATH = (
 MANUAL_MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260803000000_manual_source_capture.sql"
 )
+SERVICE_ROLE_GRANTS_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803010000_source_capture_worker_service_role_grants.sql"
+)
 
 
 class SourceCaptureSchemaContractTests(unittest.TestCase):
@@ -68,6 +71,20 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
             r"source_capture_runs_manual_cooldown_idx[\s\S]*source_id, trigger_type, created_at desc",
         )
         self.assertNotIn("last_fetched_at", migration)
+
+    def test_worker_service_role_can_access_only_capture_pipeline_tables(self):
+        migration = SERVICE_ROLE_GRANTS_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("grant usage on schema public to service_role;", migration)
+        for table in [
+            "competitor_sources",
+            "workspace_members",
+            "source_capture_runs",
+            "source_capture_snapshots",
+            "source_capture_candidates",
+        ]:
+            self.assertRegex(migration, rf"grant select(?:, insert(?:, update)?)? on table public\.{table} to service_role;")
+        self.assertNotIn("to anon", migration.lower())
+        self.assertNotIn("to authenticated", migration.lower())
 
 
 if __name__ == "__main__":
