@@ -18,6 +18,10 @@ const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v1";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MANUAL_CAPTURE_COOLDOWN_MS = 5 * 60 * 1000;
 const MAX_UPDATE_CHILD_PAGES = 20;
+const MAX_CANDIDATE_IMAGES = 3;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const CANDIDATE_ATTACHMENTS_BUCKET = "candidate-attachments";
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const SEMANTIC_SOURCE_TYPES = new Set(["changelog", "release_notes"]);
 const PAGES_PRODUCTION_HOST = "zacclover-competitor.pages.dev";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -40,6 +44,14 @@ export async function handleManualCaptureRequest(request, env) {
   const corsHeaders = buildCorsHeaders(origin);
   const pathname = new URL(request.url).pathname;
 
+  const attachmentGetMatch = pathname.match(/^\/candidate-attachments\/([0-9a-f-]+)\/([0-9a-f-]+)$/i);
+  if (attachmentGetMatch) {
+    return handleCandidateAttachmentGet(request, env, attachmentGetMatch[1], attachmentGetMatch[2], corsHeaders);
+  }
+  const attachmentDeleteMatch = pathname.match(/^\/candidate-attachments\/([0-9a-f-]+)$/i);
+  if (attachmentDeleteMatch) {
+    return handleCandidateAttachmentDelete(request, env, attachmentDeleteMatch[1], corsHeaders);
+  }
   if (pathname !== "/manual-capture") {
     return jsonResponse(404, "not_found", "请求的资源不存在。", {}, corsHeaders);
   }
@@ -94,6 +106,93 @@ export async function handleManualCaptureRequest(request, env) {
   }
 }
 
+// 私有候选附件读取：候选工作区授权与附件归属均通过后，才以服务角色读取对象并返回安全位图。
+async function handleCandidateAttachmentGet(request, env, candidateId, attachmentId, corsHeaders) {
+  const origin = request.headers.get("Origin");
+  if (origin && !corsHeaders["Access-Control-Allow-Origin"]) {
+    return jsonResponse(403, "origin_not_allowed", "不允许的请求来源。");
+  }
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (request.method !== "GET") {
+    return jsonResponse(405, "method_not_allowed", "仅支持 GET 请求。", { Allow: "GET" }, corsHeaders);
+  }
+  try {
+    validateManualEnvironment(env);
+    if (!UUID_PATTERN.test(candidateId) || !UUID_PATTERN.test(attachmentId)) {
+      throw new HttpError(400, "invalid_attachment_id", "候选或附件 ID 无效。");
+    }
+    const user = await verifySupabaseUser(env, readBearerToken(request.headers.get("Authorization")));
+    const candidates = await supabaseRequest(env,
+      `/rest/v1/source_capture_candidates?id=eq.${encodeURIComponent(candidateId)}&select=id,workspace_id&limit=1`);
+    const candidate = candidates[0];
+    if (!candidate) throw new HttpError(404, "candidate_not_found", "未找到候选。");
+    if (!await isWorkspaceMember(env, candidate.workspace_id, user.id)) {
+      throw new HttpError(403, "workspace_access_denied", "无权读取此工作区的候选附件。");
+    }
+    const attachments = await supabaseRequest(env,
+      `/rest/v1/candidate_attachments?id=eq.${encodeURIComponent(attachmentId)}&candidate_id=eq.${encodeURIComponent(candidateId)}` +
+      `&workspace_id=eq.${encodeURIComponent(candidate.workspace_id)}&select=id,object_path,media_type,byte_size&limit=1`);
+    const attachment = attachments[0];
+    if (!attachment) throw new HttpError(404, "attachment_not_found", "未找到候选附件。");
+    if (!ALLOWED_IMAGE_TYPES.has(String(attachment.media_type || "").toLowerCase()) ||
+        !Number.isInteger(attachment.byte_size) || attachment.byte_size < 0 || attachment.byte_size > MAX_IMAGE_BYTES) {
+      throw new HttpError(415, "unsafe_attachment", "附件类型或大小不受支持。");
+    }
+    const object = await retrieveStorageObject(env, attachment.object_path);
+    if (object.mediaType !== attachment.media_type.toLowerCase() || object.bytes.byteLength !== attachment.byte_size) {
+      throw new HttpError(415, "unsafe_attachment", "附件类型或大小不受支持。");
+    }
+    return new Response(object.bytes, {
+      status: 200,
+      headers: {
+        "Content-Type": object.mediaType,
+        "Content-Length": String(object.bytes.byteLength),
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        ...corsHeaders,
+      },
+    });
+  } catch (error) {
+    const safeError = error instanceof HttpError ? error : new HttpError(500, "internal_error", "候选附件暂时不可用。");
+    return jsonResponse(safeError.status, safeError.code, safeError.publicMessage, safeError.headers, corsHeaders);
+  }
+}
+
+// 候选删除边界：认证并确认工作区成员后，先清理私有对象，再删除附件记录与候选本身。
+async function handleCandidateAttachmentDelete(request, env, candidateId, corsHeaders) {
+  const origin = request.headers.get("Origin");
+  if (origin && !corsHeaders["Access-Control-Allow-Origin"]) {
+    return jsonResponse(403, "origin_not_allowed", "不允许的请求来源。");
+  }
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (request.method !== "DELETE") {
+    return jsonResponse(405, "method_not_allowed", "仅支持 DELETE 请求。", { Allow: "DELETE" }, corsHeaders);
+  }
+  try {
+    validateManualEnvironment(env);
+    if (!UUID_PATTERN.test(candidateId)) throw new HttpError(400, "invalid_candidate_id", "候选 ID 无效。");
+    const user = await verifySupabaseUser(env, readBearerToken(request.headers.get("Authorization")));
+    const records = await supabaseRequest(env,
+      `/rest/v1/source_capture_candidates?id=eq.${encodeURIComponent(candidateId)}&select=id,workspace_id&limit=1`);
+    const candidate = records[0];
+    if (!candidate) throw new HttpError(404, "candidate_not_found", "未找到候选。");
+    if (!await isWorkspaceMember(env, candidate.workspace_id, user.id)) {
+      throw new HttpError(403, "workspace_access_denied", "无权删除此工作区的候选。");
+    }
+    const attachments = await supabaseRequest(env,
+      `/rest/v1/candidate_attachments?candidate_id=eq.${encodeURIComponent(candidateId)}&select=object_path`);
+    for (const attachment of attachments) await deleteStorageObject(env, attachment.object_path);
+    await deleteRecords(env, "candidate_attachments", "candidate_id", candidateId);
+    await deleteRecords(env, "source_capture_candidates", "id", candidateId);
+    return new Response(JSON.stringify({ ok: true, candidateId }), {
+      status: 200, headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders },
+    });
+  } catch (error) {
+    const safeError = error instanceof HttpError ? error : new HttpError(500, "internal_error", "候选删除暂时不可用。");
+    return jsonResponse(safeError.status, safeError.code, safeError.publicMessage, safeError.headers, corsHeaders);
+  }
+}
+
 // 定时事件是显式禁用边界：不读取来源、不抓取、不写入任何记录。
 export async function runScheduledCapture(_env) {
   return { disabled: true, inspected: 0, succeeded: 0, failed: 0 };
@@ -120,6 +219,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     const isSemanticSource = supportsUpdateSubpageDiscovery(source.source_type);
     const isChanged = shouldQueueCandidate(previousSnapshot?.content_hash, snapshot.contentHash);
     let candidateQueued = false;
+    let candidateCount = 0;
 
     const savedSnapshot = await insertRecord(env, "source_capture_snapshots?on_conflict=source_id%2Ccontent_hash", {
       id: crypto.randomUUID(),
@@ -135,29 +235,29 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
 
     if (isSemanticSource) {
       const discovery = await discoverEligibleUpdates(page, observationWindow);
-      const selectedHash = discovery.entries.length ? await hashSelectedEntries(discovery.entries) : null;
-      const alreadyQueued = selectedHash ? await candidateExists(env, source.id, selectedHash) : false;
-      if (selectedHash && !alreadyQueued) {
-        const aggregate = aggregateUpdateEntries(discovery.entries);
+      for (const entry of discovery.entries) {
+        const entryHash = await hashSelectedEntries([entry]);
+        if (await candidateExists(env, source.id, entryHash)) continue;
+
         const candidate = await insertRecord(env, "source_capture_candidates?on_conflict=source_id%2Ccontent_hash", {
           id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
           competitor_id: source.competitor_id, source_id: source.id, run_id: run.id,
-          snapshot_id: savedSnapshot?.id || previousSnapshot?.id, source_url: page.canonicalUrl,
-          title: `观察窗口内发现 ${discovery.entries.length} 条产品更新`,
-          summary: buildSummary(aggregate), quoted_text: aggregate.slice(0, 1_200),
-          content_hash: selectedHash, status: "pending", analysis_status: "unavailable",
-          publication_time_status: "verified", published_at: discovery.entries[0].publishedAt,
+          snapshot_id: savedSnapshot?.id || previousSnapshot?.id, source_url: entry.url,
+          title: entry.title, summary: buildSummary(entry.extractedText), quoted_text: entry.quotedText,
+          content_hash: entryHash, status: "pending", analysis_status: "unavailable",
+          publication_time_status: "verified", published_at: entry.publishedAt,
           detection_window_start: observationWindow.start, detection_window_end: observationWindow.end,
           detection_window_basis: observationWindow.basis,
-          selected_entries: discovery.entries.map(({ url, title, publishedAt, dateSource }) => ({ url, title, publishedAt, dateSource })),
+          selected_entries: [{ url: entry.url, title: entry.title, publishedAt: entry.publishedAt, dateSource: entry.dateSource }],
           excluded_missing_date_count: discovery.missingDateCount,
         }, "resolution=ignore-duplicates,return=representation");
-        if (candidate) {
-          await enrichCandidateWithAnalysis(env, candidate.id, {
-            title: candidate.title, canonicalUrl: page.canonicalUrl, aggregateUpdates: true,
-          }, aggregate);
-        }
-        candidateQueued = Boolean(candidate);
+        if (!candidate) continue;
+        candidateQueued = true;
+        candidateCount += 1;
+        await attachCandidateImages(env, candidate, entry);
+        await enrichCandidateWithAnalysis(env, candidate.id, {
+          title: entry.title, canonicalUrl: entry.url,
+        }, entry.extractedText);
       }
     } else if (isChanged) {
       const candidate = await insertRecord(env, "source_capture_candidates", {
@@ -180,6 +280,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         detection_window_end: observationWindow.end,
         detection_window_basis: observationWindow.basis,
       });
+      candidateCount = candidate ? 1 : 0;
       await enrichCandidateWithAnalysis(env, candidate.id, page, snapshot.extractedText);
     }
 
@@ -195,6 +296,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       sourceId: source.id,
       runId: run.id,
       candidateQueued: isSemanticSource ? candidateQueued : isChanged,
+      candidateCount,
       status: "succeeded",
     };
   } catch (error) {
@@ -431,6 +533,8 @@ export async function discoverEligibleUpdates(indexPage, observationWindow, fetc
         title: page.title || "产品更新",
         ...declared,
         quotedText: page.extractedText.slice(0, 1_200),
+        extractedText: page.extractedText,
+        html: page.html,
         contentHash: (await createSnapshot(page.extractedText)).contentHash,
       });
     }
@@ -445,8 +549,82 @@ export async function hashSelectedEntries(entries) {
   return (await createSnapshot(JSON.stringify(identity))).contentHash;
 }
 
-function aggregateUpdateEntries(entries) {
-  return entries.map((entry) => `【${entry.publishedAt.slice(0, 10)}】${entry.title}\n来源：${entry.url}\n原文摘录：${entry.quotedText}`).join("\n\n");
+// 候选图片发现：只接受当前更新子页 HTML 中显式 img[src] 的同源 HTTPS 位图地址。
+export function discoverFeatureImageUrls(html, pageUrl) {
+  const base = new URL(canonicalizeSourceUrl(pageUrl));
+  const cleaned = String(html || "").replace(/<(script|iframe|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
+  const urls = [];
+  const seen = new Set();
+  for (const match of cleaned.matchAll(/<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)')[^>]*>/gi)) {
+    if (urls.length >= MAX_CANDIDATE_IMAGES) break;
+    try {
+      const url = new URL(decodeHtmlEntities(match[1] || match[2]), base);
+      url.hash = "";
+      if (url.origin !== base.origin || !isSafePublicSourceUrl(url.toString()) ||
+          !/\.(?:jpe?g|png|webp|gif)$/i.test(url.pathname)) continue;
+      const canonical = url.toString();
+      if (!seen.has(canonical)) { seen.add(canonical); urls.push(canonical); }
+    } catch {
+      // 无效、data 或非 HTTPS 图片地址直接忽略。
+    }
+  }
+  return urls;
+}
+
+// 图片下载：手动处理重定向并在读取前后校验 MIME 与 5MB 上限。
+export async function fetchFeatureImage(imageUrl, pageUrl, fetchImpl = fetch) {
+  const image = new URL(imageUrl);
+  const page = new URL(pageUrl);
+  if (image.origin !== page.origin || !isSafePublicSourceUrl(image.toString()) ||
+      !/\.(?:jpe?g|png|webp|gif)$/i.test(image.pathname)) throw new Error("图片来源不安全。");
+  const response = await fetchImpl(image.toString(), {
+    headers: { Accept: "image/jpeg,image/png,image/webp,image/gif" }, redirect: "manual",
+  });
+  if (response.status >= 300 && response.status < 400) throw new Error("图片重定向被拒绝。");
+  if (!response.ok) throw new Error(`图片返回 HTTP ${response.status}。`);
+  const mediaType = (response.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+  if (!ALLOWED_IMAGE_TYPES.has(mediaType)) throw new Error("图片 MIME 类型不受支持。");
+  const declaredSize = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredSize) && declaredSize > MAX_IMAGE_BYTES) throw new Error("图片超过大小限制。");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error("图片超过大小限制。");
+  return { bytes, mediaType, byteSize: bytes.byteLength, redirectMode: "manual" };
+}
+
+// 私有 Storage 上传始终使用 Worker service role，绝不生成公开或签名 URL。
+export async function uploadCandidateAttachment(env, objectPath, bytes, mediaType, fetchImpl = fetch) {
+  const response = await fetchImpl(`${env.SUPABASE_URL}/storage/v1/object/${CANDIDATE_ATTACHMENTS_BUCKET}/${objectPath}`, {
+    method: "POST",
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": mediaType, "x-upsert": "false" },
+    body: bytes,
+  });
+  if (!response.ok) throw new Error(`附件存储返回 HTTP ${response.status}。`);
+}
+
+async function attachCandidateImages(env, candidate, entry) {
+  const urls = discoverFeatureImageUrls(entry.html, entry.url);
+  for (let index = 0; index < urls.length; index += 1) {
+    let objectPath = null;
+    let uploaded = false;
+    try {
+      const image = await fetchFeatureImage(urls[index], entry.url);
+      const extension = image.mediaType === "image/jpeg" ? "jpg" : image.mediaType.split("/")[1];
+      objectPath = `${candidate.id}/${index + 1}.${extension}`;
+      await uploadCandidateAttachment(env, objectPath, image.bytes, image.mediaType);
+      uploaded = true;
+      await insertRecord(env, "candidate_attachments", {
+        id: crypto.randomUUID(), candidate_id: candidate.id, workspace_id: candidate.workspace_id,
+        source_url: urls[index], object_path: objectPath, media_type: image.mediaType,
+        byte_size: image.byteSize, created_at: new Date().toISOString(),
+      });
+    } catch {
+      if (uploaded && objectPath) {
+        try { await deleteStorageObject(env, objectPath); } catch { /* 后续候选删除仍保持可重试。 */ }
+      }
+      // 单张图片失败不影响独立候选创建或其余图片。
+    }
+  }
 }
 
 async function candidateExists(env, sourceId, contentHash) {
@@ -461,8 +639,10 @@ function isPrivateIpv4(hostname) {
     return false;
   }
   const [first, second] = octets;
-  return first === 0 || first === 10 || first === 127 || first === 169 && second === 254 ||
-    first === 172 && second >= 16 && second <= 31 || first === 192 && second === 168;
+  return first === 0 || first === 10 || first === 100 && second >= 64 && second <= 127 ||
+    first === 127 || first === 169 && second === 254 || first === 172 && second >= 16 && second <= 31 ||
+    first === 192 && (second === 0 || second === 168) || first === 198 && (second === 18 || second === 19) ||
+    first >= 224;
 }
 
 function canonicalizeSourceUrl(value) {
@@ -670,6 +850,44 @@ async function updateRecord(env, table, id, payload) {
   });
 }
 
+async function deleteRecords(env, table, column, value) {
+  return supabaseRequest(env, `/rest/v1/${table}?${column}=eq.${encodeURIComponent(value)}`, {
+    method: "DELETE", headers: { Prefer: "return=minimal" },
+  });
+}
+
+async function deleteStorageObject(env, objectPath, fetchImpl = fetch) {
+  const response = await fetchImpl(storageObjectUrl(env, objectPath), {
+    method: "DELETE",
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+  });
+  if (!response.ok) throw new Error(`附件删除返回 HTTP ${response.status}。`);
+}
+
+// Storage 对象读取：路径逐段编码，服务角色只发送给 Supabase，并对响应 MIME 与实际字节数重新设限。
+async function retrieveStorageObject(env, objectPath, fetchImpl = fetch) {
+  const response = await fetchImpl(storageObjectUrl(env, objectPath), {
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+  });
+  if (!response.ok) throw new Error(`附件存储返回 HTTP ${response.status}。`);
+  const mediaType = (response.headers.get("Content-Type") || "").split(";", 1)[0].trim().toLowerCase();
+  const declaredSize = Number(response.headers.get("Content-Length"));
+  if (!ALLOWED_IMAGE_TYPES.has(mediaType) ||
+      Number.isFinite(declaredSize) && declaredSize > MAX_IMAGE_BYTES) {
+    throw new HttpError(415, "unsafe_attachment", "附件类型或大小不受支持。");
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > MAX_IMAGE_BYTES) {
+    throw new HttpError(415, "unsafe_attachment", "附件类型或大小不受支持。");
+  }
+  return { bytes, mediaType };
+}
+
+function storageObjectUrl(env, objectPath) {
+  const encodedPath = String(objectPath || "").split("/").map(encodeURIComponent).join("/");
+  return `${env.SUPABASE_URL}/storage/v1/object/${CANDIDATE_ATTACHMENTS_BUCKET}/${encodedPath}`;
+}
+
 async function supabaseRequest(env, path, init = {}) {
   const response = await fetch(`${env.SUPABASE_URL}${path}`, {
     ...init,
@@ -696,7 +914,7 @@ function validateManualEnvironment(env) {
 // Pages CORS：精确允许生产域名及其预览子域，绝不回显其他 Origin。
 function buildCorsHeaders(origin) {
   const headers = {
-    "Access-Control-Allow-Methods": "POST",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE",
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",

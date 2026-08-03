@@ -35,10 +35,12 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "module.isSafePublicSourceUrl('http://www.notion.so/releases'), "
             "module.isSafePublicSourceUrl('https://localhost/private'), "
             "module.isSafePublicSourceUrl('https://127.0.0.1/private'), "
+            "module.isSafePublicSourceUrl('https://100.64.0.1/private'), "
+            "module.isSafePublicSourceUrl('https://224.0.0.1/private'), "
             "module.isSafePublicSourceUrl('https://user@www.notion.so/private')"
             "]"
         )
-        self.assertEqual(result, [True, False, False, False, False])
+        self.assertEqual(result, [True, False, False, False, False, False, False])
 
     def test_scheduling_is_disabled_in_config_and_event_handler_is_a_noop(self):
         config = WRANGLER.read_text(encoding="utf-8")
@@ -74,6 +76,166 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertEqual(result["links"][0], "https://public.example/changelog/one")
         self.assertNotIn("https://public.example/pricing", result["links"])
         self.assertTrue(all("other.example" not in link and "/deep" not in link for link in result["links"]))
+
+    def test_image_discovery_is_same_page_origin_conservative_unique_and_capped(self):
+        result = self.run_module(
+            "(module) => module.discoverFeatureImageUrls(`<main>"
+            "<img src='/a.png'><img src='https://public.example/b.webp'><img src='/a.png'>"
+            "<img srcset='/ignored.png 2x'><img src='data:image/png;base64,xx'>"
+            "<img src='https://cdn.example/c.png'><img src='/vector.svg'>"
+            "<iframe src='/frame.png'></iframe><script src='/script.png'></script>"
+            "<div style=\"background:url('/background.png')\"></div>"
+            "<img src='/c.gif'><img src='/d.jpg'></main>`, 'https://public.example/releases/item')"
+        )
+        self.assertEqual(result, [
+            "https://public.example/a.png",
+            "https://public.example/b.webp",
+            "https://public.example/c.gif",
+        ])
+
+    def test_image_fetch_rejects_redirect_mime_and_size_and_accepts_only_valid_bytes(self):
+        result = self.run_module(
+            "async (module) => { const make=(status,type,body,length)=>async (_url,init)=>({status,ok:status>=200&&status<300,"
+            "headers:new Headers({'content-type':type,...(length?{'content-length':length}:{})}),"
+            "arrayBuffer:async()=>new TextEncoder().encode(body).buffer, redirectMode:init.redirect}); "
+            "const run=async(fetcher,url='https://public.example/a.png')=>{try{return await module.fetchFeatureImage(url,'https://public.example/page',fetcher)}catch(e){return null}}; "
+            "return {ok:await run(make(200,'image/png','bytes')),redirect:await run(make(302,'image/png','x')),"
+            "mime:await run(make(200,'image/svg+xml','x')),declaredLarge:await run(make(200,'image/png','x','5242881')),"
+            "actualLarge:await run(make(200,'image/png','x'.repeat(5242881))),svg:await run(make(200,'image/png','x'),'https://public.example/a.svg')}; }"
+        )
+        self.assertEqual(result["ok"]["mediaType"], "image/png")
+        self.assertEqual(result["ok"]["byteSize"], 5)
+        self.assertEqual(result["ok"]["redirectMode"], "manual")
+        for key in ["redirect", "mime", "declaredLarge", "actualLarge", "svg"]:
+            self.assertIsNone(result[key])
+
+    def test_attachment_upload_uses_service_role_and_private_storage_endpoint(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; const fetcher=async(url,init)=>{calls.push({url:String(url),headers:Object.fromEntries(new Headers(init.headers)),method:init.method});return new Response(null,{status:200})};"
+            "await module.uploadCandidateAttachment({SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret'},"
+            "'candidate/id.png',new Uint8Array([1,2]),'image/png',fetcher);return calls[0]; }"
+        )
+        self.assertIn("/storage/v1/object/candidate-attachments/candidate/id.png", result["url"])
+        self.assertEqual(result["headers"]["authorization"], "Bearer service-secret")
+        self.assertEqual(result["headers"]["apikey"], "service-secret")
+        self.assertEqual(result["headers"]["content-type"], "image/png")
+
+    def test_candidate_attachment_delete_requires_auth_membership_and_deletes_candidate_only(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; globalThis.fetch=async(url,init={})=>{const value=String(url),method=init.method||'GET';calls.push({url:value,method,body:init.body?JSON.parse(init.body):null});"
+            "if(value.endsWith('/auth/v1/user')) return Response.json({id:'22222222-2222-4222-8222-222222222222'});"
+            "if(value.includes('/source_capture_candidates?')) return Response.json([{id:'11111111-1111-4111-8111-111111111111',workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/workspace_members?')) return Response.json([{workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/candidate_attachments?')&&method==='GET') return Response.json([{object_path:'111/a.png'}]);"
+            "if(value.includes('/storage/v1/object/candidate-attachments')&&method==='DELETE') return new Response(null,{status:200});"
+            "if(method==='DELETE') return new Response(null,{status:204});throw new Error('unexpected '+value)};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public'};"
+            "const request=new Request('https://worker.example/candidate-attachments/11111111-1111-4111-8111-111111111111',{method:'DELETE',headers:{Authorization:'Bearer jwt'}});"
+            "const response=await module.default.fetch(request,env,{});return {status:response.status,calls}; }"
+        )
+        self.assertEqual(result["status"], 200)
+        urls = [call["url"] for call in result["calls"]]
+        self.assertTrue(any("candidate_attachments?" in url for url in urls))
+        self.assertTrue(any("source_capture_candidates?" in url and call["method"] == "DELETE" for url, call in zip(urls, result["calls"])))
+        for forbidden in ["evidence", "matrix", "insights", "runs", "snapshots"]:
+            self.assertFalse(any(forbidden in url for url in urls))
+
+    def test_candidate_attachment_delete_rejects_missing_auth_before_data_access(self):
+        result = self.run_module(
+            "async (module) => { let fetched=false; globalThis.fetch=async()=>{fetched=true;throw new Error('must not fetch')};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service',SUPABASE_PUBLISHABLE_KEY:'public'};"
+            "const response=await module.default.fetch(new Request('https://worker.example/candidate-attachments/11111111-1111-4111-8111-111111111111',{method:'DELETE'}),env,{});"
+            "return {status:response.status,body:await response.json(),fetched}; }"
+        )
+        self.assertEqual(result["status"], 401)
+        self.assertEqual(result["body"]["error"]["code"], "authentication_required")
+        self.assertFalse(result["fetched"])
+
+    def test_candidate_attachment_get_requires_bearer_auth_before_data_access(self):
+        result = self.run_module(
+            "async (module) => { let fetched=false; globalThis.fetch=async()=>{fetched=true;throw new Error('must not fetch')};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public'};"
+            "const response=await module.default.fetch(new Request('https://worker.example/candidate-attachments/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444'),env,{});"
+            "return {status:response.status,body:await response.json(),fetched}; }"
+        )
+        self.assertEqual(result["status"], 401)
+        self.assertEqual(result["body"]["error"]["code"], "authentication_required")
+        self.assertFalse(result["fetched"])
+
+    def test_candidate_attachment_get_enforces_workspace_boundary_before_attachment_lookup(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; globalThis.fetch=async(url,init={})=>{const value=String(url);calls.push(value);"
+            "if(value.endsWith('/auth/v1/user')) return Response.json({id:'22222222-2222-4222-8222-222222222222'});"
+            "if(value.includes('/source_capture_candidates?')) return Response.json([{id:'11111111-1111-4111-8111-111111111111',workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/workspace_members?')) return Response.json([]);throw new Error('unexpected '+value)};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public'};"
+            "const request=new Request('https://worker.example/candidate-attachments/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444',{headers:{Authorization:'Bearer jwt'}});"
+            "const response=await module.default.fetch(request,env,{});return {status:response.status,body:await response.json(),calls}; }"
+        )
+        self.assertEqual(result["status"], 403)
+        self.assertEqual(result["body"]["error"]["code"], "workspace_access_denied")
+        self.assertFalse(any("candidate_attachments?" in url for url in result["calls"]))
+        self.assertFalse(any("/storage/v1/object/" in url for url in result["calls"]))
+
+    def test_candidate_attachment_get_requires_attachment_to_belong_to_candidate(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; globalThis.fetch=async(url,init={})=>{const value=String(url);calls.push(value);"
+            "if(value.endsWith('/auth/v1/user')) return Response.json({id:'22222222-2222-4222-8222-222222222222'});"
+            "if(value.includes('/source_capture_candidates?')) return Response.json([{id:'11111111-1111-4111-8111-111111111111',workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/workspace_members?')) return Response.json([{workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/candidate_attachments?')) return Response.json([]);throw new Error('unexpected '+value)};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public'};"
+            "const request=new Request('https://worker.example/candidate-attachments/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444',{headers:{Authorization:'Bearer jwt'}});"
+            "const response=await module.default.fetch(request,env,{});return {status:response.status,body:await response.json(),calls}; }"
+        )
+        self.assertEqual(result["status"], 404)
+        self.assertEqual(result["body"]["error"]["code"], "attachment_not_found")
+        attachment_query = next(url for url in result["calls"] if "candidate_attachments?" in url)
+        self.assertIn("id=eq.44444444-4444-4444-8444-444444444444", attachment_query)
+        self.assertIn("candidate_id=eq.11111111-1111-4111-8111-111111111111", attachment_query)
+        self.assertIn("workspace_id=eq.33333333-3333-4333-8333-333333333333", attachment_query)
+        self.assertFalse(any("/storage/v1/object/" in url for url in result["calls"]))
+
+    def test_candidate_attachment_get_returns_safe_private_binary_without_service_key_leakage(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; globalThis.fetch=async(url,init={})=>{const value=String(url),headers=Object.fromEntries(new Headers(init.headers));calls.push({url:value,headers});"
+            "if(value.endsWith('/auth/v1/user')) return Response.json({id:'22222222-2222-4222-8222-222222222222'});"
+            "if(value.includes('/source_capture_candidates?')) return Response.json([{id:'11111111-1111-4111-8111-111111111111',workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/workspace_members?')) return Response.json([{workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/candidate_attachments?')) return Response.json([{id:'44444444-4444-4444-8444-444444444444',object_path:'111/image one.png',media_type:'image/png',byte_size:4}]);"
+            "if(value.includes('/storage/v1/object/candidate-attachments/')) return new Response(new Uint8Array([137,80,78,71]),{headers:{'Content-Type':'image/png','Content-Length':'4'}});"
+            "throw new Error('unexpected '+value)};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public'};"
+            "const request=new Request('https://worker.example/candidate-attachments/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444',{headers:{Authorization:'Bearer user-jwt',Origin:'https://zacclover-competitor.pages.dev'}});"
+            "const response=await module.default.fetch(request,env,{});return {status:response.status,headers:Object.fromEntries(response.headers),bytes:Array.from(new Uint8Array(await response.arrayBuffer())),calls}; }"
+        )
+        self.assertEqual(result["status"], 200)
+        self.assertEqual(result["bytes"], [137, 80, 78, 71])
+        self.assertEqual(result["headers"]["content-type"], "image/png")
+        self.assertEqual(result["headers"]["cache-control"], "private, no-store")
+        self.assertEqual(result["headers"]["x-content-type-options"], "nosniff")
+        self.assertEqual(result["headers"]["access-control-allow-origin"], "https://zacclover-competitor.pages.dev")
+        storage_call = next(call for call in result["calls"] if "/storage/v1/object/" in call["url"])
+        self.assertIn("image%20one.png", storage_call["url"])
+        self.assertEqual(storage_call["headers"]["authorization"], "Bearer service-secret")
+        self.assertNotIn("service-secret", json.dumps({"headers": result["headers"], "bytes": result["bytes"]}))
+
+    def test_candidate_attachment_get_rejects_unsafe_or_oversized_storage_response(self):
+        result = self.run_module(
+            "async (module) => { const run=async(storageType,storageBody)=>{globalThis.fetch=async(url,init={})=>{const value=String(url);"
+            "if(value.endsWith('/auth/v1/user')) return Response.json({id:'22222222-2222-4222-8222-222222222222'});"
+            "if(value.includes('/source_capture_candidates?')) return Response.json([{id:'11111111-1111-4111-8111-111111111111',workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/workspace_members?')) return Response.json([{}]);"
+            "if(value.includes('/candidate_attachments?')) return Response.json([{object_path:'111/a.png',media_type:'image/png',byte_size:storageBody.length}]);"
+            "if(value.includes('/storage/v1/object/')) return new Response(storageBody,{headers:{'Content-Type':storageType}});throw new Error('unexpected')};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'secret',SUPABASE_PUBLISHABLE_KEY:'public'};"
+            "const response=await module.default.fetch(new Request('https://worker.example/candidate-attachments/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444',{headers:{Authorization:'Bearer jwt'}}),env,{});return {status:response.status,body:await response.json()}};"
+            "return {mime:await run('image/svg+xml',new Uint8Array([1])),large:await run('image/png',new Uint8Array(5242881))}; }"
+        )
+        self.assertEqual(result["mime"]["status"], 415)
+        self.assertEqual(result["large"]["status"], 415)
+        self.assertEqual(result["mime"]["body"]["error"]["code"], "unsafe_attachment")
+        self.assertEqual(result["large"]["body"]["error"]["code"], "unsafe_attachment")
 
     def test_declared_dates_filter_window_and_missing_dates_are_excluded(self):
         result = self.run_module(
@@ -256,7 +418,7 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertEqual(result[0]["status"], 405)
         self.assertEqual(result[1]["status"], 204)
         self.assertEqual(result[1]["origin"], "https://zacclover-competitor.pages.dev")
-        self.assertEqual(result[1]["methods"], "POST")
+        self.assertEqual(result[1]["methods"], "GET, POST, DELETE")
         self.assertEqual(result[1]["headers"], "Authorization, Content-Type")
         self.assertEqual(result[2]["status"], 204)
         self.assertEqual(result[2]["origin"], "https://feature.zacclover-competitor.pages.dev")
@@ -349,8 +511,9 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "if (value.includes('/source_capture_runs?') && method === 'GET') return Response.json([]); "
             "if (value.endsWith('/rest/v1/source_capture_runs') && method === 'POST') return Response.json([body]); "
             "if (value.includes('/source_capture_snapshots?') && method === 'GET') return Response.json([]); "
-            "if (value === 'https://public.example/page') return new Response('<title>Releases</title><main><a href=\"/updates/one\">更新</a></main>', {headers: {'content-type': 'text/html'}}); "
+            "if (value === 'https://public.example/page') return new Response('<title>Releases</title><main><a href=\"/updates/one\">更新一</a><a href=\"/updates/two\">更新二</a></main>', {headers: {'content-type': 'text/html'}}); "
             "if (value === 'https://public.example/updates/one') return new Response('<title>功能更新</title><time datetime=\"2026-08-01T00:00:00Z\">2026-08-01</time><main>新增数据库自动化。</main>', {headers:{'content-type':'text/html'}}); "
+            "if (value === 'https://public.example/updates/two') return new Response('<title>权限更新</title><time datetime=\"2026-08-02T00:00:00Z\">2026-08-02</time><main>新增权限控制。</main>', {headers:{'content-type':'text/html'}}); "
             "if (value.includes('/source_capture_snapshots?on_conflict=') && method === 'POST') return Response.json([body]); "
             "if (value.includes('/source_capture_candidates?source_id=') && method === 'GET') return Response.json([]); "
             "if (value.includes('/source_capture_candidates?on_conflict=') && method === 'POST') return Response.json([body]); "
@@ -364,6 +527,14 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertEqual(result["status"], 200)
         self.assertTrue(result["body"]["ok"])
         self.assertTrue(result["body"]["result"]["candidateQueued"])
+        candidate_inserts = [call for call in result["calls"] if "/source_capture_candidates?on_conflict=" in call["url"] and call["method"] == "POST"]
+        self.assertEqual(result["body"]["result"]["candidateCount"], 2)
+        self.assertEqual(len(candidate_inserts), 2)
+        self.assertEqual([call["body"]["title"] for call in candidate_inserts], ["功能更新", "权限更新"])
+        self.assertTrue(all(len(call["body"]["selected_entries"]) == 1 for call in candidate_inserts))
+        self.assertEqual([call["body"]["source_url"] for call in candidate_inserts], [
+            "https://public.example/updates/one", "https://public.example/updates/two",
+        ])
         run_insert = next(call for call in result["calls"] if call["url"].endswith("/rest/v1/source_capture_runs") and call["method"] == "POST")
         self.assertEqual(run_insert["body"]["trigger_type"], "manual")
         service_calls = [call for call in result["calls"] if "/rest/v1/" in call["url"]]

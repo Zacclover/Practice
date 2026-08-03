@@ -19,6 +19,9 @@ PREVIEW_AI_MIGRATION_PATH = (
 SUBPAGE_MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260803030000_changelog_subpage_candidates.sql"
 )
+ATTACHMENT_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803040000_candidate_attachments.sql"
+)
 
 
 class SourceCaptureSchemaContractTests(unittest.TestCase):
@@ -98,6 +101,20 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
         self.assertIn("selected_entries jsonb", migration)
         self.assertIn("excluded_missing_date_count integer", migration)
         self.assertNotRegex(migration, r"public\.(evidence|matrix_cells|insights)\b")
+
+    def test_candidate_attachments_are_private_member_readable_and_worker_managed(self):
+        migration = ATTACHMENT_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("insert into storage.buckets", migration)
+        self.assertIn("'candidate-attachments'", migration)
+        self.assertIn("false", migration.lower())
+        self.assertIn("create table public.candidate_attachments", migration)
+        self.assertIn("references public.source_capture_candidates(id) on delete cascade", migration)
+        self.assertIn("alter table public.candidate_attachments enable row level security", migration)
+        self.assertRegex(migration, r"for select\s+to authenticated")
+        self.assertIn("public.is_workspace_member(workspace_id)", migration)
+        self.assertIn("to service_role", migration)
+        self.assertNotRegex(migration, r"for delete\s+to authenticated")
+        self.assertNotIn("delete from storage.objects", migration.lower())
 
     def test_preview_analysis_is_candidate_only_and_has_structured_status_metadata(self):
         migration = PREVIEW_AI_MIGRATION_PATH.read_text(encoding="utf-8")
