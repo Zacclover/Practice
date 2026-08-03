@@ -111,6 +111,7 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
         self.assertIn("references public.source_capture_candidates(id) on delete cascade", migration)
         self.assertIn("alter table public.candidate_attachments enable row level security", migration)
         self.assertRegex(migration, r"for select\s+to authenticated")
+        self.assertIn("grant select on table public.candidate_attachments to authenticated;", migration)
         self.assertIn("public.is_workspace_member(workspace_id)", migration)
         self.assertIn("to service_role", migration)
         self.assertNotRegex(migration, r"for delete\s+to authenticated")

@@ -24,4 +24,6 @@ create policy "workspace members read candidate attachments"
 on public.candidate_attachments for select to authenticated
 using (public.is_workspace_member(workspace_id));
 
+-- 新建表默认不向 authenticated 授权；先授予 SELECT，再由上方 RLS 严格限制为所属 workspace。
+grant select on table public.candidate_attachments to authenticated;
 grant select, insert, delete on table public.candidate_attachments to service_role;
