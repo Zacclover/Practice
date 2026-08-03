@@ -9,10 +9,17 @@ const SUPABASE_HEADERS = (serviceRoleKey) => ({
 });
 const MAX_RESPONSE_BYTES = 1_500_000;
 const MAX_EXTRACTED_TEXT_LENGTH = 12_000;
+const MAX_ANALYSIS_INPUT_CHARS = 6_000;
+const ANALYSIS_RESERVED_TOKENS = 8_000;
+const DAILY_AI_REQUEST_LIMIT = 20;
+const DAILY_AI_TOKEN_LIMIT = 160_000;
+const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
+const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v1";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MANUAL_CAPTURE_COOLDOWN_MS = 5 * 60 * 1000;
 const PAGES_PRODUCTION_HOST = "zacclover-competitor.pages.dev";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 export default {
   async scheduled(_event, env, ctx) {
@@ -54,6 +61,7 @@ export async function handleManualCaptureRequest(request, env) {
     if (!payload || typeof payload !== "object" || Array.isArray(payload) || !UUID_PATTERN.test(payload.sourceId || "")) {
       throw new HttpError(400, "invalid_request", "sourceId 必须是有效的 UUID。");
     }
+    const observationWindow = validateObservationWindow(payload.observationWindow, new Date());
 
     const accessToken = readBearerToken(request.headers.get("Authorization"));
     const user = await verifySupabaseUser(env, accessToken);
@@ -71,7 +79,7 @@ export async function handleManualCaptureRequest(request, env) {
       });
     }
 
-    const result = await captureSource(source, env, "manual");
+    const result = await captureSource(source, env, "manual", observationWindow);
     return new Response(JSON.stringify({ ok: true, result }), {
       status: 200,
       headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders },
@@ -87,8 +95,9 @@ export async function handleManualCaptureRequest(request, env) {
 // 允许单元测试与未来受认证的手动触发入口复用核心调度。
 export async function runScheduledCapture(env) {
   validateEnvironment(env);
+  const plannedAt = new Date();
   const sources = await queryDueSources(env);
-  const results = await Promise.allSettled(sources.map((source) => captureSource(source, env, "scheduled")));
+  const results = await Promise.allSettled(sources.map((source) => captureSource(source, env, "scheduled", null, plannedAt)));
   return {
     inspected: sources.length,
     succeeded: results.filter((result) => result.status === "fulfilled").length,
@@ -112,7 +121,8 @@ function isDueForCapture(source, now = Date.now()) {
   return now - lastFetchedAt >= intervalHours * 60 * 60 * 1000;
 }
 
-async function captureSource(source, env, triggerType = "scheduled") {
+async function captureSource(source, env, triggerType = "scheduled", explicitWindow = null, plannedAt = new Date()) {
+  const observationWindow = explicitWindow || await deriveObservationWindow(env, source.id, plannedAt);
   const run = await insertRecord(env, "source_capture_runs", {
     id: crypto.randomUUID(),
     workspace_id: source.workspace_id,
@@ -120,6 +130,9 @@ async function captureSource(source, env, triggerType = "scheduled") {
     source_id: source.id,
     trigger_type: triggerType,
     status: "running",
+    detection_window_start: observationWindow.start,
+    detection_window_end: observationWindow.end,
+    detection_window_basis: observationWindow.basis,
   });
 
   try {
@@ -141,7 +154,7 @@ async function captureSource(source, env, triggerType = "scheduled") {
     }, "resolution=ignore-duplicates,return=representation");
 
     if (isChanged) {
-      await insertRecord(env, "source_capture_candidates", {
+      const candidate = await insertRecord(env, "source_capture_candidates", {
         id: crypto.randomUUID(),
         workspace_id: source.workspace_id,
         tab_id: source.tab_id,
@@ -155,7 +168,13 @@ async function captureSource(source, env, triggerType = "scheduled") {
         quoted_text: snapshot.extractedText.slice(0, 1_200),
         content_hash: snapshot.contentHash,
         status: "pending",
+        analysis_status: "unavailable",
+        publication_time_status: "unverified",
+        detection_window_start: observationWindow.start,
+        detection_window_end: observationWindow.end,
+        detection_window_basis: observationWindow.basis,
       });
+      await enrichCandidateWithAnalysis(env, candidate.id, page, snapshot.extractedText);
     }
 
     await updateRecord(env, "competitor_sources", source.id, {
@@ -180,6 +199,35 @@ async function captureSource(source, env, triggerType = "scheduled") {
     });
     throw error;
   }
+}
+
+// 观察窗口：手动显式窗口必须成对、为合法 ISO 时间且不延伸到未来。
+export function validateObservationWindow(value, now = new Date()) {
+  if (value == null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      typeof value.start !== "string" || typeof value.end !== "string") {
+    throw new HttpError(400, "invalid_observation_window", "observationWindow 必须同时包含有效的 start 与 end。 ");
+  }
+  const startMs = ISO_TIMESTAMP_PATTERN.test(value.start) ? Date.parse(value.start) : NaN;
+  const endMs = ISO_TIMESTAMP_PATTERN.test(value.end) ? Date.parse(value.end) : NaN;
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || startMs >= endMs || endMs > now.getTime()) {
+    throw new HttpError(400, "invalid_observation_window", "观察窗口必须是起点早于终点且终点不晚于当前时间的 ISO 时间。 ");
+  }
+  return { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString(), basis: "explicit" };
+}
+
+// 定时与未显式指定窗口的手动任务，从上次成功结束时间观察到本次计划时间。
+export async function deriveObservationWindow(env, sourceId, plannedAt) {
+  const records = await supabaseRequest(
+    env,
+    `/rest/v1/source_capture_runs?source_id=eq.${encodeURIComponent(sourceId)}&status=eq.succeeded&select=finished_at&order=finished_at.desc&limit=1`,
+  );
+  const previous = records[0]?.finished_at;
+  return {
+    start: previous && Date.parse(previous) < plannedAt.getTime() ? new Date(previous).toISOString() : null,
+    end: plannedAt.toISOString(),
+    basis: previous && Date.parse(previous) < plannedAt.getTime() ? "prior_success" : "initial_observation",
+  };
 }
 
 // Supabase 用户认证：用户 JWT 仅发送到 Auth，绝不作为数据库服务角色凭据。
@@ -308,10 +356,142 @@ export function extractReadableText(html) {
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
       .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
       .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<(nav|header|footer|aside|form)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<\/(?:p|div|main|article|section|li|h[1-6]|tr)>/gi, "\n")
       .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
+      .replace(/[^\S\r\n]+/g, " ")
+      .replace(/\n\s*\n+/g, "\n")
       .trim(),
   ).slice(0, MAX_EXTRACTED_TEXT_LENGTH);
+}
+
+// AI 输入清洗：去除重复行与常见导航短语，并在 Unicode 字符边界截断到 6000 字符。
+export function prepareAnalysisInput(text) {
+  const seen = new Set();
+  const navigation = /^(home|menu|search|sign in|log in|subscribe|首页|菜单|搜索|登录|订阅|返回顶部)$/i;
+  const lines = String(text || "").split(/\n+/).map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => {
+      if (!line || navigation.test(line)) return false;
+      const key = line.toLocaleLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return Array.from(lines.join("\n")).slice(0, MAX_ANALYSIS_INPUT_CHARS).join("");
+}
+
+// Preview-only 候选分析：任何配置、额度、网络或校验失败都保持候选成功且仅记录 unavailable。
+export async function enrichCandidateWithAnalysis(env, candidateId, page, extractedText) {
+  if (!env?.GEMINI_API_KEY) return;
+  const model = String(env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL);
+  if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(model)) return;
+  const input = prepareAnalysisInput(extractedText);
+  if (!input) return;
+
+  try {
+    const reserved = await reserveAnalysisBudget(env);
+    if (!reserved) return;
+    const analysis = await requestGeminiAnalysis(env, model, page, input);
+    await updateRecord(env, "source_capture_candidates", candidateId, {
+      analysis_status: "available",
+      analysis,
+      analysis_model: model,
+      analysis_schema_version: ANALYSIS_SCHEMA_VERSION,
+      analysis_input_chars: Array.from(input).length,
+      analysis_reserved_tokens: ANALYSIS_RESERVED_TOKENS,
+      analyzed_at: new Date().toISOString(),
+      publication_time_status: analysis.publication_time.status,
+      published_at: analysis.publication_time.status === "verified" ? analysis.publication_time.value : null,
+    });
+  } catch {
+    // 故意吞掉供应商与额度细节；抓取结果和候选不能因可选分析失败而失败。
+  }
+}
+
+async function reserveAnalysisBudget(env) {
+  const result = await supabaseRequest(env, "/rest/v1/rpc/reserve_source_capture_ai_budget", {
+    method: "POST",
+    body: JSON.stringify({
+      requested_tokens: ANALYSIS_RESERVED_TOKENS,
+      daily_request_limit: DAILY_AI_REQUEST_LIMIT,
+      daily_token_limit: DAILY_AI_TOKEN_LIMIT,
+    }),
+  });
+  return result === true;
+}
+
+// Gemini 使用严格响应 Schema；密钥只置于服务端请求头，不写入 URL、数据库或响应。
+async function requestGeminiAnalysis(env, model, page, input) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+        signal: controller.signal,
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: "你是严谨的竞品研究助手。只根据输入页面作答，中文简洁表达；推断和竞争影响必须明确标注。不得补充、猜测或伪造事实、引文和发布时间。引文必须逐字来自输入原文，并附中文释义。无法确认发布时间时标为 not_found 或 unverified，value 必须为 null。" }] },
+          contents: [{ role: "user", parts: [{ text: `来源标题：${page.title || "未提供"}\n来源 URL：${page.canonicalUrl}\n清洗后的页面正文：\n${input}` }] }],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 1800,
+            responseMimeType: "application/json",
+            responseJsonSchema: analysisJsonSchema(),
+          },
+        }),
+      },
+    );
+    if (!response.ok) throw new Error("analysis unavailable");
+    const payload = await response.json();
+    const raw = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (typeof raw !== "string") throw new Error("analysis unavailable");
+    return validateAnalysis(JSON.parse(raw), input);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function analysisJsonSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["conclusion", "facts", "inference", "competitive_impact", "quotes", "confidence", "publication_time"],
+    properties: {
+      conclusion: { type: "string" },
+      facts: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
+      inference: { type: "object", additionalProperties: false, required: ["label", "text"], properties: { label: { type: "string", enum: ["推断"] }, text: { type: "string" } } },
+      competitive_impact: { type: "object", additionalProperties: false, required: ["label", "text"], properties: { label: { type: "string", enum: ["竞争影响"] }, text: { type: "string" } } },
+      quotes: { type: "array", minItems: 2, maxItems: 3, items: { type: "object", additionalProperties: false, required: ["original", "chinese_gloss"], properties: { original: { type: "string" }, chinese_gloss: { type: "string" } } } },
+      confidence: { type: "string", enum: ["high", "medium", "low"] },
+      publication_time: { type: "object", additionalProperties: false, required: ["status", "value", "source_text"], properties: { status: { type: "string", enum: ["verified", "not_found", "unverified"] }, value: { type: "string", nullable: true }, source_text: { type: "string", nullable: true } } },
+    },
+  };
+}
+
+// 输出二次校验：即使模型声称符合 Schema，引文和已验证发布时间也必须能回指输入原文。
+export function validateAnalysis(value, input) {
+  if (!value || typeof value !== "object" || typeof value.conclusion !== "string" || !value.conclusion.trim() ||
+      !Array.isArray(value.facts) || value.facts.length < 2 || value.facts.length > 4 || !value.facts.every((fact) => typeof fact === "string" && fact.trim()) ||
+      !Array.isArray(value.quotes) || value.quotes.length < 2 || value.quotes.length > 3 ||
+      !value.quotes.every((quote) => typeof quote?.original === "string" && quote.original.length > 0 && input.includes(quote.original) && typeof quote.chinese_gloss === "string") ||
+      !["high", "medium", "low"].includes(value.confidence) || value.inference?.label !== "推断" ||
+      typeof value.inference?.text !== "string" || value.competitive_impact?.label !== "竞争影响" ||
+      typeof value.competitive_impact?.text !== "string" || !["verified", "not_found", "unverified"].includes(value.publication_time?.status)) {
+    throw new Error("analysis unavailable");
+  }
+  if (value.publication_time.status === "verified") {
+    if (typeof value.publication_time.value !== "string" || !ISO_TIMESTAMP_PATTERN.test(value.publication_time.value) ||
+        Number.isNaN(Date.parse(value.publication_time.value)) ||
+        typeof value.publication_time.source_text !== "string" || !input.includes(value.publication_time.source_text)) {
+      throw new Error("analysis unavailable");
+    }
+    value.publication_time.value = new Date(value.publication_time.value).toISOString();
+  } else {
+    value.publication_time.value = null;
+  }
+  return value;
 }
 
 function extractTitle(html) {

@@ -56,6 +56,106 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertTrue(result["changedCandidate"])
         self.assertEqual(result["text"], "Update shipped today.")
 
+    def test_analysis_input_removes_navigation_duplicates_and_caps_unicode_characters(self):
+        result = self.run_module(
+            "(module) => { const text = '首页\\nMenu\\n关键更新\\n关键更新\\n' + '中'.repeat(7000); "
+            "const cleaned = module.prepareAnalysisInput(text); "
+            "return {cleaned, chars: Array.from(cleaned).length}; }"
+        )
+        self.assertNotIn("首页", result["cleaned"])
+        self.assertNotIn("Menu", result["cleaned"])
+        self.assertEqual(result["cleaned"].count("关键更新"), 1)
+        self.assertEqual(result["chars"], 6000)
+
+    def test_observation_window_requires_paired_ordered_non_future_times(self):
+        result = self.run_module(
+            "(module) => { const now = new Date('2026-08-03T12:00:00Z'); "
+            "const values = [null, {start: '2026-08-01T00:00:00Z', end: '2026-08-02T00:00:00Z'}, "
+            "{start: '2026-08-02T00:00:00Z'}, {start: 'August 2 2026', end: '2026-08-03T00:00:00Z'}, "
+            "{start: '2026-08-02T00:00:00Z', end: '2026-08-01T00:00:00Z'}, "
+            "{start: '2026-08-02T00:00:00Z', end: '2026-08-04T00:00:00Z'}]; "
+            "return values.map((value) => { try { return module.validateObservationWindow(value, now); } "
+            "catch (error) { return {code: error.code}; } }); }"
+        )
+        self.assertIsNone(result[0])
+        self.assertEqual(result[1]["basis"], "explicit")
+        self.assertEqual([item["code"] for item in result[2:]], ["invalid_observation_window"] * 4)
+
+    def test_scheduled_window_uses_previous_success_finished_at_to_planned_time(self):
+        result = self.run_module(
+            "async (module) => { let url=''; globalThis.fetch=async (value) => { url=String(value); "
+            "return Response.json([{finished_at:'2026-08-02T05:00:00Z'}]); }; "
+            "const window=await module.deriveObservationWindow({SUPABASE_URL:'https://project.supabase.co',"
+            "SUPABASE_SERVICE_ROLE_KEY:'secret'},'source-id',new Date('2026-08-03T06:00:00Z')); return {url,window}; }"
+        )
+        self.assertIn("status=eq.succeeded", result["url"])
+        self.assertIn("order=finished_at.desc", result["url"])
+        self.assertEqual(result["window"], {
+            "start": "2026-08-02T05:00:00.000Z",
+            "end": "2026-08-03T06:00:00.000Z",
+            "basis": "prior_success",
+        })
+
+    def test_analysis_rejects_fabricated_quotes_and_unverified_publication_values(self):
+        result = self.run_module(
+            "(module) => { const base = {conclusion:'结论', facts:['事实一','事实二'], "
+            "inference:{label:'推断',text:'可能'}, competitive_impact:{label:'竞争影响',text:'有限'}, "
+            "quotes:[{original:'Original one',chinese_gloss:'原文一'},{original:'Original two',chinese_gloss:'原文二'}], "
+            "confidence:'medium', publication_time:{status:'unverified',value:'2026-01-01',source_text:null}}; "
+            "const valid = module.validateAnalysis(structuredClone(base), 'Original one and Original two'); "
+            "let fabricated = false; try { const bad = structuredClone(base); bad.quotes[0].original='invented'; "
+            "module.validateAnalysis(bad, 'Original one and Original two'); } catch { fabricated = true; } "
+            "return {value: valid.publication_time.value, fabricated}; }"
+        )
+        self.assertIsNone(result["value"])
+        self.assertTrue(result["fabricated"])
+
+    def test_daily_guard_blocks_provider_call_and_analysis_failure_stays_nonfatal(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; globalThis.fetch=async (url, init={}) => { calls.push({url:String(url),method:init.method||'GET'}); "
+            "if (String(url).endsWith('/rpc/reserve_source_capture_ai_budget')) return Response.json(false); "
+            "throw new Error('provider must not be called'); }; "
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'secret',GEMINI_API_KEY:'gemini-secret'}; "
+            "await module.enrichCandidateWithAnalysis(env,'candidate-id',{title:'Title',canonicalUrl:'https://example.com'},'Original one\\nOriginal two'); "
+            "return calls; }"
+        )
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0]["url"].endswith("/rpc/reserve_source_capture_ai_budget"))
+
+        failure_result = self.run_module(
+            "async (module) => { const calls=[]; globalThis.fetch=async (url) => { calls.push(String(url)); "
+            "if (String(url).endsWith('/rpc/reserve_source_capture_ai_budget')) return Response.json(true); "
+            "return new Response('quota details must stay private',{status:429}); }; "
+            "await module.enrichCandidateWithAnalysis({SUPABASE_URL:'https://project.supabase.co',"
+            "SUPABASE_SERVICE_ROLE_KEY:'secret',GEMINI_API_KEY:'gemini-secret'},'candidate-id',"
+            "{title:'Title',canonicalUrl:'https://example.com'},'Original one\\nOriginal two'); return calls; }"
+        )
+        self.assertEqual(len(failure_result), 2)
+        self.assertTrue(any("generativelanguage.googleapis.com" in call for call in failure_result))
+
+    def test_gemini_key_is_server_header_strict_json_and_success_updates_candidate_only(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; const analysis={conclusion:'结论',facts:['事实一','事实二'],"
+            "inference:{label:'推断',text:'可能'},competitive_impact:{label:'竞争影响',text:'有限'},"
+            "quotes:[{original:'Original one',chinese_gloss:'原文一'},{original:'Original two',chinese_gloss:'原文二'}],"
+            "confidence:'high',publication_time:{status:'not_found',value:null,source_text:null}}; "
+            "globalThis.fetch=async (url,init={})=>{ const headers=new Headers(init.headers); const body=init.body?JSON.parse(init.body):null; "
+            "calls.push({url:String(url),method:init.method||'GET',key:headers.get('x-goog-api-key'),body}); "
+            "if(String(url).endsWith('/rpc/reserve_source_capture_ai_budget')) return Response.json(true); "
+            "if(String(url).includes('generativelanguage.googleapis.com')) return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(analysis)}]}}]}); "
+            "if((init.method||'GET')==='PATCH') return new Response(null,{status:204}); throw new Error('unexpected'); }; "
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',GEMINI_API_KEY:'gemini-secret'}; "
+            "await module.enrichCandidateWithAnalysis(env,'candidate-id',{title:'Title',canonicalUrl:'https://example.com'},'Original one\\nOriginal two'); return calls; }"
+        )
+        provider = next(call for call in result if "generativelanguage.googleapis.com" in call["url"])
+        self.assertNotIn("gemini-secret", provider["url"])
+        self.assertEqual(provider["key"], "gemini-secret")
+        self.assertEqual(provider["body"]["generationConfig"]["responseMimeType"], "application/json")
+        self.assertIn("responseJsonSchema", provider["body"]["generationConfig"])
+        patch_call = next(call for call in result if call["method"] == "PATCH")
+        self.assertIn("/source_capture_candidates?", patch_call["url"])
+        self.assertEqual(patch_call["body"]["analysis_status"], "available")
+
     def test_worker_writes_review_pipeline_only_never_evidence_or_matrix_entities(self):
         source = WORKER.read_text(encoding="utf-8")
         self.assertIn("export default", source)
