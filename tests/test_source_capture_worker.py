@@ -156,6 +156,11 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertIn("/source_capture_candidates?", patch_call["url"])
         self.assertEqual(patch_call["body"]["analysis_status"], "available")
 
+    def test_gemini_generated_fields_must_use_simplified_chinese(self):
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn("所有生成字段必须使用简体中文", source)
+        self.assertIn("原文引文保持页面原始语言", source)
+
     def test_worker_writes_review_pipeline_only_never_evidence_or_matrix_entities(self):
         source = WORKER.read_text(encoding="utf-8")
         self.assertIn("export default", source)

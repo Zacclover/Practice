@@ -432,7 +432,7 @@ async function requestGeminiAnalysis(env, model, page, input) {
         headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
         signal: controller.signal,
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: "你是严谨的竞品研究助手。只根据输入页面作答，中文简洁表达；推断和竞争影响必须明确标注。不得补充、猜测或伪造事实、引文和发布时间。引文必须逐字来自输入原文，并附中文释义。无法确认发布时间时标为 not_found 或 unverified，value 必须为 null。" }] },
+          systemInstruction: { parts: [{ text: "你是严谨的竞品研究助手。只根据输入页面作答。所有生成字段必须使用简体中文，表达简洁；推断和竞争影响必须明确标注。不得补充、猜测或伪造事实、引文和发布时间。原文引文保持页面原始语言，并附简体中文释义。无法确认发布时间时标为 not_found 或 unverified，value 必须为 null。" }] },
           contents: [{ role: "user", parts: [{ text: `来源标题：${page.title || "未提供"}\n来源 URL：${page.canonicalUrl}\n清洗后的页面正文：\n${input}` }] }],
           generationConfig: {
             temperature: 0,
