@@ -386,7 +386,7 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertEqual(patch_call["body"]["analysis_status"], "available")
         self.assertEqual(patch_call["body"]["title"], "数据库自动化")
         self.assertEqual(patch_call["body"]["summary"], "新增数据库任务自动化能力。")
-        self.assertIsNone(patch_call["body"]["quoted_text"])
+        self.assertEqual(patch_call["body"]["quoted_text"], "")
         schema = provider["body"]["generationConfig"]["responseJsonSchema"]
         self.assertIn("feature_title", schema["required"])
         self.assertIn("feature_summary", schema["required"])
@@ -544,7 +544,7 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertEqual(len(candidate_inserts), 2)
         self.assertEqual([call["body"]["title"] for call in candidate_inserts], ["待分析功能更新", "待分析功能更新"])
         self.assertTrue(all(call["body"]["summary"] == "发现一项发布时间符合观察窗口的功能更新，具体内容请查看来源页面。" for call in candidate_inserts))
-        self.assertTrue(all(call["body"]["quoted_text"] is None for call in candidate_inserts))
+        self.assertTrue(all(call["body"]["quoted_text"] == "" for call in candidate_inserts))
         self.assertTrue(all(len(call["body"]["selected_entries"]) == 1 for call in candidate_inserts))
         self.assertEqual([call["body"]["source_url"] for call in candidate_inserts], [
             "https://public.example/updates/one", "https://public.example/updates/two",
