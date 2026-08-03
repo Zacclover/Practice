@@ -31,6 +31,8 @@ class CandidateAttachmentUiContractTests(unittest.TestCase):
         self.assertNotIn("attachment.url", strip)
         self.assertNotIn("http://", strip)
         self.assertNotIn("https://", strip)
+        self.assertNotIn("candidate.title", strip)
+        self.assertIn("getCandidateFeatureTitle(candidate)", strip)
         self.assertIn("attachments.slice(0, 3)", strip)
 
     def test_object_urls_are_revoked_for_thumbnails_and_full_image(self):

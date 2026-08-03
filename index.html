@@ -4311,17 +4311,10 @@
       .source-item-actions { opacity: 1; visibility: visible; pointer-events: auto; }
       .capture-window-fields { grid-template-columns: 1fr; }
     }
-    /* 候选审核卡：结构化分析按事实与推断分区，操作栏允许换行避免按钮重叠。 */
-    .review-candidate-summary { margin: 12px 0; color: var(--line-medium); }
-    .review-candidate-analysis { display: grid; gap: 10px; margin: 12px 0; }
-    .review-candidate-analysis section { padding: 10px 12px; background: var(--gray-100); border-left: 3px solid var(--line-strong); }
-    .review-candidate-analysis h4 { margin: 0 0 5px; font-size: 12px; }
-    .review-candidate-analysis p, .review-candidate-analysis ul { margin: 0; color: var(--ink); }
-    .review-candidate-analysis ul { padding-left: 18px; }
-    .review-candidate-quotes { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-    .review-candidate-quote { padding: 10px 12px; background: var(--white); border: 1px solid var(--line-subtle); }
-    .review-candidate-quote blockquote { margin: 0 0 5px; color: var(--ink); }
-    .review-candidate-quote p { margin: 0; color: var(--line-medium); }
+    /* 候选审核卡：仅展示功能总结，操作栏允许换行避免按钮重叠。 */
+    .review-candidate-summary { margin: 12px 0; padding: 10px 12px; background: var(--gray-100); border-left: 3px solid var(--line-strong); }
+    .review-candidate-summary h4 { margin: 0 0 5px; font-size: 12px; }
+    .review-candidate-summary p { margin: 0; color: var(--ink); }
     /* Candidate 私有附件：三列预览仅使用 Worker 返回的 Blob URL，不接触第三方图片地址。 */
     .candidate-attachment-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0; }
     .candidate-attachment-preview { position: relative; min-width: 0; aspect-ratio: 4 / 3; padding: 0; overflow: hidden; color: var(--line-medium); background: var(--gray-100); border: 1px solid var(--line-subtle); clip-path: none; }
@@ -6997,34 +6990,18 @@
       return value ? value.trim() : '';
     }
 
-    function analysisList(analysis, ...keys) {
-      const value = keys.map(key => analysis?.[key]).find(Array.isArray);
-      return (value || []).map(item => typeof item === 'string' ? item.trim() : '').filter(Boolean);
+    /* 候选标题仅接受分析产出的中文功能名，避免原始英文标题进入审核卡。 */
+    function getCandidateFeatureTitle(candidate) {
+      const analysis = getCandidateAnalysis(candidate);
+      const title = analysisText(analysis, 'feature_title', 'featureTitle', 'feature_title_zh', 'featureTitleZh');
+      return /[\u3400-\u9fff]/.test(title) ? title : '待审核功能更新';
     }
 
+    /* 候选正文只呈现简洁功能总结，不回退到摘录、原始摘要或其他分析分区。 */
     function renderCandidateAnalysis(candidate) {
       const analysis = getCandidateAnalysis(candidate);
-      if (!analysis) {
-        const rawExcerpt = String(candidate.quotedText || candidate.summary || '暂无摘要').replace(/\s+/g, ' ').trim().slice(0, 360);
-        return `<p class="review-candidate-summary">原始摘录：${escapeHtml(rawExcerpt)}${rawExcerpt.length === 360 ? '…' : ''}</p>`;
-      }
-      const conclusion = analysisText(analysis, 'conclusionZh', 'conclusion_zh', 'chinese_conclusion', 'conclusion');
-      const facts = analysisList(analysis, 'facts', 'factual_findings');
-      // 兼容后端严格 Schema 的 { label: '推断', text }，同时保留旧版数组候选的可读性。
-      const inferenceObject = analysis.inference && typeof analysis.inference === 'object' && !Array.isArray(analysis.inference) ? analysis.inference : null;
-      const inferences = inferenceObject?.text ? [inferenceObject.text] : analysisList(analysis, 'inferences', 'inference', 'inferred_findings');
-      // 竞争影响同样使用严格 Schema 的对象值，避免把已成功的 AI 结果错误显示为“未提供”。
-      const impactObject = analysis.competitive_impact && typeof analysis.competitive_impact === 'object' && !Array.isArray(analysis.competitive_impact) ? analysis.competitive_impact : null;
-      const competitiveImpact = impactObject?.text || analysisText(analysis, 'competitiveImpact', 'competitive_impact', 'competition_impact');
-      const confidence = analysis.confidence ?? analysis.confidenceScore ?? analysis.confidence_score ?? '未标注';
-      const quoteRows = (analysis.quotes || analysis.quotePairs || analysis.quote_pairs || []).slice(0, 3);
-      const list = values => values.length ? `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>` : '<p>未提供</p>';
-      const quotes = quoteRows.length ? `<section><h4>原文引句与中文释义</h4><ul class="review-candidate-quotes">${quoteRows.map(row => {
-        const original = typeof row === 'object' ? (row.original || row.quote || row.original_quote || row.original_text || '') : '';
-        const gloss = typeof row === 'object' ? (row.chineseGloss || row.chinese_gloss || row.gloss_zh || row.gloss || '') : '';
-        return `<li class="review-candidate-quote"><blockquote lang="en">“${escapeHtml(original)}”</blockquote><p>中文释义：${escapeHtml(gloss || '未提供')}</p></li>`;
-      }).join('')}</ul></section>` : '';
-      return `<div class="review-candidate-analysis"><section><h4>中文结论</h4><p>${escapeHtml(conclusion || '未提供')}</p></section><section><h4>事实</h4>${list(facts)}</section><section><h4>推断</h4>${list(inferences)}</section><section><h4>竞争影响</h4><p>${escapeHtml(competitiveImpact || '未提供')}</p></section><section><h4>置信度</h4><p>${escapeHtml(String(confidence))}</p></section>${quotes}</div>`;
+      const summary = analysisText(analysis, 'feature_summary', 'featureSummary', 'feature_summary_zh', 'featureSummaryZh');
+      return `<section class="review-candidate-summary"><h4>功能总结</h4><p>${escapeHtml(summary || 'AI 分析暂不可用，暂无功能总结。')}</p></section>`;
     }
 
     /* Candidate 附件始终经 Worker Bearer GET 转换为临时 Blob URL。 */
@@ -7060,7 +7037,8 @@
 
     function renderCandidateAttachmentStrip(candidate) {
       if (!sourceCaptureState.cloudSynced || !Array.isArray(candidate.attachments) || !candidate.attachments.length) return '';
-      return `<div class="candidate-attachment-strip" aria-label="Candidate 附件">${candidate.attachments.slice(0, 3).map((attachment, index) => `<button class="candidate-attachment-preview" type="button" data-candidate-id="${escapeHtml(candidate.id)}" data-candidate-attachment-id="${escapeHtml(attachment.id)}" data-attachment-alt="${escapeHtml(`${candidate.title || 'Candidate'} 附件 ${index + 1}`)}" aria-label="查看附件 ${index + 1}"><span class="candidate-attachment-unavailable">正在加载</span></button>`).join('')}</div>`;
+      const featureTitle = getCandidateFeatureTitle(candidate);
+      return `<div class="candidate-attachment-strip" aria-label="候选附件">${candidate.attachments.slice(0, 3).map((attachment, index) => `<button class="candidate-attachment-preview" type="button" data-candidate-id="${escapeHtml(candidate.id)}" data-candidate-attachment-id="${escapeHtml(attachment.id)}" data-attachment-alt="${escapeHtml(`${featureTitle}附件 ${index + 1}`)}" aria-label="查看附件 ${index + 1}"><span class="candidate-attachment-unavailable">正在加载</span></button>`).join('')}</div>`;
     }
 
     function renderReviewQueue() {
@@ -7076,7 +7054,7 @@
         const publicationLabels = { verified: '已核验', not_found: '未找到', unverified: '未核验' };
         const detectionWindow = item.detectionWindowStart && item.detectionWindowEnd ? `${formatDate(item.detectionWindowStart)} — ${formatDate(item.detectionWindowEnd)}` : '未记录';
         const publicationTime = item.publishedAt ? formatDate(item.publishedAt) : '未提供';
-        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>候选标题：${escapeHtml(item.title || '未命名候选')}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p>${renderCandidateAttachmentStrip(item)}<div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>弃用</button></div></article>`;
+        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>${escapeHtml(getCandidateFeatureTitle(item))}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p>${renderCandidateAttachmentStrip(item)}<div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>弃用</button></div></article>`;
       }).join('') : '<p class="review-queue-empty">当前没有待审核候选。云端同步未启用时，本机不会虚构采集结果。</p>';
       if (pending.length && sourceCaptureState.cloudSynced) hydrateCandidateAttachmentThumbnails(candidateAttachmentRenderVersion);
     }

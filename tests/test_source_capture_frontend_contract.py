@@ -48,17 +48,25 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIsNotNone(submit)
         self.assertIn("!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken", submit.group("body"))
 
-    def test_structured_candidate_and_concise_fallback_are_rendered(self):
-        structured = self.function_body("renderCandidateAnalysis", "renderReviewQueue")
-        for label in ("中文结论", "事实", "推断", "竞争影响", "置信度", "原文引句与中文释义", "中文释义"):
-            self.assertIn(label, structured)
-        self.assertIn(".slice(0, 3)", structured)
-        self.assertIn(".slice(0, 360)", structured)
-        self.assertIn("candidate.quotedText || candidate.summary", structured)
-        # 后端严格 Schema 使用对象形式，而非旧版数组；UI 必须读取其 text。
-        self.assertIn("inferenceObject?.text", structured)
-        self.assertIn("impactObject?.text", structured)
+    def test_candidate_card_only_renders_feature_summary_and_chinese_title(self):
+        title = self.function_body("getCandidateFeatureTitle", "renderCandidateAnalysis")
+        self.assertIn("'feature_title'", title)
+        self.assertIn("'featureTitle'", title)
+        self.assertIn("/[\\u3400-\\u9fff]/", title)
+        self.assertIn("待审核功能更新", title)
+
+        structured = self.function_body("renderCandidateAnalysis", "fetchCandidateAttachmentBlob")
+        self.assertIn("功能总结", structured)
+        self.assertIn("'feature_summary'", structured)
+        self.assertIn("'featureSummary'", structured)
+        self.assertIn("AI 分析暂不可用，暂无功能总结。", structured)
+        for forbidden in ("quotedText", "candidate.summary", "facts", "inference", "competitive_impact", "quotes", "quotePairs", "原始摘录", "原文引句"):
+            self.assertNotIn(forbidden, structured)
+
         queue = self.function_body("renderReviewQueue", "prepareCandidateAsEvidence")
+        self.assertIn("getCandidateFeatureTitle(item)", queue)
+        self.assertNotIn("item.title", queue)
+        self.assertNotIn("quotedText", queue)
         for label in ("检测窗口", "发布时间", "发布状态"):
             self.assertIn(label, queue)
 
