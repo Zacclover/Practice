@@ -119,6 +119,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     const snapshot = await createSnapshot(page.extractedText);
     const isSemanticSource = supportsUpdateSubpageDiscovery(source.source_type);
     const isChanged = shouldQueueCandidate(previousSnapshot?.content_hash, snapshot.contentHash);
+    let candidateQueued = false;
 
     const savedSnapshot = await insertRecord(env, "source_capture_snapshots?on_conflict=source_id%2Ccontent_hash", {
       id: crypto.randomUUID(),
@@ -136,7 +137,6 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       const discovery = await discoverEligibleUpdates(page, observationWindow);
       const selectedHash = discovery.entries.length ? await hashSelectedEntries(discovery.entries) : null;
       const alreadyQueued = selectedHash ? await candidateExists(env, source.id, selectedHash) : false;
-      let candidateQueued = false;
       if (selectedHash && !alreadyQueued) {
         const aggregate = aggregateUpdateEntries(discovery.entries);
         const candidate = await insertRecord(env, "source_capture_candidates?on_conflict=source_id%2Ccontent_hash", {
