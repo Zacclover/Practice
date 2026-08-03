@@ -247,6 +247,31 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertIn("order=created_at.desc", cooldown_call)
         self.assertNotIn("last_fetched_at", cooldown_call)
 
+    def test_snapshot_write_uses_unique_conflict_target_so_unchanged_fetches_succeed(self):
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn("source_capture_snapshots?on_conflict=source_id%2Ccontent_hash", source)
+
+    def test_unchanged_manual_capture_upserts_snapshot_and_does_not_queue_candidate(self):
+        result = self.run_module(
+            "async (module) => { const calls = []; globalThis.fetch = async (url, init = {}) => { "
+            "const value = String(url); const method = init.method || 'GET'; const body = init.body ? JSON.parse(init.body) : null; calls.push({url:value,method,body}); "
+            "if (value.endsWith('/auth/v1/user')) return Response.json({id: '22222222-2222-4222-8222-222222222222'}); "
+            "if (value.includes('/competitor_sources?') && method === 'GET') return Response.json([{id:'11111111-1111-4111-8111-111111111111',workspace_id:'33333333-3333-4333-8333-333333333333',tab_id:'44444444-4444-4444-8444-444444444444',competitor_id:'55555555-5555-4555-8555-8555-555555555555',url:'https://public.example/page'}]); "
+            "if (value.includes('/workspace_members?')) return Response.json([{workspace_id:'33333333-3333-4333-8333-333333333333'}]); "
+            "if (value.includes('/source_capture_runs?') && method === 'GET') return Response.json([]); "
+            "if (value.endsWith('/rest/v1/source_capture_runs') && method === 'POST') return Response.json([body]); "
+            "if (value.includes('/source_capture_snapshots?source_id=') && method === 'GET') return Response.json([{id:'previous-snapshot',content_hash:'09d568da57f518ee045d424dbf2cea47245f2a358cf58baa5efbde04ad1dc57c'}]); "
+            "if (value === 'https://public.example/page') return new Response('<title>Release</title><main>New release</main>', {headers:{'content-type':'text/html'}}); "
+            "if (value.includes('/rest/v1/source_capture_snapshots?on_conflict=source_id%2Ccontent_hash') && method === 'POST') return Response.json([]); "
+            "if (value.includes('/source_capture_candidates') && method === 'POST') throw new Error('candidate must not be created'); "
+            "if (method === 'PATCH') return new Response(null,{status:204}); throw new Error('unexpected request '+value); }; "
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public-key'}; const response=await module.default.fetch(new Request('https://worker.example/manual-capture',{method:'POST',headers:{Origin:'https://zacclover-competitor.pages.dev',Authorization:'Bearer user-jwt','Content-Type':'application/json'},body:JSON.stringify({sourceId:'11111111-1111-4111-8111-111111111111'})}),env,{}); return {status:response.status,body:await response.json(),calls}; }"
+        )
+        self.assertEqual(result["status"], 200)
+        self.assertFalse(result["body"]["result"]["candidateQueued"])
+        snapshot_insert = next(call for call in result["calls"] if "/rest/v1/source_capture_snapshots?on_conflict=source_id%2Ccontent_hash" in call["url"] and call["method"] == "POST")
+        self.assertEqual(snapshot_insert["body"]["content_hash"], "09d568da57f518ee045d424dbf2cea47245f2a358cf58baa5efbde04ad1dc57c")
+
     def test_successful_manual_capture_reuses_review_pipeline_with_manual_trigger(self):
         result = self.run_module(
             "async (module) => { const calls = []; globalThis.fetch = async (url, init = {}) => { "
@@ -261,7 +286,7 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "if (value.endsWith('/rest/v1/source_capture_runs') && method === 'POST') return Response.json([body]); "
             "if (value.includes('/source_capture_snapshots?') && method === 'GET') return Response.json([]); "
             "if (value === 'https://public.example/page') return new Response('<title>Release</title><main>New release</main>', {headers: {'content-type': 'text/html'}}); "
-            "if (value.endsWith('/rest/v1/source_capture_snapshots') && method === 'POST') return Response.json([body]); "
+            "if (value.startsWith('https://project.supabase.co/rest/v1/source_capture_snapshots?on_conflict=source_id%2Ccontent_hash') && method === 'POST') return Response.json([body]); "
             "if (value.endsWith('/rest/v1/source_capture_candidates') && method === 'POST') return Response.json([body]); "
             "if (method === 'PATCH') return new Response(null, {status: 204}); throw new Error('unexpected request ' + value); }; "
             "const env = {SUPABASE_URL: 'https://project.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'service-secret', "
