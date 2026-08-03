@@ -18,7 +18,7 @@ class CloudRuntimeConfigContractTests(unittest.TestCase):
 
     def test_page_loads_optional_cloud_config_synchronously_before_application_code(self):
         source = INDEX.read_text(encoding="utf-8")
-        config_script = '<script src="/cloud-config"></script>'
+        config_script = '<script src="/cloud-config?v=source-capture-config-v1"></script>'
         example_script = source.find(config_script)
         application_script = source.find("<script>")
         self.assertGreaterEqual(example_script, 0)
