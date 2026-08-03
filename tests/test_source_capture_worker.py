@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "workers" / "source-capture.mjs"
+WRANGLER = ROOT / "workers" / "wrangler.toml"
 
 
 class SourceCaptureWorkerTests(unittest.TestCase):
@@ -38,6 +39,69 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "]"
         )
         self.assertEqual(result, [True, False, False, False, False])
+
+    def test_scheduling_is_disabled_in_config_and_event_handler_is_a_noop(self):
+        config = WRANGLER.read_text(encoding="utf-8")
+        self.assertNotIn("crons", config)
+        result = self.run_module(
+            "async (module) => { let fetched = false; globalThis.fetch = async () => { fetched = true; }; "
+            "const direct = await module.runScheduledCapture({}); let promised; "
+            "await module.default.scheduled({}, {}, {waitUntil(value) { promised = value; }}); "
+            "const event = await promised; return {direct, event, fetched}; }"
+        )
+        self.assertTrue(result["direct"]["disabled"])
+        self.assertTrue(result["event"]["disabled"])
+        self.assertFalse(result["fetched"])
+
+    def test_only_changelog_source_types_enable_subpage_discovery(self):
+        result = self.run_module(
+            "(module) => ['changelog','release_notes','blog','product_page','help_center','pricing']"
+            ".map((value) => module.supportsUpdateSubpageDiscovery(value))"
+        )
+        self.assertEqual(result, [True, True, False, False, False, False])
+
+    def test_update_link_discovery_is_same_origin_depth_one_conservative_and_capped(self):
+        result = self.run_module(
+            "(module) => { const many = Array.from({length:25},(_,i)=>`<a href='/changelog/item-${i}'>x</a>`).join(''); "
+            "const html = `<nav><a href='/changelog/nav-item'>nav</a></nav>"
+            "<a href='/pricing'>pricing</a><a href='/changelog/one'>one</a>"
+            "<a href='/changelog/one/deep'>deep</a><a href='https://other.example/changelog/two'>external</a>"
+            "<a href='http://public.example/changelog/insecure'>http</a><a href='https://user@public.example/changelog/private'>credential</a>${many}`; "
+            "const links = module.discoverUpdateLinks(html, 'https://public.example/changelog'); "
+            "return {links, count: links.length}; }"
+        )
+        self.assertEqual(result["count"], 20)
+        self.assertEqual(result["links"][0], "https://public.example/changelog/one")
+        self.assertNotIn("https://public.example/pricing", result["links"])
+        self.assertTrue(all("other.example" not in link and "/deep" not in link for link in result["links"]))
+
+    def test_declared_dates_filter_window_and_missing_dates_are_excluded(self):
+        result = self.run_module(
+            "async (module) => { const index = {canonicalUrl:'https://public.example/releases',html:"
+            "`<a href='/releases/in'>in</a><a href='/releases/out'>out</a><a href='/releases/missing'>missing</a>`}; "
+            "const pages = {"
+            "'https://public.example/releases/in':'<title>Feature A</title><meta property=\"article:published_time\" content=\"2026-08-02T10:00:00Z\"><main>Feature A shipped.</main>',"
+            "'https://public.example/releases/out':'<title>Old</title><time datetime=\"2026-07-01\">July 1</time><main>Old.</main>',"
+            "'https://public.example/releases/missing':'<title>No date</title><main>Updated on 2026-08-02, but not declared.</main>'}; "
+            "const fetcher = async (url, init) => new Response(pages[String(url)],{headers:{'content-type':'text/html'}}); "
+            "const found = await module.discoverEligibleUpdates(index,{start:'2026-08-01T00:00:00Z',end:'2026-08-03T00:00:00Z'},fetcher); "
+            "return found; }"
+        )
+        self.assertEqual([entry["title"] for entry in result["entries"]], ["Feature A"])
+        self.assertEqual(result["missingDateCount"], 1)
+        self.assertIn("Feature A shipped", result["entries"][0]["quotedText"])
+
+    def test_semantic_entry_set_hash_is_order_independent_and_changes_with_entries(self):
+        result = self.run_module(
+            "async (module) => { const a={url:'https://e.example/releases/a',publishedAt:'2026-08-01T00:00:00.000Z'}; "
+            "const b={url:'https://e.example/releases/b',publishedAt:'2026-08-02T00:00:00.000Z'}; "
+            "return {first:await module.hashSelectedEntries([a,b]), reordered:await module.hashSelectedEntries([b,a]), single:await module.hashSelectedEntries([a]), "
+            "newSet:await module.hashSelectedEntries([a,b,{url:'https://e.example/releases/c',publishedAt:'2026-08-03T00:00:00.000Z'}]), "
+            "changedContent:await module.hashSelectedEntries([{...a,contentHash:'changed-body'}])}; }"
+        )
+        self.assertEqual(result["first"], result["reordered"])
+        self.assertNotEqual(result["first"], result["newSet"])
+        self.assertNotEqual(result["single"], result["changedContent"])
 
     def test_equivalent_text_has_one_fingerprint_and_changed_text_generates_review_candidate(self):
         result = self.run_module(

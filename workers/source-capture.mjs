@@ -1,6 +1,6 @@
 // ============================================================
 // 公开来源抓取 Worker：只生成待审核候选，永不写入正式证据、矩阵或洞察。
-// 通过 Cloudflare Cron 定时运行；服务端密钥仅存在于 Worker 环境变量。
+// 仅由受认证的手动 POST 运行；服务端密钥仅存在于 Worker 环境变量。
 // ============================================================
 const SUPABASE_HEADERS = (serviceRoleKey) => ({
   apikey: serviceRoleKey,
@@ -17,6 +17,8 @@ const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
 const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v1";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MANUAL_CAPTURE_COOLDOWN_MS = 5 * 60 * 1000;
+const MAX_UPDATE_CHILD_PAGES = 20;
+const SEMANTIC_SOURCE_TYPES = new Set(["changelog", "release_notes"]);
 const PAGES_PRODUCTION_HOST = "zacclover-competitor.pages.dev";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -92,33 +94,9 @@ export async function handleManualCaptureRequest(request, env) {
   }
 }
 
-// 允许单元测试与未来受认证的手动触发入口复用核心调度。
-export async function runScheduledCapture(env) {
-  validateEnvironment(env);
-  const plannedAt = new Date();
-  const sources = await queryDueSources(env);
-  const results = await Promise.allSettled(sources.map((source) => captureSource(source, env, "scheduled", null, plannedAt)));
-  return {
-    inspected: sources.length,
-    succeeded: results.filter((result) => result.status === "fulfilled").length,
-    failed: results.filter((result) => result.status === "rejected").length,
-  };
-}
-
-async function queryDueSources(env) {
-  const records = await supabaseRequest(
-    env,
-    "/rest/v1/competitor_sources?is_enabled=eq.true&select=id,workspace_id,tab_id,competitor_id,url,fetch_interval_hours,last_fetched_at",
-  );
-  return records.filter(isDueForCapture);
-}
-
-function isDueForCapture(source, now = Date.now()) {
-  if (!source.last_fetched_at) return true;
-  const lastFetchedAt = Date.parse(source.last_fetched_at);
-  if (Number.isNaN(lastFetchedAt)) return true;
-  const intervalHours = Number(source.fetch_interval_hours) || 24;
-  return now - lastFetchedAt >= intervalHours * 60 * 60 * 1000;
+// 定时事件是显式禁用边界：不读取来源、不抓取、不写入任何记录。
+export async function runScheduledCapture(_env) {
+  return { disabled: true, inspected: 0, succeeded: 0, failed: 0 };
 }
 
 async function captureSource(source, env, triggerType = "scheduled", explicitWindow = null, plannedAt = new Date()) {
@@ -139,6 +117,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     const previousSnapshot = await getLatestSnapshot(env, source.id);
     const page = await fetchPublicSource(source.url);
     const snapshot = await createSnapshot(page.extractedText);
+    const isSemanticSource = supportsUpdateSubpageDiscovery(source.source_type);
     const isChanged = shouldQueueCandidate(previousSnapshot?.content_hash, snapshot.contentHash);
 
     const savedSnapshot = await insertRecord(env, "source_capture_snapshots?on_conflict=source_id%2Ccontent_hash", {
@@ -153,7 +132,34 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       http_status: page.httpStatus,
     }, "resolution=ignore-duplicates,return=representation");
 
-    if (isChanged) {
+    if (isSemanticSource) {
+      const discovery = await discoverEligibleUpdates(page, observationWindow);
+      const selectedHash = discovery.entries.length ? await hashSelectedEntries(discovery.entries) : null;
+      const alreadyQueued = selectedHash ? await candidateExists(env, source.id, selectedHash) : false;
+      let candidateQueued = false;
+      if (selectedHash && !alreadyQueued) {
+        const aggregate = aggregateUpdateEntries(discovery.entries);
+        const candidate = await insertRecord(env, "source_capture_candidates?on_conflict=source_id%2Ccontent_hash", {
+          id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
+          competitor_id: source.competitor_id, source_id: source.id, run_id: run.id,
+          snapshot_id: savedSnapshot?.id || previousSnapshot?.id, source_url: page.canonicalUrl,
+          title: `观察窗口内发现 ${discovery.entries.length} 条产品更新`,
+          summary: buildSummary(aggregate), quoted_text: aggregate.slice(0, 1_200),
+          content_hash: selectedHash, status: "pending", analysis_status: "unavailable",
+          publication_time_status: "verified", published_at: discovery.entries[0].publishedAt,
+          detection_window_start: observationWindow.start, detection_window_end: observationWindow.end,
+          detection_window_basis: observationWindow.basis,
+          selected_entries: discovery.entries.map(({ url, title, publishedAt, dateSource }) => ({ url, title, publishedAt, dateSource })),
+          excluded_missing_date_count: discovery.missingDateCount,
+        }, "resolution=ignore-duplicates,return=representation");
+        if (candidate) {
+          await enrichCandidateWithAnalysis(env, candidate.id, {
+            title: candidate.title, canonicalUrl: page.canonicalUrl, aggregateUpdates: true,
+          }, aggregate);
+        }
+        candidateQueued = Boolean(candidate);
+      }
+    } else if (isChanged) {
       const candidate = await insertRecord(env, "source_capture_candidates", {
         id: crypto.randomUUID(),
         workspace_id: source.workspace_id,
@@ -188,7 +194,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     return {
       sourceId: source.id,
       runId: run.id,
-      candidateQueued: isChanged,
+      candidateQueued: isSemanticSource ? candidateQueued : isChanged,
       status: "succeeded",
     };
   } catch (error) {
@@ -199,6 +205,11 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     });
     throw error;
   }
+}
+
+// 仅变更日志与发布说明启用子页语义发现，其他来源继续使用单页哈希。
+export function supportsUpdateSubpageDiscovery(sourceType) {
+  return SEMANTIC_SOURCE_TYPES.has(sourceType);
 }
 
 // 观察窗口：手动显式窗口必须成对、为合法 ISO 时间且不延伸到未来。
@@ -250,7 +261,7 @@ async function verifySupabaseUser(env, accessToken) {
 async function getSourceById(env, sourceId) {
   const records = await supabaseRequest(
     env,
-    `/rest/v1/competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id,workspace_id,tab_id,competitor_id,url&limit=1`,
+    `/rest/v1/competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id,workspace_id,tab_id,competitor_id,source_type,url&limit=1`,
   );
   return records[0] || null;
 }
@@ -311,6 +322,7 @@ export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
     }
     return {
       canonicalUrl: canonicalizeSourceUrl(sourceUrl),
+      html,
       extractedText: extractReadableText(html),
       httpStatus: response.status,
       title: extractTitle(html),
@@ -323,15 +335,124 @@ export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
 export function isSafePublicSourceUrl(value) {
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" || url.username || url.password) return false;
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return false;
     const hostname = url.hostname.toLowerCase();
-    if (hostname === "localhost" || hostname.endsWith(".localhost") || isPrivateIpv4(hostname)) {
+    if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "0" ||
+        hostname.endsWith(".local") || hostname.includes(":") || isPrivateIpv4(hostname)) {
       return false;
     }
     return hostname.length > 0;
   } catch {
     return false;
   }
+}
+
+// 更新子页发现规则：只读取非导航区的显式 <a href>，且链接必须与索引同源、
+// 在索引路径之下多一层，或位于 changelog/release-notes/releases/updates 路径下。
+// 不猜测 URL、不跟随子页链接，因此深度恒为 1；按文档顺序去重并硬性限制 20 页。
+export function discoverUpdateLinks(indexHtml, indexUrl) {
+  const base = new URL(canonicalizeSourceUrl(indexUrl));
+  const baseSegments = pathSegments(base.pathname);
+  const updateMarker = /^(?:changelog|release-notes|releases|updates)$/i;
+  const stripped = String(indexHtml || "")
+    .replace(/<(nav|header|footer|aside|form)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ");
+  const links = [];
+  const seen = new Set();
+  for (const match of stripped.matchAll(/<a\b[^>]*\bhref\s*=\s*(?:"([^"]+)"|'([^']+)')[^>]*>/gi)) {
+    if (links.length >= MAX_UPDATE_CHILD_PAGES) break;
+    try {
+      const url = new URL(decodeHtmlEntities(match[1] || match[2]), base);
+      url.hash = "";
+      const segments = pathSegments(url.pathname);
+      const belowIndex = baseSegments.length > 0 && segments.length === baseSegments.length + 1 &&
+        baseSegments.every((segment, index) => segment === segments[index]);
+      const markerIndex = segments.findIndex((segment) => updateMarker.test(segment));
+      const belowMarker = markerIndex >= 0 && segments.length === markerIndex + 2;
+      if (url.origin !== base.origin || !isSafePublicSourceUrl(url.toString()) ||
+          url.toString() === base.toString() || (!belowIndex && !belowMarker)) continue;
+      const canonical = canonicalizeSourceUrl(url.toString());
+      if (!seen.has(canonical)) {
+        seen.add(canonical);
+        links.push(canonical);
+      }
+    } catch {
+      // 无效或非 HTTP URL 不是候选子页。
+    }
+  }
+  return links;
+}
+
+function pathSegments(pathname) {
+  return pathname.split("/").filter(Boolean).map((value) => decodeURIComponent(value).toLocaleLowerCase());
+}
+
+// 声明日期仅接受文档元数据、JSON-LD datePublished 或 <time datetime>；
+// 普通正文中看似日期的字符不足以验证发布日期，避免将导航或历史日期误当发布日期。
+export function extractDeclaredUpdateDate(html) {
+  const candidates = [
+    ...String(html || "").matchAll(/<meta\b[^>]*(?:property|name)\s*=\s*["'](?:article:published_time|datePublished|publish(?:ed)?_?date)["'][^>]*content\s*=\s*["']([^"']+)["'][^>]*>/gi),
+    ...String(html || "").matchAll(/<meta\b[^>]*content\s*=\s*["']([^"']+)["'][^>]*(?:property|name)\s*=\s*["'](?:article:published_time|datePublished|publish(?:ed)?_?date)["'][^>]*>/gi),
+    ...String(html || "").matchAll(/<time\b[^>]*datetime\s*=\s*["']([^"']+)["'][^>]*>/gi),
+    ...String(html || "").matchAll(/["']datePublished["']\s*:\s*["']([^"']+)["']/gi),
+  ];
+  for (const match of candidates) {
+    const raw = match[1].trim();
+    const parsed = parseDeclaredDate(raw);
+    if (parsed) return { publishedAt: parsed, dateSource: raw };
+  }
+  return null;
+}
+
+function parseDeclaredDate(raw) {
+  if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2}))?$/.test(raw)) return null;
+  const value = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00.000Z` : raw;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+}
+
+export async function discoverEligibleUpdates(indexPage, observationWindow, fetchImpl = fetch) {
+  const links = discoverUpdateLinks(indexPage.html, indexPage.canonicalUrl);
+  const entries = [];
+  let missingDateCount = 0;
+  const startMs = Date.parse(observationWindow?.start || "");
+  const endMs = Date.parse(observationWindow?.end || "");
+  for (const url of links) {
+    const page = await fetchPublicSource(url, fetchImpl);
+    const declared = extractDeclaredUpdateDate(page.html);
+    if (!declared) {
+      missingDateCount += 1;
+      continue;
+    }
+    const publishedMs = Date.parse(declared.publishedAt);
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && publishedMs >= startMs && publishedMs <= endMs) {
+      entries.push({
+        url: page.canonicalUrl,
+        title: page.title || "产品更新",
+        ...declared,
+        quotedText: page.extractedText.slice(0, 1_200),
+        contentHash: (await createSnapshot(page.extractedText)).contentHash,
+      });
+    }
+  }
+  entries.sort((a, b) => a.publishedAt.localeCompare(b.publishedAt) || a.url.localeCompare(b.url));
+  return { entries, missingDateCount };
+}
+
+export async function hashSelectedEntries(entries) {
+  const identity = entries.map(({ url, publishedAt, contentHash = "" }) => ({ url, publishedAt, contentHash }))
+    .sort((a, b) => a.url.localeCompare(b.url) || a.publishedAt.localeCompare(b.publishedAt));
+  return (await createSnapshot(JSON.stringify(identity))).contentHash;
+}
+
+function aggregateUpdateEntries(entries) {
+  return entries.map((entry) => `【${entry.publishedAt.slice(0, 10)}】${entry.title}\n来源：${entry.url}\n原文摘录：${entry.quotedText}`).join("\n\n");
+}
+
+async function candidateExists(env, sourceId, contentHash) {
+  const records = await supabaseRequest(env,
+    `/rest/v1/source_capture_candidates?source_id=eq.${encodeURIComponent(sourceId)}&content_hash=eq.${encodeURIComponent(contentHash)}&select=id&limit=1`);
+  return records.length > 0;
 }
 
 function isPrivateIpv4(hostname) {

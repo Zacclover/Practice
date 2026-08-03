@@ -16,6 +16,9 @@ SERVICE_ROLE_GRANTS_MIGRATION_PATH = (
 PREVIEW_AI_MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260803020000_preview_candidate_ai_analysis.sql"
 )
+SUBPAGE_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803030000_changelog_subpage_candidates.sql"
+)
 
 
 class SourceCaptureSchemaContractTests(unittest.TestCase):
@@ -88,6 +91,13 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
             self.assertRegex(migration, rf"grant select(?:, insert(?:, update)?)? on table public\.{table} to service_role;")
         self.assertNotIn("to anon", migration.lower())
         self.assertNotIn("to authenticated", migration.lower())
+
+    def test_changelog_candidates_store_traceable_selected_entry_sets(self):
+        migration = SUBPAGE_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("alter table public.source_capture_candidates", migration)
+        self.assertIn("selected_entries jsonb", migration)
+        self.assertIn("excluded_missing_date_count integer", migration)
+        self.assertNotRegex(migration, r"public\.(evidence|matrix_cells|insights)\b")
 
     def test_preview_analysis_is_candidate_only_and_has_structured_status_metadata(self):
         migration = PREVIEW_AI_MIGRATION_PATH.read_text(encoding="utf-8")

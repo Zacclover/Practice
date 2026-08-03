@@ -2,16 +2,9 @@ name = "competitor-insights-source-capture"
 main = "source-capture.mjs"
 compatibility_date = "2026-07-31"
 
-# 每 6 小时扫描一次；每个来源仍按 fetch_interval_hours 决定是否实际抓取。
-[triggers]
-crons = ["17 */6 * * *"]
-
-# Preview 仅开放人工 POST 路由；显式清空 cron，避免测试环境自行扫描生产来源。
+# 生产与 Preview 均仅开放人工 POST 路由，不配置 Cron。
 [env.preview]
 name = "competitor-insights-source-capture-preview"
-
-[env.preview.triggers]
-crons = []
 
 # 仅在 Cloudflare Worker 的加密环境变量中配置：
 # SUPABASE_URL=https://<project-ref>.supabase.co
