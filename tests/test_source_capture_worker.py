@@ -322,19 +322,23 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "basis": "prior_success",
         })
 
-    def test_analysis_rejects_fabricated_quotes_and_unverified_publication_values(self):
+    def test_analysis_requires_chinese_feature_fields_and_only_grounds_verified_publication_time(self):
         result = self.run_module(
-            "(module) => { const base = {conclusion:'结论', facts:['事实一','事实二'], "
+            "(module) => { const base = {feature_title:'自动化功能',feature_summary:'新增数据库自动化能力。',conclusion:'结论', facts:['事实一','事实二'], "
             "inference:{label:'推断',text:'可能'}, competitive_impact:{label:'竞争影响',text:'有限'}, "
-            "quotes:[{original:'Original one',chinese_gloss:'原文一'},{original:'Original two',chinese_gloss:'原文二'}], "
             "confidence:'medium', publication_time:{status:'unverified',value:'2026-01-01',source_text:null}}; "
-            "const valid = module.validateAnalysis(structuredClone(base), 'Original one and Original two'); "
-            "let fabricated = false; try { const bad = structuredClone(base); bad.quotes[0].original='invented'; "
-            "module.validateAnalysis(bad, 'Original one and Original two'); } catch { fabricated = true; } "
-            "return {value: valid.publication_time.value, fabricated}; }"
+            "const valid = module.validateAnalysis(structuredClone(base), '发布时间：2026-08-02'); "
+            "let englishRejected = false; try { const bad = structuredClone(base); bad.feature_title='Automation'; "
+            "module.validateAnalysis(bad, '发布时间：2026-08-02'); } catch { englishRejected = true; } "
+            "let ungroundedTimeRejected = false; try { const bad = structuredClone(base); "
+            "bad.publication_time={status:'verified',value:'2026-08-02T00:00:00Z',source_text:'页面未出现'}; "
+            "module.validateAnalysis(bad, '发布时间：2026-08-02'); } catch { ungroundedTimeRejected = true; } "
+            "return {value: valid.publication_time.value, englishRejected, ungroundedTimeRejected, hasQuotes:'quotes' in valid}; }"
         )
         self.assertIsNone(result["value"])
-        self.assertTrue(result["fabricated"])
+        self.assertTrue(result["englishRejected"])
+        self.assertTrue(result["ungroundedTimeRejected"])
+        self.assertFalse(result["hasQuotes"])
 
     def test_daily_guard_blocks_provider_call_and_analysis_failure_stays_nonfatal(self):
         result = self.run_module(
@@ -361,9 +365,8 @@ class SourceCaptureWorkerTests(unittest.TestCase):
 
     def test_gemini_key_is_server_header_strict_json_and_success_updates_candidate_only(self):
         result = self.run_module(
-            "async (module) => { const calls=[]; const analysis={conclusion:'结论',facts:['事实一','事实二'],"
+            "async (module) => { const calls=[]; const analysis={feature_title:'数据库自动化',feature_summary:'新增数据库任务自动化能力。',conclusion:'结论',facts:['事实一','事实二'],"
             "inference:{label:'推断',text:'可能'},competitive_impact:{label:'竞争影响',text:'有限'},"
-            "quotes:[{original:'Original one',chinese_gloss:'原文一'},{original:'Original two',chinese_gloss:'原文二'}],"
             "confidence:'high',publication_time:{status:'not_found',value:null,source_text:null}}; "
             "globalThis.fetch=async (url,init={})=>{ const headers=new Headers(init.headers); const body=init.body?JSON.parse(init.body):null; "
             "calls.push({url:String(url),method:init.method||'GET',key:headers.get('x-goog-api-key'),body}); "
@@ -381,11 +384,20 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         patch_call = next(call for call in result if call["method"] == "PATCH")
         self.assertIn("/source_capture_candidates?", patch_call["url"])
         self.assertEqual(patch_call["body"]["analysis_status"], "available")
+        self.assertEqual(patch_call["body"]["title"], "数据库自动化")
+        self.assertEqual(patch_call["body"]["summary"], "新增数据库任务自动化能力。")
+        self.assertIsNone(patch_call["body"]["quoted_text"])
+        schema = provider["body"]["generationConfig"]["responseJsonSchema"]
+        self.assertIn("feature_title", schema["required"])
+        self.assertIn("feature_summary", schema["required"])
+        self.assertNotIn("quotes", schema["required"])
+        self.assertNotIn("quotes", schema["properties"])
 
     def test_gemini_generated_fields_must_use_simplified_chinese(self):
         source = WORKER.read_text(encoding="utf-8")
-        self.assertIn("所有生成字段必须使用简体中文", source)
-        self.assertIn("原文引文保持页面原始语言", source)
+        self.assertIn("feature_title 必须是简洁的简体中文功能主题", source)
+        self.assertIn("feature_summary 必须是该具体功能的简洁简体中文摘要", source)
+        self.assertNotIn("原文引文保持页面原始语言", source)
 
     def test_worker_writes_review_pipeline_only_never_evidence_or_matrix_entities(self):
         source = WORKER.read_text(encoding="utf-8")
@@ -530,7 +542,9 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         candidate_inserts = [call for call in result["calls"] if "/source_capture_candidates?on_conflict=" in call["url"] and call["method"] == "POST"]
         self.assertEqual(result["body"]["result"]["candidateCount"], 2)
         self.assertEqual(len(candidate_inserts), 2)
-        self.assertEqual([call["body"]["title"] for call in candidate_inserts], ["功能更新", "权限更新"])
+        self.assertEqual([call["body"]["title"] for call in candidate_inserts], ["待分析功能更新", "待分析功能更新"])
+        self.assertTrue(all(call["body"]["summary"] == "发现一项发布时间符合观察窗口的功能更新，具体内容请查看来源页面。" for call in candidate_inserts))
+        self.assertTrue(all(call["body"]["quoted_text"] is None for call in candidate_inserts))
         self.assertTrue(all(len(call["body"]["selected_entries"]) == 1 for call in candidate_inserts))
         self.assertEqual([call["body"]["source_url"] for call in candidate_inserts], [
             "https://public.example/updates/one", "https://public.example/updates/two",

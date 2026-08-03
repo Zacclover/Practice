@@ -22,6 +22,9 @@ SUBPAGE_MIGRATION_PATH = (
 ATTACHMENT_MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260803040000_candidate_attachments.sql"
 )
+PRESENTATION_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803050000_candidate_presentation_contract.sql"
+)
 
 
 class SourceCaptureSchemaContractTests(unittest.TestCase):
@@ -129,6 +132,14 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
             self.assertIn(column, migration)
         self.assertNotRegex(migration, r"alter table public\.(evidence|matrix_cells|insights)\b")
         self.assertNotRegex(migration, r"insert into public\.(evidence|matrix_cells|insights)\b")
+
+    def test_candidate_presentation_contract_allows_null_quotes_and_versions_analysis(self):
+        migration = PRESENTATION_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("alter table public.source_capture_candidates", migration)
+        self.assertIn("alter column quoted_text drop not null", migration)
+        self.assertIn("alter column quoted_text drop default", migration)
+        self.assertIn("preview_candidate_analysis_v2", migration)
+        self.assertNotRegex(migration, r"public\.(evidence|matrix_cells|insights)\b")
 
     def test_daily_ai_budget_reservation_is_atomic_fail_closed_and_service_role_only(self):
         migration = PREVIEW_AI_MIGRATION_PATH.read_text(encoding="utf-8")

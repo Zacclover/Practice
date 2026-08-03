@@ -14,7 +14,7 @@ const ANALYSIS_RESERVED_TOKENS = 8_000;
 const DAILY_AI_REQUEST_LIMIT = 20;
 const DAILY_AI_TOKEN_LIMIT = 160_000;
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
-const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v1";
+const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v2";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MANUAL_CAPTURE_COOLDOWN_MS = 5 * 60 * 1000;
 const MAX_UPDATE_CHILD_PAGES = 20;
@@ -26,6 +26,16 @@ const SEMANTIC_SOURCE_TYPES = new Set(["changelog", "release_notes"]);
 const PAGES_PRODUCTION_HOST = "zacclover-competitor.pages.dev";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+const SIMPLIFIED_CHINESE_TEXT_PATTERN = /[\u3400-\u9fff]/u;
+const LATIN_TEXT_PATTERN = /[A-Za-z]/;
+const FEATURE_FALLBACK = Object.freeze({
+  title: "待分析功能更新",
+  summary: "发现一项发布时间符合观察窗口的功能更新，具体内容请查看来源页面。",
+});
+const PAGE_FALLBACK = Object.freeze({
+  title: "待分析页面更新",
+  summary: "检测到公开页面内容发生变化，具体内容请查看来源页面。",
+});
 
 export default {
   async scheduled(_event, env, ctx) {
@@ -243,7 +253,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
           id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
           competitor_id: source.competitor_id, source_id: source.id, run_id: run.id,
           snapshot_id: savedSnapshot?.id || previousSnapshot?.id, source_url: entry.url,
-          title: entry.title, summary: buildSummary(entry.extractedText), quoted_text: entry.quotedText,
+          title: FEATURE_FALLBACK.title, summary: FEATURE_FALLBACK.summary, quoted_text: null,
           content_hash: entryHash, status: "pending", analysis_status: "unavailable",
           publication_time_status: "verified", published_at: entry.publishedAt,
           detection_window_start: observationWindow.start, detection_window_end: observationWindow.end,
@@ -269,9 +279,9 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         run_id: run.id,
         snapshot_id: savedSnapshot?.id || previousSnapshot?.id,
         source_url: page.canonicalUrl,
-        title: page.title || "检测到公开页面内容变化",
-        summary: buildSummary(snapshot.extractedText),
-        quoted_text: snapshot.extractedText.slice(0, 1_200),
+        title: PAGE_FALLBACK.title,
+        summary: PAGE_FALLBACK.summary,
+        quoted_text: null,
         content_hash: snapshot.contentHash,
         status: "pending",
         analysis_status: "unavailable",
@@ -694,6 +704,9 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
     if (!reserved) return;
     const analysis = await requestGeminiAnalysis(env, model, page, input);
     await updateRecord(env, "source_capture_candidates", candidateId, {
+      title: analysis.feature_title,
+      summary: analysis.feature_summary,
+      quoted_text: null,
       analysis_status: "available",
       analysis,
       analysis_model: model,
@@ -733,7 +746,7 @@ async function requestGeminiAnalysis(env, model, page, input) {
         headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
         signal: controller.signal,
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: "你是严谨的竞品研究助手。只根据输入页面作答。所有生成字段必须使用简体中文，表达简洁；推断和竞争影响必须明确标注。不得补充、猜测或伪造事实、引文和发布时间。原文引文保持页面原始语言，并附简体中文释义。无法确认发布时间时标为 not_found 或 unverified，value 必须为 null。" }] },
+          systemInstruction: { parts: [{ text: "你是严谨的竞品研究助手。只根据输入页面作答。feature_title 必须是简洁的简体中文功能主题，feature_summary 必须是该具体功能的简洁简体中文摘要；所有其他生成字段也必须使用简体中文。推断和竞争影响必须明确标注。不得补充、猜测或伪造事实和发布时间。无法确认发布时间时标为 not_found 或 unverified，value 必须为 null。" }] },
           contents: [{ role: "user", parts: [{ text: `来源标题：${page.title || "未提供"}\n来源 URL：${page.canonicalUrl}\n清洗后的页面正文：\n${input}` }] }],
           generationConfig: {
             temperature: 0,
@@ -758,25 +771,26 @@ function analysisJsonSchema() {
   return {
     type: "object",
     additionalProperties: false,
-    required: ["conclusion", "facts", "inference", "competitive_impact", "quotes", "confidence", "publication_time"],
+    required: ["feature_title", "feature_summary", "conclusion", "facts", "inference", "competitive_impact", "confidence", "publication_time"],
     properties: {
+      feature_title: { type: "string", minLength: 2, maxLength: 24, description: "简洁的简体中文功能主题" },
+      feature_summary: { type: "string", minLength: 6, maxLength: 160, description: "该具体功能的简洁简体中文摘要" },
       conclusion: { type: "string" },
       facts: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
       inference: { type: "object", additionalProperties: false, required: ["label", "text"], properties: { label: { type: "string", enum: ["推断"] }, text: { type: "string" } } },
       competitive_impact: { type: "object", additionalProperties: false, required: ["label", "text"], properties: { label: { type: "string", enum: ["竞争影响"] }, text: { type: "string" } } },
-      quotes: { type: "array", minItems: 2, maxItems: 3, items: { type: "object", additionalProperties: false, required: ["original", "chinese_gloss"], properties: { original: { type: "string" }, chinese_gloss: { type: "string" } } } },
       confidence: { type: "string", enum: ["high", "medium", "low"] },
       publication_time: { type: "object", additionalProperties: false, required: ["status", "value", "source_text"], properties: { status: { type: "string", enum: ["verified", "not_found", "unverified"] }, value: { type: "string", nullable: true }, source_text: { type: "string", nullable: true } } },
     },
   };
 }
 
-// 输出二次校验：即使模型声称符合 Schema，引文和已验证发布时间也必须能回指输入原文。
+// 输出二次校验：展示字段必须为简体中文；仅已验证发布时间需要回指输入原文。
 export function validateAnalysis(value, input) {
-  if (!value || typeof value !== "object" || typeof value.conclusion !== "string" || !value.conclusion.trim() ||
+  if (!value || typeof value !== "object" || !isSimplifiedChineseText(value.feature_title) ||
+      Array.from(value.feature_title.trim()).length > 24 || !isSimplifiedChineseText(value.feature_summary) ||
+      Array.from(value.feature_summary.trim()).length > 160 || typeof value.conclusion !== "string" || !value.conclusion.trim() ||
       !Array.isArray(value.facts) || value.facts.length < 2 || value.facts.length > 4 || !value.facts.every((fact) => typeof fact === "string" && fact.trim()) ||
-      !Array.isArray(value.quotes) || value.quotes.length < 2 || value.quotes.length > 3 ||
-      !value.quotes.every((quote) => typeof quote?.original === "string" && quote.original.length > 0 && input.includes(quote.original) && typeof quote.chinese_gloss === "string") ||
       !["high", "medium", "low"].includes(value.confidence) || value.inference?.label !== "推断" ||
       typeof value.inference?.text !== "string" || value.competitive_impact?.label !== "竞争影响" ||
       typeof value.competitive_impact?.text !== "string" || !["verified", "not_found", "unverified"].includes(value.publication_time?.status)) {
@@ -793,6 +807,11 @@ export function validateAnalysis(value, input) {
     value.publication_time.value = null;
   }
   return value;
+}
+
+function isSimplifiedChineseText(value) {
+  return typeof value === "string" && value.trim().length > 0 &&
+    SIMPLIFIED_CHINESE_TEXT_PATTERN.test(value) && !LATIN_TEXT_PATTERN.test(value);
 }
 
 function extractTitle(html) {
@@ -819,10 +838,6 @@ export async function createSnapshot(text) {
 
 export function shouldQueueCandidate(previousHash, currentHash) {
   return !previousHash || previousHash !== currentHash;
-}
-
-function buildSummary(text) {
-  return text.slice(0, 500).trim();
 }
 
 async function getLatestSnapshot(env, sourceId) {
