@@ -6,7 +6,15 @@ compatibility_date = "2026-07-31"
 [triggers]
 crons = ["17 */6 * * *"]
 
+# Preview 仅开放人工 POST 路由；显式清空 cron，避免测试环境自行扫描生产来源。
+[env.preview]
+name = "competitor-insights-source-capture-preview"
+
+[env.preview.triggers]
+crons = []
+
 # 仅在 Cloudflare Worker 的加密环境变量中配置：
 # SUPABASE_URL=https://<project-ref>.supabase.co
+# SUPABASE_PUBLISHABLE_KEY=<public-anon-or-publishable-key，用于验证用户 JWT>
 # SUPABASE_SERVICE_ROLE_KEY=<secret>
 # 绝不可把 service-role key 放入 Pages、浏览器运行时配置或 Git。

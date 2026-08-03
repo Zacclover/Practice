@@ -7,6 +7,15 @@ ROOT = Path(__file__).resolve().parents[1]
 MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260731010000_source_capture_review_queue.sql"
 )
+MANUAL_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803000000_manual_source_capture.sql"
+)
+SERVICE_ROLE_GRANTS_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803010000_source_capture_worker_service_role_grants.sql"
+)
+PREVIEW_AI_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803020000_preview_candidate_ai_analysis.sql"
+)
 
 
 class SourceCaptureSchemaContractTests(unittest.TestCase):
@@ -55,6 +64,55 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
                 self.source,
                 rf'create policy "workspace members manage {table}"\s+on public\.{table}',
             )
+
+    def test_manual_capture_runs_are_queryable_per_source_and_created_at(self):
+        migration = MANUAL_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("add column source_id uuid", migration)
+        self.assertIn("foreign key (workspace_id, tab_id, source_id)", migration)
+        self.assertRegex(
+            migration,
+            r"source_capture_runs_manual_cooldown_idx[\s\S]*source_id, trigger_type, created_at desc",
+        )
+        self.assertNotIn("last_fetched_at", migration)
+
+    def test_worker_service_role_can_access_only_capture_pipeline_tables(self):
+        migration = SERVICE_ROLE_GRANTS_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("grant usage on schema public to service_role;", migration)
+        for table in [
+            "competitor_sources",
+            "workspace_members",
+            "source_capture_runs",
+            "source_capture_snapshots",
+            "source_capture_candidates",
+        ]:
+            self.assertRegex(migration, rf"grant select(?:, insert(?:, update)?)? on table public\.{table} to service_role;")
+        self.assertNotIn("to anon", migration.lower())
+        self.assertNotIn("to authenticated", migration.lower())
+
+    def test_preview_analysis_is_candidate_only_and_has_structured_status_metadata(self):
+        migration = PREVIEW_AI_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("alter table public.source_capture_candidates", migration)
+        for column in [
+            "analysis_status", "analysis jsonb", "analysis_model",
+            "analysis_schema_version", "publication_time_status",
+            "detection_window_start", "detection_window_end",
+        ]:
+            self.assertIn(column, migration)
+        self.assertNotRegex(migration, r"alter table public\.(evidence|matrix_cells|insights)\b")
+        self.assertNotRegex(migration, r"insert into public\.(evidence|matrix_cells|insights)\b")
+
+    def test_daily_ai_budget_reservation_is_atomic_fail_closed_and_service_role_only(self):
+        migration = PREVIEW_AI_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("create table public.source_capture_ai_daily_usage", migration)
+        self.assertIn("create function public.reserve_source_capture_ai_budget", migration)
+        self.assertIn("on conflict (usage_date) do update", migration)
+        self.assertIn("requested_tokens > daily_token_limit", migration)
+        self.assertIn("usage.reserved_requests < daily_request_limit", migration)
+        self.assertIn("usage.reserved_tokens + excluded.reserved_tokens <= daily_token_limit", migration)
+        self.assertIn("revoke all on function public.reserve_source_capture_ai_budget", migration)
+        self.assertIn("grant execute on function public.reserve_source_capture_ai_budget(integer, integer, bigint) to service_role", migration)
+        self.assertNotIn("to anon", migration.lower())
+        self.assertNotIn("to authenticated", migration.lower())
 
 
 if __name__ == "__main__":
