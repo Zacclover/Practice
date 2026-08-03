@@ -247,7 +247,18 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       const discovery = await discoverEligibleUpdates(page, observationWindow);
       for (const entry of discovery.entries) {
         const entryHash = await hashSelectedEntries([entry]);
-        if (await candidateExists(env, source.id, entryHash)) continue;
+        const existingCandidate = await getExistingCandidate(env, source.workspace_id, source.id, entryHash);
+        if (existingCandidate) {
+          if (shouldRetryExistingCandidate(triggerType, existingCandidate)) {
+            if (!await candidateHasAttachments(env, existingCandidate.workspace_id, existingCandidate.id)) {
+              await attachCandidateImages(env, existingCandidate, entry);
+            }
+            await enrichCandidateWithAnalysis(env, existingCandidate.id, {
+              title: entry.title, canonicalUrl: entry.url,
+            }, entry.extractedText);
+          }
+          continue;
+        }
 
         const candidate = await insertRecord(env, "source_capture_candidates?on_conflict=source_id%2Ccontent_hash", {
           id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
@@ -322,6 +333,12 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
 // 仅变更日志与发布说明启用子页语义发现，其他来源继续使用单页哈希。
 export function supportsUpdateSubpageDiscovery(sourceType) {
   return SEMANTIC_SOURCE_TYPES.has(sourceType);
+}
+
+// 仅用户触发的手动采集可重试尚未分析的待审核候选。
+export function shouldRetryExistingCandidate(triggerType, candidate) {
+  return triggerType === "manual" && candidate?.status === "pending" &&
+    candidate.analysis_status === "unavailable";
 }
 
 // 观察窗口：手动显式窗口必须成对、为合法 ISO 时间且不延伸到未来。
@@ -637,9 +654,20 @@ async function attachCandidateImages(env, candidate, entry) {
   }
 }
 
-async function candidateExists(env, sourceId, contentHash) {
+// 语义候选去重与重试严格限定在当前工作区和来源，避免跨来源更新候选。
+async function getExistingCandidate(env, workspaceId, sourceId, contentHash) {
   const records = await supabaseRequest(env,
-    `/rest/v1/source_capture_candidates?source_id=eq.${encodeURIComponent(sourceId)}&content_hash=eq.${encodeURIComponent(contentHash)}&select=id&limit=1`);
+    `/rest/v1/source_capture_candidates?workspace_id=eq.${encodeURIComponent(workspaceId)}` +
+    `&source_id=eq.${encodeURIComponent(sourceId)}&content_hash=eq.${encodeURIComponent(contentHash)}` +
+    "&select=id,workspace_id,status,analysis_status&limit=1");
+  return records[0] || null;
+}
+
+// 已有任一合规附件时不重复上传；完全缺失时才从同页重新尝试。
+async function candidateHasAttachments(env, workspaceId, candidateId) {
+  const records = await supabaseRequest(env,
+    `/rest/v1/candidate_attachments?workspace_id=eq.${encodeURIComponent(workspaceId)}` +
+    `&candidate_id=eq.${encodeURIComponent(candidateId)}&select=id&limit=1`);
   return records.length > 0;
 }
 
@@ -693,15 +721,34 @@ export function prepareAnalysisInput(text) {
 
 // Preview-only 候选分析：任何配置、额度、网络或校验失败都保持候选成功且仅记录 unavailable。
 export async function enrichCandidateWithAnalysis(env, candidateId, page, extractedText) {
-  if (!env?.GEMINI_API_KEY) return;
+  if (!env?.GEMINI_API_KEY) {
+    logAnalysisUnavailable("missing_model_config");
+    return;
+  }
   const model = String(env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL);
-  if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(model)) return;
+  if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(model)) {
+    logAnalysisUnavailable("invalid_model_config");
+    return;
+  }
   const input = prepareAnalysisInput(extractedText);
-  if (!input) return;
+  if (!input) {
+    logAnalysisUnavailable("empty_input");
+    return;
+  }
+
+  let reserved;
+  try {
+    reserved = await reserveAnalysisBudget(env);
+  } catch {
+    logAnalysisUnavailable("budget_unavailable");
+    return;
+  }
+  if (!reserved) {
+    logAnalysisUnavailable("budget_unavailable");
+    return;
+  }
 
   try {
-    const reserved = await reserveAnalysisBudget(env);
-    if (!reserved) return;
     const analysis = await requestGeminiAnalysis(env, model, page, input);
     await updateRecord(env, "source_capture_candidates", candidateId, {
       title: analysis.feature_title,
@@ -717,8 +764,29 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
       publication_time_status: analysis.publication_time.status,
       published_at: analysis.publication_time.status === "verified" ? analysis.publication_time.value : null,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof AnalysisUnavailableError) {
+      logAnalysisUnavailable(error.reason, error.httpStatus);
+    } else {
+      logAnalysisUnavailable("provider_request_failed");
+    }
     // 故意吞掉供应商与额度细节；抓取结果和候选不能因可选分析失败而失败。
+  }
+}
+
+// 控制台只记录固定分类与可选 HTTP 状态，不包含密钥、正文、来源 URL 或错误响应。
+function logAnalysisUnavailable(reason, httpStatus) {
+  const diagnostic = { event: "candidate_analysis_unavailable", reason };
+  if (Number.isInteger(httpStatus)) diagnostic.http_status = httpStatus;
+  console.warn(JSON.stringify(diagnostic));
+}
+
+class AnalysisUnavailableError extends Error {
+  constructor(reason, httpStatus) {
+    super("analysis unavailable");
+    this.name = "AnalysisUnavailableError";
+    this.reason = reason;
+    this.httpStatus = httpStatus;
   }
 }
 
@@ -757,11 +825,26 @@ async function requestGeminiAnalysis(env, model, page, input) {
         }),
       },
     );
-    if (!response.ok) throw new Error("analysis unavailable");
-    const payload = await response.json();
+    if (!response.ok) throw new AnalysisUnavailableError("gemini_http_status", response.status);
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new AnalysisUnavailableError("malformed_response");
+    }
     const raw = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof raw !== "string") throw new Error("analysis unavailable");
-    return validateAnalysis(JSON.parse(raw), input);
+    if (typeof raw !== "string") throw new AnalysisUnavailableError("malformed_response");
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new AnalysisUnavailableError("malformed_response");
+    }
+    try {
+      return validateAnalysis(parsed, input);
+    } catch {
+      throw new AnalysisUnavailableError("invalid_response");
+    }
   } finally {
     clearTimeout(timeout);
   }

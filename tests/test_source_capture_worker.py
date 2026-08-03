@@ -363,6 +363,22 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertEqual(len(failure_result), 2)
         self.assertTrue(any("generativelanguage.googleapis.com" in call for call in failure_result))
 
+    def test_analysis_unavailability_diagnostics_are_classified_and_secret_free(self):
+        result = self.run_module(
+            "async (module) => { const logs=[]; console.warn=(value)=>logs.push(value); "
+            "await module.enrichCandidateWithAnalysis({},'candidate-id',{title:'Secret title',canonicalUrl:'https://example.com/?token=secret'},'secret source text'); "
+            "globalThis.fetch=async(url)=>String(url).endsWith('/rpc/reserve_source_capture_ai_budget')?Response.json(true):new Response('private provider body',{status:429}); "
+            "await module.enrichCandidateWithAnalysis({SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',GEMINI_API_KEY:'gemini-secret'},"
+            "'candidate-id',{title:'Secret title',canonicalUrl:'https://example.com/?token=secret'},'secret source text'); return logs.map(JSON.parse); }"
+        )
+        self.assertEqual(result[0]["reason"], "missing_model_config")
+        self.assertEqual(result[1], {
+            "event": "candidate_analysis_unavailable", "reason": "gemini_http_status", "http_status": 429,
+        })
+        serialized = json.dumps(result)
+        for secret in ["gemini-secret", "service-secret", "Secret title", "token=secret", "secret source text", "private provider body"]:
+            self.assertNotIn(secret, serialized)
+
     def test_gemini_key_is_server_header_strict_json_and_success_updates_candidate_only(self):
         result = self.run_module(
             "async (module) => { const calls=[]; const analysis={feature_title:'数据库自动化',feature_summary:'新增数据库任务自动化能力。',conclusion:'结论',facts:['事实一','事实二'],"
@@ -527,7 +543,7 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "if (value === 'https://public.example/updates/one') return new Response('<title>功能更新</title><time datetime=\"2026-08-01T00:00:00Z\">2026-08-01</time><main>新增数据库自动化。</main>', {headers:{'content-type':'text/html'}}); "
             "if (value === 'https://public.example/updates/two') return new Response('<title>权限更新</title><time datetime=\"2026-08-02T00:00:00Z\">2026-08-02</time><main>新增权限控制。</main>', {headers:{'content-type':'text/html'}}); "
             "if (value.includes('/source_capture_snapshots?on_conflict=') && method === 'POST') return Response.json([body]); "
-            "if (value.includes('/source_capture_candidates?source_id=') && method === 'GET') return Response.json([]); "
+            "if (value.includes('/source_capture_candidates?') && method === 'GET') return Response.json([]); "
             "if (value.includes('/source_capture_candidates?on_conflict=') && method === 'POST') return Response.json([body]); "
             "if (method === 'PATCH') return new Response(null, {status: 204}); throw new Error('unexpected request ' + value); }; "
             "const env = {SUPABASE_URL: 'https://project.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'service-secret', "
@@ -553,6 +569,44 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertEqual(run_insert["body"]["trigger_type"], "manual")
         service_calls = [call for call in result["calls"] if "/rest/v1/" in call["url"]]
         self.assertTrue(all(call["auth"] == "Bearer service-secret" for call in service_calls))
+
+    def test_manual_capture_retries_existing_unavailable_candidate_without_duplicate(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; const analysis={feature_title:'数据库自动化',feature_summary:'新增数据库任务自动化能力。',conclusion:'结论',facts:['事实一','事实二'],inference:{label:'推断',text:'可能'},competitive_impact:{label:'竞争影响',text:'有限'},confidence:'high',publication_time:{status:'not_found',value:null,source_text:null}}; "
+            "globalThis.fetch=async(url,init={})=>{const value=String(url),method=init.method||'GET',body=init.body?JSON.parse(init.body):null;calls.push({url:value,method,body});"
+            "if(value.endsWith('/auth/v1/user'))return Response.json({id:'22222222-2222-4222-8222-222222222222'});"
+            "if(value.includes('/competitor_sources?'))return Response.json([{id:'11111111-1111-4111-8111-111111111111',workspace_id:'33333333-3333-4333-8333-333333333333',tab_id:'44444444-4444-4444-8444-444444444444',competitor_id:'55555555-5555-4555-8555-555555555555',source_type:'changelog',url:'https://public.example/changelog'}]);"
+            "if(value.includes('/workspace_members?'))return Response.json([{workspace_id:'33333333-3333-4333-8333-333333333333'}]);"
+            "if(value.includes('/source_capture_runs?')&&method==='GET')return Response.json([]);if(value.endsWith('/rest/v1/source_capture_runs')&&method==='POST')return Response.json([body]);"
+            "if(value.includes('/source_capture_snapshots?')&&method==='GET')return Response.json([]);"
+            "if(value==='https://public.example/changelog')return new Response('<main><a href=\"/changelog/one\">one</a></main>',{headers:{'content-type':'text/html'}});"
+            "if(value==='https://public.example/changelog/one')return new Response('<title>Feature</title><time datetime=\"2026-08-01T00:00:00Z\">2026-08-01</time><main>Original feature text</main>',{headers:{'content-type':'text/html'}});"
+            "if(value.includes('/source_capture_snapshots?on_conflict=')&&method==='POST')return Response.json([body]);"
+            "if(value.includes('/source_capture_candidates?')&&method==='GET')return Response.json([{id:'existing-candidate',workspace_id:'33333333-3333-4333-8333-333333333333',status:'pending',analysis_status:'unavailable'}]);"
+            "if(value.includes('/candidate_attachments?')&&method==='GET')return Response.json([]);"
+            "if(value.endsWith('/rpc/reserve_source_capture_ai_budget'))return Response.json(true);"
+            "if(value.includes('generativelanguage.googleapis.com'))return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(analysis)}]}}]});"
+            "if(method==='PATCH')return new Response(null,{status:204});if(method==='POST'&&value.includes('/source_capture_candidates'))throw new Error('duplicate candidate');throw new Error('unexpected '+value)};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public-key',GEMINI_API_KEY:'gemini-secret'};"
+            "const response=await module.default.fetch(new Request('https://worker.example/manual-capture',{method:'POST',headers:{Authorization:'Bearer jwt','Content-Type':'application/json'},body:JSON.stringify({sourceId:'11111111-1111-4111-8111-111111111111',observationWindow:{start:'2026-07-01T00:00:00Z',end:'2026-08-03T12:00:00Z'}})}),env,{});return {status:response.status,body:await response.json(),calls};}"
+        )
+        self.assertEqual(result["status"], 200)
+        self.assertEqual(result["body"]["result"]["candidateCount"], 0)
+        self.assertFalse(any(call["method"] == "POST" and "/source_capture_candidates" in call["url"] for call in result["calls"]))
+        lookup = next(call for call in result["calls"] if "/source_capture_candidates?" in call["url"] and call["method"] == "GET")
+        self.assertIn("workspace_id=eq.33333333-3333-4333-8333-333333333333", lookup["url"])
+        self.assertIn("source_id=eq.11111111-1111-4111-8111-111111111111", lookup["url"])
+        patch = next(call for call in result["calls"] if call["method"] == "PATCH" and "source_capture_candidates?id=eq.existing-candidate" in call["url"])
+        self.assertEqual(patch["body"]["analysis_status"], "available")
+
+    def test_manual_capture_skips_analysis_retry_for_available_candidate(self):
+        result = self.run_module(
+            "(module) => ({unavailable:module.shouldRetryExistingCandidate('manual',{status:'pending',analysis_status:'unavailable'}),"
+            "available:module.shouldRetryExistingCandidate('manual',{status:'pending',analysis_status:'available'}),"
+            "scheduled:module.shouldRetryExistingCandidate('scheduled',{status:'pending',analysis_status:'unavailable'}),"
+            "reviewed:module.shouldRetryExistingCandidate('manual',{status:'accepted',analysis_status:'unavailable'})})"
+        )
+        self.assertEqual(result, {"unavailable": True, "available": False, "scheduled": False, "reviewed": False})
 
 
 if __name__ == "__main__":
