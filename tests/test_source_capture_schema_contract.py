@@ -8,7 +8,7 @@ MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260731010000_source_capture_review_queue.sql"
 )
 MANUAL_MIGRATION_PATH = (
-    ROOT / "supabase" / "migrations" / "20260802000000_manual_source_capture.sql"
+    ROOT / "supabase" / "migrations" / "20260803000000_manual_source_capture.sql"
 )
 
 
