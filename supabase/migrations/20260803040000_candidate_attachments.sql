@@ -27,3 +27,5 @@ using (public.is_workspace_member(workspace_id));
 -- 新建表默认不向 authenticated 授权；先授予 SELECT，再由上方 RLS 严格限制为所属 workspace。
 grant select on table public.candidate_attachments to authenticated;
 grant select, insert, delete on table public.candidate_attachments to service_role;
+-- Worker 以 service_role 删除 Candidate，需显式拥有 DELETE；RLS 以用户成员校验在 Worker 之前完成。
+grant delete on table public.source_capture_candidates to service_role;
