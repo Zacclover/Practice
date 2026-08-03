@@ -4301,10 +4301,28 @@
     .source-capture-button.is-loading { cursor: wait; }
     .source-capture-button.is-loading svg { animation: source-capture-spin 780ms linear infinite; }
     @keyframes source-capture-spin { to { transform: rotate(360deg); } }
+    /* 抓取窗口弹窗：使用紧凑双字段布局，窄屏退为单列且不超出视口。 */
+    .capture-window-dialog { width: min(520px, calc(100% - 32px)); padding: 0; }
+    .capture-window-form { display: grid; gap: 16px; padding: 20px 24px 24px; }
+    .capture-window-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .capture-window-error { margin: 0; padding: 10px 12px; color: var(--ink); background: var(--gray-100); border-left: 3px solid var(--orange); }
+    .capture-window-error[hidden] { display: none; }
     @media (max-width: 640px) {
       .source-item-actions { opacity: 1; visibility: visible; pointer-events: auto; }
+      .capture-window-fields { grid-template-columns: 1fr; }
     }
+    /* 候选审核卡：结构化分析按事实与推断分区，操作栏允许换行避免按钮重叠。 */
     .review-candidate-summary { margin: 12px 0; color: var(--line-medium); }
+    .review-candidate-analysis { display: grid; gap: 10px; margin: 12px 0; }
+    .review-candidate-analysis section { padding: 10px 12px; background: var(--gray-100); border-left: 3px solid var(--line-strong); }
+    .review-candidate-analysis h4 { margin: 0 0 5px; font-size: 12px; }
+    .review-candidate-analysis p, .review-candidate-analysis ul { margin: 0; color: var(--ink); }
+    .review-candidate-analysis ul { padding-left: 18px; }
+    .review-candidate-quotes { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .review-candidate-quote { padding: 10px 12px; background: var(--white); border: 1px solid var(--line-subtle); }
+    .review-candidate-quote blockquote { margin: 0 0 5px; color: var(--ink); }
+    .review-candidate-quote p { margin: 0; color: var(--line-medium); }
+    .review-candidate .actions { flex-wrap: wrap; }
     .review-queue-empty { padding: 22px; text-align: center; background: var(--gray-100); border: 1px dashed var(--line-medium); }
     @media (max-width: 680px) { .source-form-grid { grid-template-columns: 1fr; } .source-dialog-header, .source-dialog-body { padding-right: 16px; padding-left: 16px; } }
 
@@ -4812,6 +4830,30 @@
         </div>
       </form>
     </div>
+  </dialog>
+
+  <!-- ==============================
+       立即抓取观察窗口弹窗
+       用户确认起止时间后才调用既有手动 Worker，并在确认后显示加载状态
+       ============================== -->
+  <dialog id="captureWindowDialog" class="capture-window-dialog" aria-labelledby="captureWindowTitle">
+    <div class="source-dialog-header">
+      <p class="source-dialog-kicker">MANUAL CAPTURE / WINDOW</p>
+      <h2 id="captureWindowTitle">设置检测窗口</h2>
+    </div>
+    <form id="captureWindowForm" class="capture-window-form">
+      <input id="captureWindowSourceId" type="hidden">
+      <p class="review-candidate-summary">仅检查此时间范围内的公开来源变化；结束时间不能晚于当前时间。</p>
+      <div class="capture-window-fields">
+        <label>开始时间<input id="captureWindowStart" type="datetime-local" required></label>
+        <label>结束时间<input id="captureWindowEnd" type="datetime-local" required></label>
+      </div>
+      <p id="captureWindowError" class="capture-window-error" role="alert" hidden></p>
+      <div class="actions">
+        <button id="cancelCaptureWindowButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>取消</button>
+        <button id="confirmCaptureWindowButton" type="submit"><svg class="button-icon" aria-hidden="true"><use href="#icon-source-capture-hand"></use></svg>确认抓取</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- ==============================
@@ -5653,6 +5695,13 @@
     const reviewQueueCount = document.querySelector('#reviewQueueCount');
     const reviewQueueDialog = document.querySelector('#reviewQueueDialog');
     const reviewQueueList = document.querySelector('#reviewQueueList');
+    const captureWindowDialog = document.querySelector('#captureWindowDialog');
+    const captureWindowForm = document.querySelector('#captureWindowForm');
+    const captureWindowSourceId = document.querySelector('#captureWindowSourceId');
+    const captureWindowStart = document.querySelector('#captureWindowStart');
+    const captureWindowEnd = document.querySelector('#captureWindowEnd');
+    const captureWindowError = document.querySelector('#captureWindowError');
+    let pendingCaptureButton = null;
 
     /* ==============================
        获取横向对比矩阵相关页面元素
@@ -6456,6 +6505,8 @@
         local: '<strong>来源采集状态：本机已保存</strong><br>当前来源与候选保留在此浏览器。',
         syncing: '<strong>来源采集状态：正在连接</strong><br>正在读取来源与待审核候选。',
         synced: '<strong>来源采集状态：云端来源已连接</strong><br>候选仍须人工审核后才能成为证据。',
+        pending: `<strong>来源采集状态：正在抓取</strong><br>${escapeHtml(detail || '正在处理已确认的检测窗口。')}`,
+        success: `<strong>来源采集状态：抓取完成</strong><br>${escapeHtml(detail || '可查看待审核候选。')}`,
         error: `<strong>来源采集状态：连接失败，本机数据已保留</strong><br>${escapeHtml(detail || '可稍后重试。')}`
       };
       sourceSyncNotice.innerHTML = messages[state] || messages.local;
@@ -6520,6 +6571,7 @@
         id: item.id, tabId: item.tab_id, competitorId: item.competitor_id,
         label: item.label, type: sourceTypes[item.source_type] || item.source_type,
         url: item.url, frequencyHours: item.fetch_interval_hours,
+        lastFetchedAt: item.last_fetched_at,
         createdAt: item.created_at, updatedAt: item.updated_at
       };
     }
@@ -6568,7 +6620,17 @@
       return {
         workspace: { version: 3, activeTabId: tabs[0]?.id || null, tabs },
         sources: competitor_sources.map(mapCloudSourceToLocal),
-        candidates: source_capture_candidates.map(item => ({ id: item.id, tabId: item.tab_id, competitorId: item.competitor_id, sourceUrl: item.source_url, title: item.title, summary: item.summary, status: item.status, createdAt: item.created_at, updatedAt: item.updated_at }))
+        candidates: source_capture_candidates.map(item => ({
+          id: item.id, tabId: item.tab_id, competitorId: item.competitor_id,
+          sourceUrl: item.source_url, title: item.title, summary: item.summary,
+          quotedText: item.quoted_text, status: item.status, analysisStatus: item.analysis_status,
+          analysis: item.analysis, publishedAt: item.published_at,
+          publicationTimeStatus: item.publication_time_status,
+          detectionWindowStart: item.detection_window_start,
+          detectionWindowEnd: item.detection_window_end,
+          detectionWindowBasis: item.detection_window_basis,
+          createdAt: item.created_at, updatedAt: item.updated_at
+        }))
       };
     }
 
@@ -6720,14 +6782,14 @@
     }
 
     /* 立即抓取只调用受控 Worker：浏览器不直接读取任意第三方 URL。 */
-    async function requestManualSourceCapture(sourceId) {
+    async function requestManualSourceCapture(sourceId, observationWindow) {
       const config = getCloudRuntimeConfig();
       if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken) throw new Error('请先登录并完成来源云端同步。');
       if (!config.sourceCaptureWorkerUrl) throw new Error('手动抓取服务暂未配置。');
       const response = await fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cloudSyncState.accessToken}` },
-        body: JSON.stringify({ sourceId })
+        body: JSON.stringify({ sourceId, observationWindow })
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || '手动抓取失败。');
@@ -6738,6 +6800,12 @@
     async function approveCloudCandidate(candidateId, title, contentHtml = '') {
       await cloudRestRequest('rpc/approve_source_capture_candidate', { method: 'POST', body: { candidate_id: candidateId, evidence_title: title, evidence_content_html: contentHtml } });
       await pullCloudWorkspaceSafely();
+    }
+
+    /* 候选硬删除沿用实体级出站队列与 updated_at 基线，只触及候选表。 */
+    function hardDeleteCloudCandidate(candidateId) {
+      const baseline = cloudSyncState.baseline.get(snapshotEntityKey('source_capture_candidates', candidateId));
+      enqueueCloudMutation('source_capture_candidates', candidateId, 'delete', null, baseline?.updated_at);
     }
 
     async function createCloudCompetitorSource(record) {
@@ -6836,6 +6904,86 @@
         </article>`).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
     }
 
+    /* datetime-local 与 ISO 转换及窗口校验：比较绝对时间，避免把本地时区误当 UTC。 */
+    function toDateTimeLocalValue(value) {
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      const offset = date.getTimezoneOffset() * 60_000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    }
+
+    function validateCaptureWindow(startValue, endValue, now = new Date()) {
+      const start = new Date(startValue);
+      const end = new Date(endValue);
+      if (!startValue || !endValue || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return { valid: false, message: '请填写有效的开始和结束时间。' };
+      if (start >= end) return { valid: false, message: '开始时间必须早于结束时间。' };
+      if (end > now) return { valid: false, message: '结束时间不能晚于当前时间。' };
+      return { valid: true, observationWindow: { start: start.toISOString(), end: end.toISOString() } };
+    }
+
+    /* 点击原手形按钮只打开窗口；本机来源绝不调用 Worker。 */
+    function openCaptureWindow(source, captureButton) {
+      if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken) {
+        window.alert('本机来源不能请求抓取服务，请先登录并完成来源云端同步。');
+        return;
+      }
+      const now = new Date();
+      const fallbackStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const knownStart = new Date(source.lastFetchedAt || '');
+      captureWindowSourceId.value = source.id;
+      captureWindowStart.value = toDateTimeLocalValue(Number.isNaN(knownStart.getTime()) ? fallbackStart : knownStart);
+      captureWindowEnd.value = toDateTimeLocalValue(now);
+      captureWindowEnd.max = toDateTimeLocalValue(now);
+      captureWindowError.hidden = true;
+      captureWindowError.textContent = '';
+      pendingCaptureButton = captureButton;
+      captureWindowDialog.showModal();
+      captureWindowStart.focus();
+    }
+
+    function setCaptureButtonLoading(button, isLoading) {
+      if (!button) return;
+      button.disabled = isLoading;
+      button.classList.toggle('is-loading', isLoading);
+      button.querySelector('use')?.setAttribute('href', isLoading ? '#icon-capture-loader' : '#icon-source-capture-hand');
+      button.setAttribute('aria-label', isLoading ? '正在抓取此来源' : '立即抓取此来源');
+    }
+
+    function getCandidateAnalysis(candidate) {
+      return candidate.analysisStatus !== 'unavailable' && candidate.analysis && typeof candidate.analysis === 'object' ? candidate.analysis : null;
+    }
+
+    function analysisText(analysis, ...keys) {
+      const value = keys.map(key => analysis?.[key]).find(item => typeof item === 'string' && item.trim());
+      return value ? value.trim() : '';
+    }
+
+    function analysisList(analysis, ...keys) {
+      const value = keys.map(key => analysis?.[key]).find(Array.isArray);
+      return (value || []).map(item => typeof item === 'string' ? item.trim() : '').filter(Boolean);
+    }
+
+    function renderCandidateAnalysis(candidate) {
+      const analysis = getCandidateAnalysis(candidate);
+      if (!analysis) {
+        const rawExcerpt = String(candidate.quotedText || candidate.summary || '暂无摘要').replace(/\s+/g, ' ').trim().slice(0, 360);
+        return `<p class="review-candidate-summary">原始摘录：${escapeHtml(rawExcerpt)}${rawExcerpt.length === 360 ? '…' : ''}</p>`;
+      }
+      const conclusion = analysisText(analysis, 'conclusionZh', 'conclusion_zh', 'chinese_conclusion', 'conclusion');
+      const facts = analysisList(analysis, 'facts', 'factual_findings');
+      const inferences = analysisList(analysis, 'inferences', 'inference', 'inferred_findings');
+      const competitiveImpact = analysisText(analysis, 'competitiveImpact', 'competitive_impact', 'competition_impact');
+      const confidence = analysis.confidence ?? analysis.confidenceScore ?? analysis.confidence_score ?? '未标注';
+      const quoteRows = (analysis.quotes || analysis.quotePairs || analysis.quote_pairs || []).slice(0, 3);
+      const list = values => values.length ? `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>` : '<p>未提供</p>';
+      const quotes = quoteRows.length ? `<section><h4>原文引句与中文释义</h4><ul class="review-candidate-quotes">${quoteRows.map(row => {
+        const original = typeof row === 'object' ? (row.original || row.quote || row.original_quote || row.original_text || '') : '';
+        const gloss = typeof row === 'object' ? (row.chineseGloss || row.chinese_gloss || row.gloss_zh || row.gloss || '') : '';
+        return `<li class="review-candidate-quote"><blockquote lang="en">“${escapeHtml(original)}”</blockquote><p>中文释义：${escapeHtml(gloss || '未提供')}</p></li>`;
+      }).join('')}</ul></section>` : '';
+      return `<div class="review-candidate-analysis"><section><h4>中文结论</h4><p>${escapeHtml(conclusion || '未提供')}</p></section><section><h4>事实</h4>${list(facts)}</section><section><h4>推断</h4>${list(inferences)}</section><section><h4>竞争影响</h4><p>${escapeHtml(competitiveImpact || '未提供')}</p></section><section><h4>置信度</h4><p>${escapeHtml(String(confidence))}</p></section>${quotes}</div>`;
+    }
+
     function renderReviewQueue() {
       const pending = sourceCaptureState.candidates.filter(item =>
         item.tabId === activeWorkspaceTab.id && item.status === 'pending'
@@ -6844,7 +6992,10 @@
       reviewQueueList.innerHTML = pending.length ? pending.map(item => {
         const competitor = competitors.find(entry => entry.id === item.competitorId);
         const safeUrl = normalizePublicHttpsSourceUrl(item.sourceUrl);
-        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>候选标题：${escapeHtml(item.title || '未命名候选')}</h3><span class="insight-status">PENDING</span></div><p class="review-candidate-summary">${escapeHtml(item.summary || '暂无摘要')}</p><p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p><div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button></div></article>`;
+        const publicationLabels = { verified: '已核验', not_found: '未找到', unverified: '未核验' };
+        const detectionWindow = item.detectionWindowStart && item.detectionWindowEnd ? `${formatDate(item.detectionWindowStart)} — ${formatDate(item.detectionWindowEnd)}` : '未记录';
+        const publicationTime = item.publishedAt ? formatDate(item.publishedAt) : '未提供';
+        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>候选标题：${escapeHtml(item.title || '未命名候选')}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p><div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>弃用</button></div></article>`;
       }).join('') : '<p class="review-queue-empty">当前没有待审核候选。云端同步未启用时，本机不会虚构采集结果。</p>';
     }
 
@@ -6889,23 +7040,7 @@
       const item = sourceCaptureState.sources.find(entry => entry.id === id);
       if (!item) return;
       if (captureButton) {
-        captureButton.disabled = true;
-        captureButton.classList.add('is-loading');
-        captureButton.querySelector('use')?.setAttribute('href', '#icon-capture-loader');
-        captureButton.setAttribute('aria-label', '正在抓取此来源');
-        updateSourceSyncNotice('pending', '正在抓取此来源…');
-        try {
-          const result = await requestManualSourceCapture(id);
-          updateSourceSyncNotice('success', result.result?.candidateQueued ? '已生成待审核候选。' : '抓取完成，未发现内容变化。');
-          renderSourceList(); renderReviewQueue();
-        } catch (error) {
-          updateSourceSyncNotice('error', error.message);
-          window.alert(`抓取失败：${error.message}`);
-          captureButton.disabled = false;
-          captureButton.classList.remove('is-loading');
-          captureButton.querySelector('use')?.setAttribute('href', '#icon-source-capture-hand');
-          captureButton.setAttribute('aria-label', '立即抓取此来源');
-        }
+        openCaptureWindow(item, captureButton);
         return;
       }
       if (editButton) { showSourceFormMode(item); return; }
@@ -6923,7 +7058,41 @@
     document.querySelector('#closeSourceDialogButton').addEventListener('click', () => sourceManagementDialog.close());
     reviewQueueButton.addEventListener('click', () => { renderReviewQueue(); reviewQueueDialog.showModal(); });
     document.querySelector('#closeReviewQueueButton').addEventListener('click', () => reviewQueueDialog.close());
-    reviewQueueList.addEventListener('click', event => { const button = event.target.closest('[data-prepare-candidate-id]'); if (button) prepareCandidateAsEvidence(button.dataset.prepareCandidateId); });
+    document.querySelector('#cancelCaptureWindowButton').addEventListener('click', () => { captureWindowDialog.close(); pendingCaptureButton = null; });
+    captureWindowForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const validation = validateCaptureWindow(captureWindowStart.value, captureWindowEnd.value, new Date());
+      if (!validation.valid) { captureWindowError.textContent = validation.message; captureWindowError.hidden = false; return; }
+      if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken) { captureWindowError.textContent = '本机来源不能请求抓取服务，请先完成云端同步。'; captureWindowError.hidden = false; return; }
+      const sourceIdValue = captureWindowSourceId.value;
+      const captureButton = pendingCaptureButton;
+      captureWindowDialog.close();
+      pendingCaptureButton = null;
+      setCaptureButtonLoading(captureButton, true);
+      updateSourceSyncNotice('pending', '正在抓取此来源…');
+      try {
+        const result = await requestManualSourceCapture(sourceIdValue, validation.observationWindow);
+        updateSourceSyncNotice('success', result.result?.candidateQueued ? '已生成待审核候选。' : '抓取完成，未发现内容变化。');
+        renderSourceList(); renderReviewQueue();
+      } catch (error) {
+        updateSourceSyncNotice('error', error.message);
+        window.alert(`抓取失败：${error.message}`);
+        setCaptureButtonLoading(captureButton, false);
+      }
+    });
+    reviewQueueList.addEventListener('click', event => {
+      const prepareButton = event.target.closest('[data-prepare-candidate-id]');
+      if (prepareButton) { prepareCandidateAsEvidence(prepareButton.dataset.prepareCandidateId); return; }
+      const deleteButton = event.target.closest('[data-delete-candidate-id]');
+      if (!deleteButton) return;
+      const candidateId = deleteButton.dataset.deleteCandidateId;
+      const candidate = sourceCaptureState.candidates.find(item => item.id === candidateId && item.status === 'pending');
+      if (!candidate || !window.confirm('确定弃用吗？这将永久删除此 Candidate，且只删除此 Candidate。运行、快照、证据、矩阵和洞察均不会被删除。')) return;
+      if (sourceCaptureState.cloudSynced) hardDeleteCloudCandidate(candidateId);
+      sourceCaptureState.candidates = sourceCaptureState.candidates.filter(item => item.id !== candidateId);
+      persistSourceCaptureState();
+      renderReviewQueue();
+    });
 
     function render() {
       renderWorkspaceTabs();
