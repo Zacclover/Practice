@@ -414,6 +414,39 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertNotIn("quotes", schema["required"])
         self.assertNotIn("quotes", schema["properties"])
 
+    def test_gemini_404_retries_next_stable_flash_lite_candidate(self):
+        result = self.run_module(
+            "async (module) => { const calls=[]; const analysis={feature_title:'数据库自动化',feature_summary:'新增数据库任务自动化能力。',conclusion:'结论',facts:['事实一','事实二'],"
+            "inference:{label:'推断',text:'可能'},competitive_impact:{label:'竞争影响',text:'有限'},confidence:'high',publication_time:{status:'not_found',value:null,source_text:null}};"
+            "globalThis.fetch=async(url,init={})=>{const value=String(url),method=init.method||'GET';"
+            "if(value.endsWith('/rpc/reserve_source_capture_ai_budget'))return Response.json(true);"
+            "if(value.endsWith('/v1beta/models'))return Response.json({models:["
+            "{name:'models/gemini-2.5-flash-lite',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.0-flash-lite-001',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.5-flash-lite-preview-06-17',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.0-flash',supportedGenerationMethods:['generateContent']}]});"
+            "if(value.includes('gemini-2.5-flash-lite:generateContent')){calls.push('gemini-2.5-flash-lite');return new Response(null,{status:404});}"
+            "if(value.includes('gemini-2.0-flash-lite-001:generateContent')){calls.push('gemini-2.0-flash-lite-001');return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(analysis)}]}}]});}"
+            "if(method==='PATCH')return new Response(null,{status:204});throw new Error('unexpected');};"
+            "await module.enrichCandidateWithAnalysis({SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',GEMINI_API_KEY:'gemini-secret'},"
+            "'candidate-id',{title:'Title',canonicalUrl:'https://example.com'},'Original one');return calls;}"
+        )
+        self.assertEqual(result, ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite-001"])
+
+    def test_all_gemini_404s_use_fixed_safe_diagnostic(self):
+        result = self.run_module(
+            "async (module) => { const logs=[]; console.warn=(value)=>logs.push(JSON.parse(value));"
+            "globalThis.fetch=async(url,init={})=>{const value=String(url);"
+            "if(value.endsWith('/rpc/reserve_source_capture_ai_budget'))return Response.json(true);"
+            "if(value.endsWith('/v1beta/models'))return Response.json({models:["
+            "{name:'models/gemini-2.5-flash-lite',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.0-flash-lite-001',supportedGenerationMethods:['generateContent']}]});"
+            "if(value.includes(':generateContent'))return new Response('private provider body',{status:404});throw new Error('unexpected');};"
+            "await module.enrichCandidateWithAnalysis({SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',GEMINI_API_KEY:'gemini-secret'},"
+            "'candidate-id',{title:'Secret title',canonicalUrl:'https://example.com/?token=secret'},'secret source text');return logs;}"
+        )
+        self.assertEqual(result, [{"event": "candidate_analysis_unavailable", "reason": "flash_lite_models_unavailable"}])
+
     def test_flash_lite_model_selection_prefers_gemini_2_5(self):
         result = self.run_module(
             "(module) => module.selectGeminiFlashLiteModel(["

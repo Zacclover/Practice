@@ -751,9 +751,20 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
   }
 
   try {
-    analysisRequestCache.modelPromise ||= discoverGeminiFlashLiteModel(env);
-    const model = await analysisRequestCache.modelPromise;
-    const analysis = await requestGeminiAnalysis(env, model, page, input);
+    analysisRequestCache.modelsPromise ||= discoverGeminiFlashLiteModels(env);
+    const models = await analysisRequestCache.modelsPromise;
+    let model;
+    let analysis;
+    for (const candidateModel of models) {
+      try {
+        analysis = await requestGeminiAnalysis(env, candidateModel, page, input);
+        model = candidateModel;
+        break;
+      } catch (error) {
+        if (!(error instanceof AnalysisUnavailableError) || error.httpStatus !== 404) throw error;
+      }
+    }
+    if (!analysis) throw new AnalysisUnavailableError("flash_lite_models_unavailable");
     await updateRecord(env, "source_capture_candidates", candidateId, {
       title: analysis.feature_title,
       summary: analysis.feature_summary,
@@ -779,7 +790,7 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
 }
 
 // Gemini 模型发现：仅在本次候选分析请求内读取并筛选支持 generateContent 的稳定 Flash-Lite。
-async function discoverGeminiFlashLiteModel(env) {
+async function discoverGeminiFlashLiteModels(env) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -794,9 +805,9 @@ async function discoverGeminiFlashLiteModel(env) {
     } catch {
       throw new AnalysisUnavailableError("model_discovery_unavailable");
     }
-    const model = selectGeminiFlashLiteModel(payload?.models);
-    if (!model) throw new AnalysisUnavailableError("flash_lite_model_unavailable");
-    return model;
+    const models = selectGeminiFlashLiteModels(payload?.models);
+    if (!models.length) throw new AnalysisUnavailableError("flash_lite_model_unavailable");
+    return models;
   } catch (error) {
     if (error instanceof AnalysisUnavailableError) throw error;
     throw new AnalysisUnavailableError("model_discovery_unavailable");
@@ -807,6 +818,10 @@ async function discoverGeminiFlashLiteModel(env) {
 
 // Gemini 模型选择：首选 2.5 Flash-Lite，其余仅允许无 preview/experimental/latest 标签的稳定版本。
 export function selectGeminiFlashLiteModel(models) {
+  return selectGeminiFlashLiteModels(models)[0] || null;
+}
+
+export function selectGeminiFlashLiteModels(models) {
   const stable = (Array.isArray(models) ? models : []).flatMap((entry) => {
     const name = typeof entry?.name === "string" ? entry.name.replace(/^models\//, "") : "";
     const methods = Array.isArray(entry?.supportedGenerationMethods) ? entry.supportedGenerationMethods : [];
@@ -818,7 +833,7 @@ export function selectGeminiFlashLiteModel(models) {
     if (left === GEMINI_DEFAULT_MODEL) return -1;
     if (right === GEMINI_DEFAULT_MODEL) return 1;
     return left.localeCompare(right, "en");
-  })[0] || null;
+  });
 }
 
 // 控制台只记录固定分类与可选 HTTP 状态，不包含密钥、正文、来源 URL 或错误响应。
