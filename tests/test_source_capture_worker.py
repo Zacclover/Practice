@@ -373,7 +373,7 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         )
         self.assertEqual(result[0]["reason"], "missing_model_config")
         self.assertEqual(result[1], {
-            "event": "candidate_analysis_unavailable", "reason": "gemini_http_status", "http_status": 429,
+            "event": "candidate_analysis_unavailable", "reason": "model_discovery_unavailable", "http_status": 429,
         })
         serialized = json.dumps(result)
         for secret in ["gemini-secret", "service-secret", "Secret title", "token=secret", "secret source text", "private provider body"]:
@@ -387,12 +387,16 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "globalThis.fetch=async (url,init={})=>{ const headers=new Headers(init.headers); const body=init.body?JSON.parse(init.body):null; "
             "calls.push({url:String(url),method:init.method||'GET',key:headers.get('x-goog-api-key'),body}); "
             "if(String(url).endsWith('/rpc/reserve_source_capture_ai_budget')) return Response.json(true); "
-            "if(String(url).includes('generativelanguage.googleapis.com')) return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(analysis)}]}}]}); "
+            "if(String(url).endsWith('/v1beta/models')) return Response.json({models:[{name:'models/gemini-2.5-flash-lite',supportedGenerationMethods:['generateContent']}]}); "
+            "if(String(url).includes(':generateContent')) return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(analysis)}]}}]}); "
             "if((init.method||'GET')==='PATCH') return new Response(null,{status:204}); throw new Error('unexpected'); }; "
             "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',GEMINI_API_KEY:'gemini-secret'}; "
             "await module.enrichCandidateWithAnalysis(env,'candidate-id',{title:'Title',canonicalUrl:'https://example.com'},'Original one\\nOriginal two'); return calls; }"
         )
-        provider = next(call for call in result if "generativelanguage.googleapis.com" in call["url"])
+        discovery = next(call for call in result if call["url"].endswith("/v1beta/models"))
+        provider = next(call for call in result if ":generateContent" in call["url"])
+        self.assertEqual(discovery["key"], "gemini-secret")
+        self.assertIsNone(discovery["body"])
         self.assertNotIn("gemini-secret", provider["url"])
         self.assertEqual(provider["key"], "gemini-secret")
         self.assertEqual(provider["body"]["generationConfig"]["responseMimeType"], "application/json")
@@ -403,11 +407,60 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertEqual(patch_call["body"]["title"], "数据库自动化")
         self.assertEqual(patch_call["body"]["summary"], "新增数据库任务自动化能力。")
         self.assertEqual(patch_call["body"]["quoted_text"], "")
+        self.assertEqual(patch_call["body"]["analysis_model"], "gemini-2.5-flash-lite")
         schema = provider["body"]["generationConfig"]["responseJsonSchema"]
         self.assertIn("feature_title", schema["required"])
         self.assertIn("feature_summary", schema["required"])
         self.assertNotIn("quotes", schema["required"])
         self.assertNotIn("quotes", schema["properties"])
+
+    def test_flash_lite_model_selection_prefers_gemini_2_5(self):
+        result = self.run_module(
+            "(module) => module.selectGeminiFlashLiteModel(["
+            "{name:'models/gemini-2.0-flash-lite-001',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.5-flash-lite',supportedGenerationMethods:['countTokens','generateContent']}])"
+        )
+        self.assertEqual(result, "gemini-2.5-flash-lite")
+
+    def test_flash_lite_model_selection_uses_deterministic_stable_fallback(self):
+        result = self.run_module(
+            "(module) => [module.selectGeminiFlashLiteModel(["
+            "{name:'models/gemini-2.0-flash-lite-002',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.0-flash-lite-001',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.5-flash-lite-preview-06-17',supportedGenerationMethods:['generateContent']}]),"
+            "module.selectGeminiFlashLiteModel(["
+            "{name:'models/gemini-2.0-flash-lite-001',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.0-flash-lite-002',supportedGenerationMethods:['generateContent']}])]"
+        )
+        self.assertEqual(result, ["gemini-2.0-flash-lite-001", "gemini-2.0-flash-lite-001"])
+
+    def test_flash_lite_model_selection_rejects_non_flash_lite_or_unsupported_options(self):
+        result = self.run_module(
+            "(module) => module.selectGeminiFlashLiteModel(["
+            "{name:'models/gemini-2.5-flash',supportedGenerationMethods:['generateContent']},"
+            "{name:'models/gemini-2.5-flash-lite',supportedGenerationMethods:['countTokens']},"
+            "{name:'models/gemini-2.5-flash-lite-preview-06-17',supportedGenerationMethods:['generateContent']}])"
+        )
+        self.assertIsNone(result)
+
+    def test_model_discovery_unavailable_is_fixed_and_does_not_leak_model_list(self):
+        result = self.run_module(
+            "async (module) => { const logs=[]; const calls=[]; console.warn=(value)=>logs.push(value); "
+            "globalThis.fetch=async(url,init={})=>{const value=String(url);calls.push({url:value,method:init.method||'GET',body:init.body||null});"
+            "if(value.endsWith('/rpc/reserve_source_capture_ai_budget')) return Response.json(true);"
+            "if(value.endsWith('/v1beta/models')) return Response.json({models:[{name:'models/private-pro-model',description:'private-list-secret',supportedGenerationMethods:['generateContent']}]});"
+            "throw new Error('generateContent must not run')};"
+            "await module.enrichCandidateWithAnalysis({SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',GEMINI_API_KEY:'gemini-secret'},"
+            "'candidate-id',{title:'Private title',canonicalUrl:'https://example.com/?secret=1'},'Private input');"
+            "return {logs:logs.map(JSON.parse),calls}; }"
+        )
+        self.assertEqual(result["logs"], [{
+            "event": "candidate_analysis_unavailable", "reason": "flash_lite_model_unavailable",
+        }])
+        self.assertEqual(len(result["calls"]), 2)
+        serialized = json.dumps(result)
+        for secret in ["private-list-secret", "private-pro-model", "gemini-secret", "service-secret", "Private title", "Private input"]:
+            self.assertNotIn(secret, serialized)
 
     def test_gemini_generated_fields_must_use_simplified_chinese(self):
         source = WORKER.read_text(encoding="utf-8")
@@ -585,7 +638,8 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "if(value.includes('/source_capture_candidates?')&&method==='GET')return Response.json([{id:'existing-candidate',workspace_id:'33333333-3333-4333-8333-333333333333',status:'pending',analysis_status:'unavailable'}]);"
             "if(value.includes('/candidate_attachments?')&&method==='GET')return Response.json([]);"
             "if(value.endsWith('/rpc/reserve_source_capture_ai_budget'))return Response.json(true);"
-            "if(value.includes('generativelanguage.googleapis.com'))return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(analysis)}]}}]});"
+            "if(value.endsWith('/v1beta/models'))return Response.json({models:[{name:'models/gemini-2.5-flash-lite',supportedGenerationMethods:['generateContent']}]});"
+            "if(value.includes(':generateContent'))return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(analysis)}]}}]});"
             "if(method==='PATCH')return new Response(null,{status:204});if(method==='POST'&&value.includes('/source_capture_candidates'))throw new Error('duplicate candidate');throw new Error('unexpected '+value)};"
             "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public-key',GEMINI_API_KEY:'gemini-secret'};"
             "const response=await module.default.fetch(new Request('https://worker.example/manual-capture',{method:'POST',headers:{Authorization:'Bearer jwt','Content-Type':'application/json'},body:JSON.stringify({sourceId:'11111111-1111-4111-8111-111111111111',observationWindow:{start:'2026-07-01T00:00:00Z',end:'2026-08-03T12:00:00Z'}})}),env,{});return {status:response.status,body:await response.json(),calls};}"

@@ -14,6 +14,7 @@ const ANALYSIS_RESERVED_TOKENS = 8_000;
 const DAILY_AI_REQUEST_LIMIT = 20;
 const DAILY_AI_TOKEN_LIMIT = 160_000;
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
+const GEMINI_MODELS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v2";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MANUAL_CAPTURE_COOLDOWN_MS = 5 * 60 * 1000;
@@ -209,6 +210,7 @@ export async function runScheduledCapture(_env) {
 }
 
 async function captureSource(source, env, triggerType = "scheduled", explicitWindow = null, plannedAt = new Date()) {
+  const analysisRequestCache = {};
   const observationWindow = explicitWindow || await deriveObservationWindow(env, source.id, plannedAt);
   const run = await insertRecord(env, "source_capture_runs", {
     id: crypto.randomUUID(),
@@ -255,7 +257,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
             }
             await enrichCandidateWithAnalysis(env, existingCandidate.id, {
               title: entry.title, canonicalUrl: entry.url,
-            }, entry.extractedText);
+            }, entry.extractedText, analysisRequestCache);
           }
           continue;
         }
@@ -278,7 +280,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         await attachCandidateImages(env, candidate, entry);
         await enrichCandidateWithAnalysis(env, candidate.id, {
           title: entry.title, canonicalUrl: entry.url,
-        }, entry.extractedText);
+        }, entry.extractedText, analysisRequestCache);
       }
     } else if (isChanged) {
       const candidate = await insertRecord(env, "source_capture_candidates", {
@@ -302,7 +304,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         detection_window_basis: observationWindow.basis,
       });
       candidateCount = candidate ? 1 : 0;
-      await enrichCandidateWithAnalysis(env, candidate.id, page, snapshot.extractedText);
+      await enrichCandidateWithAnalysis(env, candidate.id, page, snapshot.extractedText, analysisRequestCache);
     }
 
     await updateRecord(env, "competitor_sources", source.id, {
@@ -720,13 +722,13 @@ export function prepareAnalysisInput(text) {
 }
 
 // Preview-only 候选分析：任何配置、额度、网络或校验失败都保持候选成功且仅记录 unavailable。
-export async function enrichCandidateWithAnalysis(env, candidateId, page, extractedText) {
+export async function enrichCandidateWithAnalysis(env, candidateId, page, extractedText, analysisRequestCache = {}) {
   if (!env?.GEMINI_API_KEY) {
     logAnalysisUnavailable("missing_model_config");
     return;
   }
-  const model = String(env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL);
-  if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(model)) {
+  const configuredModel = String(env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL);
+  if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(configuredModel)) {
     logAnalysisUnavailable("invalid_model_config");
     return;
   }
@@ -749,6 +751,8 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
   }
 
   try {
+    analysisRequestCache.modelPromise ||= discoverGeminiFlashLiteModel(env);
+    const model = await analysisRequestCache.modelPromise;
     const analysis = await requestGeminiAnalysis(env, model, page, input);
     await updateRecord(env, "source_capture_candidates", candidateId, {
       title: analysis.feature_title,
@@ -772,6 +776,49 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
     }
     // 故意吞掉供应商与额度细节；抓取结果和候选不能因可选分析失败而失败。
   }
+}
+
+// Gemini 模型发现：仅在本次候选分析请求内读取并筛选支持 generateContent 的稳定 Flash-Lite。
+async function discoverGeminiFlashLiteModel(env) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(GEMINI_MODELS_ENDPOINT, {
+      headers: { "x-goog-api-key": env.GEMINI_API_KEY },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new AnalysisUnavailableError("model_discovery_unavailable", response.status);
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new AnalysisUnavailableError("model_discovery_unavailable");
+    }
+    const model = selectGeminiFlashLiteModel(payload?.models);
+    if (!model) throw new AnalysisUnavailableError("flash_lite_model_unavailable");
+    return model;
+  } catch (error) {
+    if (error instanceof AnalysisUnavailableError) throw error;
+    throw new AnalysisUnavailableError("model_discovery_unavailable");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Gemini 模型选择：首选 2.5 Flash-Lite，其余仅允许无 preview/experimental/latest 标签的稳定版本。
+export function selectGeminiFlashLiteModel(models) {
+  const stable = (Array.isArray(models) ? models : []).flatMap((entry) => {
+    const name = typeof entry?.name === "string" ? entry.name.replace(/^models\//, "") : "";
+    const methods = Array.isArray(entry?.supportedGenerationMethods) ? entry.supportedGenerationMethods : [];
+    if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(name) || !methods.includes("generateContent") ||
+        /(?:^|[-.])(preview|experimental|exp|latest)(?:$|[-.])/i.test(name)) return [];
+    return [name];
+  });
+  return [...new Set(stable)].sort((left, right) => {
+    if (left === GEMINI_DEFAULT_MODEL) return -1;
+    if (right === GEMINI_DEFAULT_MODEL) return 1;
+    return left.localeCompare(right, "en");
+  })[0] || null;
 }
 
 // 控制台只记录固定分类与可选 HTTP 状态，不包含密钥、正文、来源 URL 或错误响应。
