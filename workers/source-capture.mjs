@@ -780,6 +780,7 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
         model = GLM_DEFAULT_MODEL;
       } catch (error) {
         if (!(error instanceof AnalysisUnavailableError)) throw error;
+        logAnalysisProviderFallback("glm", error.reason, error.httpStatus);
         glmError = error;
       }
     }
@@ -866,6 +867,13 @@ export function selectGeminiFlashLiteModels(models) {
     if (right === GEMINI_DEFAULT_MODEL) return 1;
     return left.localeCompare(right, "en");
   });
+}
+
+// 仅记录 Provider 回退类别与状态，绝不记录 Key、输入正文、URL 或供应商原始响应。
+function logAnalysisProviderFallback(provider, reason, httpStatus) {
+  const diagnostic = { event: "candidate_analysis_provider_fallback", provider, reason };
+  if (Number.isInteger(httpStatus)) diagnostic.http_status = httpStatus;
+  console.warn(JSON.stringify(diagnostic));
 }
 
 // 控制台只记录固定分类与可选 HTTP 状态，不包含密钥、正文、来源 URL 或错误响应。
