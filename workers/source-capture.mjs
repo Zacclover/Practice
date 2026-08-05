@@ -322,7 +322,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     });
     const optionalEnrichmentWork = Promise.allSettled([
       ...deferredAttachmentTasks.map((task) => task()),
-      ...deferredAnalysisTasks.map((task) => task()),
+      runDeferredTasksSequentially(deferredAnalysisTasks),
     ]);
     if (typeof ctx?.waitUntil === "function") ctx.waitUntil(optionalEnrichmentWork);
     else await optionalEnrichmentWork;
@@ -340,6 +340,13 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       finished_at: new Date().toISOString(),
     });
     throw error;
+  }
+}
+
+// 免费 Provider 的请求按候选顺序串行，避免单次手动抓取并发耗尽其瞬时频控。
+async function runDeferredTasksSequentially(tasks) {
+  for (const task of tasks) {
+    try { await task(); } catch { /* 单条可选分析失败不影响其余候选。 */ }
   }
 }
 
