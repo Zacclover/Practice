@@ -932,11 +932,11 @@ async function requestGlmAnalysis(env, model, page, input) {
         model,
         stream: false,
         temperature: 0,
-        max_tokens: 1800,
+        max_tokens: 260,
         thinking: { type: "disabled" },
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: "你是严谨的竞品研究助手。只根据输入页面作答，输出一个 JSON 对象，必须具有 feature_title、feature_summary、conclusion、facts、inference、competitive_impact、confidence、publication_time 字段。feature_title 是简洁的简体中文功能主题，feature_summary 是该具体功能的简洁简体中文摘要。不得猜测或伪造事实和发布时间；无法确认发布时间时 publication_time 使用 not_found 或 unverified，value 为 null。" },
+          { role: "system", content: "你是竞品更新审核助手。只根据输入页面作答，只输出 JSON 对象，且仅包含 feature_title 和 feature_summary 两个字段。二者都必须为简体中文：feature_title 是不超过 24 字的具体功能主题，feature_summary 是不超过 160 字的具体功能总结。不得输出英文、引用、事实列表、推断、竞争影响、发布时间或任何其他字段；不得猜测或补造事实。" },
           { role: "user", content: `来源标题：${page.title || "未提供"}\n来源 URL：${page.canonicalUrl}\n清洗后的页面正文：\n${input}` },
         ],
       }),
