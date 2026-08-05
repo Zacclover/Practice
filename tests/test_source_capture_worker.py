@@ -28,7 +28,12 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         )
         return json.loads(completed.stdout)
 
-    def test_only_safe_public_https_urls_are_accepted_for_capture(self):
+    def test_manual_capture_defers_optional_attachment_downloads_until_after_response_work(self):
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn("deferredAttachmentTasks", source)
+        self.assertIn("ctx.waitUntil", source)
+        self.assertIn("scheduleCandidateImageAttachments", source)
+
         result = self.run_module(
             "(module) => ["
             "module.isSafePublicSourceUrl('https://www.notion.so/releases'), "

@@ -44,13 +44,13 @@ export default {
   },
 
   // 手动采集 HTTP 入口：仅接受受信 Pages 来源发起的认证 POST。
-  async fetch(request, env, _ctx) {
-    return handleManualCaptureRequest(request, env);
+  async fetch(request, env, ctx) {
+    return handleManualCaptureRequest(request, env, ctx);
   },
 };
 
 // 手动采集路由、CORS 与安全错误响应。
-export async function handleManualCaptureRequest(request, env) {
+export async function handleManualCaptureRequest(request, env, ctx = null) {
   const origin = request.headers.get("Origin");
   const corsHeaders = buildCorsHeaders(origin);
   const pathname = new URL(request.url).pathname;
@@ -104,7 +104,7 @@ export async function handleManualCaptureRequest(request, env) {
       });
     }
 
-    const result = await captureSource(source, env, "manual", observationWindow);
+    const result = await captureSource(source, env, "manual", observationWindow, new Date(), ctx);
     return new Response(JSON.stringify({ ok: true, result }), {
       status: 200,
       headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders },
@@ -209,8 +209,9 @@ export async function runScheduledCapture(_env) {
   return { disabled: true, inspected: 0, succeeded: 0, failed: 0 };
 }
 
-async function captureSource(source, env, triggerType = "scheduled", explicitWindow = null, plannedAt = new Date()) {
+async function captureSource(source, env, triggerType = "scheduled", explicitWindow = null, plannedAt = new Date(), ctx = null) {
   const analysisRequestCache = {};
+  const deferredAttachmentTasks = [];
   const observationWindow = explicitWindow || await deriveObservationWindow(env, source.id, plannedAt);
   const run = await insertRecord(env, "source_capture_runs", {
     id: crypto.randomUUID(),
@@ -253,7 +254,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         if (existingCandidate) {
           if (shouldRetryExistingCandidate(triggerType, existingCandidate)) {
             if (!await candidateHasAttachments(env, existingCandidate.workspace_id, existingCandidate.id)) {
-              await attachCandidateImages(env, existingCandidate, entry);
+              scheduleCandidateImageAttachments(deferredAttachmentTasks, env, existingCandidate, entry);
             }
             await enrichCandidateWithAnalysis(env, existingCandidate.id, {
               title: entry.title, canonicalUrl: entry.url,
@@ -277,7 +278,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         if (!candidate) continue;
         candidateQueued = true;
         candidateCount += 1;
-        await attachCandidateImages(env, candidate, entry);
+        scheduleCandidateImageAttachments(deferredAttachmentTasks, env, candidate, entry);
         await enrichCandidateWithAnalysis(env, candidate.id, {
           title: entry.title, canonicalUrl: entry.url,
         }, entry.extractedText, analysisRequestCache);
@@ -315,6 +316,9 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       http_status: page.httpStatus,
       finished_at: new Date().toISOString(),
     });
+    const attachmentWork = Promise.allSettled(deferredAttachmentTasks.map((task) => task()));
+    if (typeof ctx?.waitUntil === "function") ctx.waitUntil(attachmentWork);
+    else await attachmentWork;
     return {
       sourceId: source.id,
       runId: run.id,
@@ -330,6 +334,11 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     });
     throw error;
   }
+}
+
+// 图片是可选私有附件：Candidate 已创建后才在请求生命周期外补抓，不能拖慢手动抓取响应。
+function scheduleCandidateImageAttachments(deferredAttachmentTasks, env, candidate, entry) {
+  deferredAttachmentTasks.push(() => attachCandidateImages(env, candidate, entry));
 }
 
 // 仅变更日志与发布说明启用子页语义发现，其他来源继续使用单页哈希。
