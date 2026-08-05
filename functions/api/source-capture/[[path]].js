@@ -11,8 +11,13 @@ const ROUTES = [
 ];
 
 // 同源 Pages 代理：浏览器只访问固定的来源抓取路由，绝不接收任意目标地址。
-export async function onRequest({ env, params, request }) {
-  const path = normalizePath(params?.path);
+export async function onRequest(context) {
+  return forwardSourceCaptureRequest(context, context.params?.path);
+}
+
+// 精确路由与多段路由共用同一白名单转发器，避免浏览器直连 workers.dev。
+export async function forwardSourceCaptureRequest({ env, request }, routeSegments) {
+  const path = normalizePath(routeSegments);
   const route = ROUTES.find(({ pattern }) => pattern.test(path));
   if (!route) return safeJsonResponse("not_found", 404);
 
