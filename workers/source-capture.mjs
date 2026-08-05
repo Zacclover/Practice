@@ -214,6 +214,7 @@ export async function runScheduledCapture(_env) {
 async function captureSource(source, env, triggerType = "scheduled", explicitWindow = null, plannedAt = new Date(), ctx = null) {
   const analysisRequestCache = {};
   const deferredAttachmentTasks = [];
+  const deferredAnalysisTasks = [];
   const observationWindow = explicitWindow || await deriveObservationWindow(env, source.id, plannedAt);
   const run = await insertRecord(env, "source_capture_runs", {
     id: crypto.randomUUID(),
@@ -258,7 +259,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
             if (!await candidateHasAttachments(env, existingCandidate.workspace_id, existingCandidate.id)) {
               scheduleCandidateImageAttachments(deferredAttachmentTasks, env, existingCandidate, entry);
             }
-            await enrichCandidateWithAnalysis(env, existingCandidate.id, {
+            scheduleCandidateAnalysis(deferredAnalysisTasks, env, existingCandidate.id, {
               title: entry.title, canonicalUrl: entry.url,
             }, entry.extractedText, analysisRequestCache);
           }
@@ -281,7 +282,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         candidateQueued = true;
         candidateCount += 1;
         scheduleCandidateImageAttachments(deferredAttachmentTasks, env, candidate, entry);
-        await enrichCandidateWithAnalysis(env, candidate.id, {
+        scheduleCandidateAnalysis(deferredAnalysisTasks, env, candidate.id, {
           title: entry.title, canonicalUrl: entry.url,
         }, entry.extractedText, analysisRequestCache);
       }
@@ -307,7 +308,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         detection_window_basis: observationWindow.basis,
       });
       candidateCount = candidate ? 1 : 0;
-      await enrichCandidateWithAnalysis(env, candidate.id, page, snapshot.extractedText, analysisRequestCache);
+      if (candidate) scheduleCandidateAnalysis(deferredAnalysisTasks, env, candidate.id, page, snapshot.extractedText, analysisRequestCache);
     }
 
     await updateRecord(env, "competitor_sources", source.id, {
@@ -318,9 +319,12 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       http_status: page.httpStatus,
       finished_at: new Date().toISOString(),
     });
-    const attachmentWork = Promise.allSettled(deferredAttachmentTasks.map((task) => task()));
-    if (typeof ctx?.waitUntil === "function") ctx.waitUntil(attachmentWork);
-    else await attachmentWork;
+    const optionalEnrichmentWork = Promise.allSettled([
+      ...deferredAttachmentTasks.map((task) => task()),
+      ...deferredAnalysisTasks.map((task) => task()),
+    ]);
+    if (typeof ctx?.waitUntil === "function") ctx.waitUntil(optionalEnrichmentWork);
+    else await optionalEnrichmentWork;
     return {
       sourceId: source.id,
       runId: run.id,
@@ -336,6 +340,11 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     });
     throw error;
   }
+}
+
+// 可选 AI 分析在 Candidate 已创建且 run 成功后执行，不能拖慢手动抓取响应。
+function scheduleCandidateAnalysis(deferredAnalysisTasks, env, candidateId, page, extractedText, analysisRequestCache) {
+  deferredAnalysisTasks.push(() => enrichCandidateWithAnalysis(env, candidateId, page, extractedText, analysisRequestCache));
 }
 
 // 图片是可选私有附件：Candidate 已创建后才在请求生命周期外补抓，不能拖慢手动抓取响应。
