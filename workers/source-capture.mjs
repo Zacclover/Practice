@@ -14,6 +14,8 @@ const ANALYSIS_RESERVED_TOKENS = 8_000;
 const DAILY_AI_REQUEST_LIMIT = 20;
 const DAILY_AI_TOKEN_LIMIT = 160_000;
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
+const GLM_DEFAULT_MODEL = "glm-4.5-flash";
+const GLM_CHAT_COMPLETIONS_ENDPOINT = "https://api.z.ai/api/paas/v4/chat/completions";
 const GEMINI_MODELS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v2";
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -732,12 +734,12 @@ export function prepareAnalysisInput(text) {
 
 // Preview-only 候选分析：任何配置、额度、网络或校验失败都保持候选成功且仅记录 unavailable。
 export async function enrichCandidateWithAnalysis(env, candidateId, page, extractedText, analysisRequestCache = {}) {
-  if (!env?.GEMINI_API_KEY) {
+  if (!env?.ZAI_API_KEY && !env?.GEMINI_API_KEY) {
     logAnalysisUnavailable("missing_model_config");
     return;
   }
   const configuredModel = String(env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL);
-  if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(configuredModel)) {
+  if (env?.GEMINI_API_KEY && !/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(configuredModel)) {
     logAnalysisUnavailable("invalid_model_config");
     return;
   }
@@ -760,20 +762,32 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
   }
 
   try {
-    analysisRequestCache.modelsPromise ||= discoverGeminiFlashLiteModels(env);
-    const models = await analysisRequestCache.modelsPromise;
     let model;
     let analysis;
-    for (const candidateModel of models) {
+    let glmError = null;
+    if (env?.ZAI_API_KEY) {
       try {
-        analysis = await requestGeminiAnalysis(env, candidateModel, page, input);
-        model = candidateModel;
-        break;
+        analysis = await requestGlmAnalysis(env, page, input);
+        model = GLM_DEFAULT_MODEL;
       } catch (error) {
-        if (!(error instanceof AnalysisUnavailableError) || error.httpStatus !== 404) throw error;
+        if (!(error instanceof AnalysisUnavailableError)) throw error;
+        glmError = error;
       }
     }
-    if (!analysis) throw new AnalysisUnavailableError("flash_lite_models_unavailable");
+    if (!analysis && env?.GEMINI_API_KEY) {
+      analysisRequestCache.modelsPromise ||= discoverGeminiFlashLiteModels(env);
+      const models = await analysisRequestCache.modelsPromise;
+      for (const candidateModel of models) {
+        try {
+          analysis = await requestGeminiAnalysis(env, candidateModel, page, input);
+          model = candidateModel;
+          break;
+        } catch (error) {
+          if (!(error instanceof AnalysisUnavailableError) || error.httpStatus !== 404) throw error;
+        }
+      }
+    }
+    if (!analysis) throw glmError || new AnalysisUnavailableError("flash_lite_models_unavailable");
     await updateRecord(env, "source_capture_candidates", candidateId, {
       title: analysis.feature_title,
       summary: analysis.feature_summary,
@@ -871,6 +885,40 @@ async function reserveAnalysisBudget(env) {
     }),
   });
   return result === true;
+}
+
+// GLM-4.5-Flash 是首选免费分析器：只接收已受控抓取和裁剪的条目文本，密钥不会离开 Worker。
+async function requestGlmAnalysis(env, page, input) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(GLM_CHAT_COMPLETIONS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.ZAI_API_KEY}` },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: GLM_DEFAULT_MODEL,
+        stream: false,
+        temperature: 0,
+        max_tokens: 1800,
+        thinking: { type: "disabled" },
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: "你是严谨的竞品研究助手。只根据输入页面作答，输出一个 JSON 对象，必须具有 feature_title、feature_summary、conclusion、facts、inference、competitive_impact、confidence、publication_time 字段。feature_title 是简洁的简体中文功能主题，feature_summary 是该具体功能的简洁简体中文摘要。不得猜测或伪造事实和发布时间；无法确认发布时间时 publication_time 使用 not_found 或 unverified，value 为 null。" },
+          { role: "user", content: `来源标题：${page.title || "未提供"}\n来源 URL：${page.canonicalUrl}\n清洗后的页面正文：\n${input}` },
+        ],
+      }),
+    });
+    if (!response.ok) throw new AnalysisUnavailableError("glm_http_status", response.status);
+    let payload;
+    try { payload = await response.json(); } catch { throw new AnalysisUnavailableError("glm_malformed_response"); }
+    const raw = payload?.choices?.[0]?.message?.content;
+    if (typeof raw !== "string") throw new AnalysisUnavailableError("glm_malformed_response");
+    try { return validateAnalysis(JSON.parse(raw), input); }
+    catch { throw new AnalysisUnavailableError("glm_invalid_response"); }
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // Gemini 使用严格响应 Schema；密钥只置于服务端请求头，不写入 URL、数据库或响应。
