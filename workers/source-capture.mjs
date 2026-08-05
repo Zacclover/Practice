@@ -803,7 +803,7 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
       }
     }
     if (!analysis) throw glmError || new AnalysisUnavailableError("flash_lite_models_unavailable");
-    await updateRecord(env, "source_capture_candidates", candidateId, {
+    const analysisUpdate = {
       title: analysis.feature_title,
       summary: analysis.feature_summary,
       quoted_text: "",
@@ -814,9 +814,12 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
       analysis_input_chars: Array.from(input).length,
       analysis_reserved_tokens: ANALYSIS_RESERVED_TOKENS,
       analyzed_at: new Date().toISOString(),
-      publication_time_status: analysis.publication_time.status,
-      published_at: analysis.publication_time.status === "verified" ? analysis.publication_time.value : null,
-    });
+    };
+    if (analysis.publication_time.status === "verified") {
+      analysisUpdate.publication_time_status = "verified";
+      analysisUpdate.published_at = analysis.publication_time.value;
+    }
+    await updateRecord(env, "source_capture_candidates", candidateId, analysisUpdate);
   } catch (error) {
     if (error instanceof AnalysisUnavailableError) {
       logAnalysisUnavailable(error.reason, error.httpStatus);
@@ -936,8 +939,13 @@ async function requestGlmAnalysis(env, model, page, input) {
     try { payload = await response.json(); } catch { throw new AnalysisUnavailableError("glm_malformed_response"); }
     const raw = payload?.choices?.[0]?.message?.content;
     if (typeof raw !== "string") throw new AnalysisUnavailableError("glm_malformed_response");
-    try { return validateAnalysis(JSON.parse(raw), input); }
-    catch { throw new AnalysisUnavailableError("glm_invalid_response"); }
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { throw new AnalysisUnavailableError("glm_malformed_response"); }
+    try { return validateAnalysis(parsed, input); }
+    catch {
+      try { return normalizeGlmCandidatePresentation(parsed); }
+      catch { throw new AnalysisUnavailableError("glm_invalid_response"); }
+    }
   } finally {
     clearTimeout(timeout);
   }
@@ -989,6 +997,25 @@ async function requestGeminiAnalysis(env, model, page, input) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// GLM 即使未输出完整研究结构，只要其可见中文主题与总结合规，也可安全用于 Candidate；不补造页面事实或发布时间。
+function normalizeGlmCandidatePresentation(value) {
+  const title = typeof value?.feature_title === "string" ? value.feature_title.trim() : "";
+  const summary = typeof value?.feature_summary === "string" ? value.feature_summary.trim() : "";
+  if (!isSimplifiedChineseText(title) || !isSimplifiedChineseText(summary) || Array.from(title).length > 24 || Array.from(summary).length > 160) {
+    throw new Error("analysis unavailable");
+  }
+  return {
+    feature_title: title,
+    feature_summary: summary,
+    conclusion: summary,
+    facts: [],
+    inference: { label: "推断", text: "未提供推断" },
+    competitive_impact: { label: "竞争影响", text: "未提供竞争影响" },
+    confidence: "low",
+    publication_time: { status: "unverified", value: null, source_text: null },
+  };
 }
 
 function analysisJsonSchema() {
