@@ -5415,9 +5415,19 @@
 
       let safeSourceCaptureWorkerUrl = '';
       try {
-        const parsedWorkerUrl = new URL(sourceCaptureWorkerUrl);
-        if (parsedWorkerUrl.protocol === 'https:' && !parsedWorkerUrl.username && !parsedWorkerUrl.password) safeSourceCaptureWorkerUrl = parsedWorkerUrl.toString().replace(/\/$/, '');
-      } catch { /* Worker URL 未配置时仅禁用手动抓取，不影响云端同步。 */ }
+        // 手动抓取只接受固定同源代理，防止配置将浏览器重新指向第三方 Worker。
+        const parsedWorkerUrl = new URL(sourceCaptureWorkerUrl, window.location.origin);
+        if (
+          parsedWorkerUrl.origin === window.location.origin &&
+          parsedWorkerUrl.pathname === '/api/source-capture' &&
+          !parsedWorkerUrl.username &&
+          !parsedWorkerUrl.password &&
+          !parsedWorkerUrl.search &&
+          !parsedWorkerUrl.hash
+        ) {
+          safeSourceCaptureWorkerUrl = parsedWorkerUrl.toString().replace(/\/$/, '');
+        }
+      } catch { /* 同源代理未配置时仅禁用手动抓取，不影响云端同步。 */ }
 
       return {
         enabled: true,

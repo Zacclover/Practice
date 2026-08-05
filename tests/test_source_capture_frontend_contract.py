@@ -7,6 +7,11 @@ SOURCE = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding
 
 
 class SourceCaptureFrontendContractTests(unittest.TestCase):
+    def test_runtime_config_accepts_only_the_fixed_same_origin_capture_proxy(self):
+        self.assertIn("/api/source-capture", SOURCE)
+        self.assertIn("parsedWorkerUrl.origin === window.location.origin", SOURCE)
+        self.assertIn("parsedWorkerUrl.pathname === '/api/source-capture'", SOURCE)
+
     def function_body(self, name, next_name=None):
         match = re.search(rf"function {name}\([^\n]*\) \{{(?P<body>.*?)\n    \}}", SOURCE, re.S)
         self.assertIsNotNone(match, name)
