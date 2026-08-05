@@ -14,7 +14,8 @@ const ANALYSIS_RESERVED_TOKENS = 8_000;
 const DAILY_AI_REQUEST_LIMIT = 20;
 const DAILY_AI_TOKEN_LIMIT = 160_000;
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
-const GLM_DEFAULT_MODEL = "glm-4.5-flash";
+const GLM_DEFAULT_MODEL = "glm-4.7-flash";
+const GLM_FALLBACK_MODEL = "glm-4.5-flash";
 const GLM_CHAT_COMPLETIONS_ENDPOINT = "https://api.z.ai/api/paas/v4/chat/completions";
 const GEMINI_MODELS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v2";
@@ -775,13 +776,17 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
     let analysis;
     let glmError = null;
     if (env?.ZAI_API_KEY) {
-      try {
-        analysis = await requestGlmAnalysis(env, page, input);
-        model = GLM_DEFAULT_MODEL;
-      } catch (error) {
-        if (!(error instanceof AnalysisUnavailableError)) throw error;
-        logAnalysisProviderFallback("glm", error.reason, error.httpStatus);
-        glmError = error;
+      for (const candidateModel of [GLM_DEFAULT_MODEL, GLM_FALLBACK_MODEL]) {
+        try {
+          analysis = await requestGlmAnalysis(env, candidateModel, page, input);
+          model = candidateModel;
+          break;
+        } catch (error) {
+          if (!(error instanceof AnalysisUnavailableError)) throw error;
+          logAnalysisProviderFallback("glm", error.reason, error.httpStatus);
+          glmError = error;
+          if ([401, 403].includes(error.httpStatus)) break;
+        }
       }
     }
     if (!analysis && env?.GEMINI_API_KEY) {
@@ -904,8 +909,8 @@ async function reserveAnalysisBudget(env) {
   return result === true;
 }
 
-// GLM-4.5-Flash 是首选免费分析器：只接收已受控抓取和裁剪的条目文本，密钥不会离开 Worker。
-async function requestGlmAnalysis(env, page, input) {
+// GLM 免费模型优先级：4.7 Flash 首选，4.5 Flash 仅在首选不可用时安全回退；密钥不会离开 Worker。
+async function requestGlmAnalysis(env, model, page, input) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -914,7 +919,7 @@ async function requestGlmAnalysis(env, page, input) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.ZAI_API_KEY}` },
       signal: controller.signal,
       body: JSON.stringify({
-        model: GLM_DEFAULT_MODEL,
+        model,
         stream: false,
         temperature: 0,
         max_tokens: 1800,
