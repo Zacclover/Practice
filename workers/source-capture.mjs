@@ -844,24 +844,25 @@ export async function processCandidateAnalysis(env, item, now = new Date()) {
     return { rateLimited: false, retryDelayMs: 0 };
   } catch (error) {
     const isRateLimited = error instanceof AnalysisUnavailableError && error.httpStatus === 429;
-    const retryable = isRateLimited || error instanceof AnalysisUnavailableError && error.httpStatus >= 500;
+    const invalidResponseCode = getGlmInvalidResponseCode(error);
+    const retryable = isRateLimited || invalidResponseCode !== null ||
+      error instanceof AnalysisUnavailableError && error.httpStatus >= 500;
     if (retryable && attemptCount <= AI_RETRY_DELAYS_MS.length) {
       const fallbackDelay = AI_RETRY_DELAYS_MS[attemptCount - 1];
       const retryDelayMs = isRateLimited && Number.isFinite(error.retryAfterMs)
         ? error.retryAfterMs : fallbackDelay;
       const status = isRateLimited ? "rate_limited" : "pending";
+      const failureCode = isRateLimited ? "rate_limited" : invalidResponseCode || "provider_unavailable";
       await updateRecord(env, "source_capture_candidates", item.candidate_id, { analysis_status: status });
       await patchCandidateQueue(env, item.candidate_id, {
         status, attempt_count: attemptCount,
         next_attempt_at: new Date(now.getTime() + retryDelayMs).toISOString(),
-        failure_code: isRateLimited ? "rate_limited" : "provider_unavailable",
+        failure_code: failureCode,
       });
-      logAnalysisUnavailable(isRateLimited ? "rate_limited" : "provider_unavailable", error.httpStatus);
+      logAnalysisUnavailable(failureCode, error.httpStatus);
       return { rateLimited: isRateLimited, retryDelayMs };
     }
-    const failureCode = error instanceof AnalysisUnavailableError && error.reason === "glm_invalid_response"
-      ? "invalid_response" : error instanceof AnalysisUnavailableError && error.reason === "glm_malformed_response"
-        ? "malformed_response" : "provider_unavailable";
+    const failureCode = invalidResponseCode || "provider_unavailable";
     await finishCandidateAnalysis(env, item.candidate_id, "unavailable", attemptCount, failureCode);
     logAnalysisUnavailable(failureCode, error instanceof AnalysisUnavailableError ? error.httpStatus : undefined);
     return { rateLimited: false, retryDelayMs: 0 };
@@ -1046,6 +1047,17 @@ class AnalysisUnavailableError extends Error {
   }
 }
 
+// GLM 输出只映射为固定的安全诊断代码；调用方绝不保留响应正文。
+function getGlmInvalidResponseCode(error) {
+  const reason = error instanceof AnalysisUnavailableError ? error.reason : "";
+  return {
+    glm_malformed_json: "malformed_json",
+    glm_missing_fields: "missing_fields",
+    glm_non_chinese_text: "non_chinese_text",
+    glm_length_overflow: "length_overflow",
+  }[reason] || null;
+}
+
 async function reserveAnalysisBudget(env) {
   const result = await supabaseRequest(env, "/rest/v1/rpc/reserve_source_capture_ai_budget", {
     method: "POST",
@@ -1087,16 +1099,13 @@ async function requestGlmAnalysis(env, model, page, input) {
       );
     }
     let payload;
-    try { payload = await response.json(); } catch { throw new AnalysisUnavailableError("glm_malformed_response"); }
+    try { payload = await response.json(); } catch { throw new AnalysisUnavailableError("glm_malformed_json"); }
     const raw = payload?.choices?.[0]?.message?.content;
-    if (typeof raw !== "string") throw new AnalysisUnavailableError("glm_malformed_response");
+    if (typeof raw !== "string") throw new AnalysisUnavailableError("glm_missing_fields");
     let parsed;
-    try { parsed = JSON.parse(raw); } catch { throw new AnalysisUnavailableError("glm_malformed_response"); }
+    try { parsed = JSON.parse(raw); } catch { throw new AnalysisUnavailableError("glm_malformed_json"); }
     try { return validateAnalysis(parsed, input); }
-    catch {
-      try { return normalizeGlmCandidatePresentation(parsed); }
-      catch { throw new AnalysisUnavailableError("glm_invalid_response"); }
-    }
+    catch { return normalizeGlmCandidatePresentation(parsed); }
   } finally {
     clearTimeout(timeout);
   }
@@ -1152,11 +1161,10 @@ async function requestGeminiAnalysis(env, model, page, input) {
 
 // GLM 即使未输出完整研究结构，只要其可见中文主题与总结合规，也可安全用于 Candidate；不补造页面事实或发布时间。
 function normalizeGlmCandidatePresentation(value) {
-  const title = typeof value?.feature_title === "string" ? value.feature_title.trim() : "";
-  const summary = typeof value?.feature_summary === "string" ? value.feature_summary.trim() : "";
-  if (!isSimplifiedChineseText(title) || !isSimplifiedChineseText(summary) || Array.from(title).length > 24 || Array.from(summary).length > 160) {
-    throw new Error("analysis unavailable");
-  }
+  const presentation = classifyGlmCandidatePresentation(value);
+  if (presentation.code === "missing_fields") throw new AnalysisUnavailableError("glm_missing_fields");
+  if (presentation.code === "non_chinese_text") throw new AnalysisUnavailableError("glm_non_chinese_text");
+  const { title, summary } = presentation;
   return {
     feature_title: title,
     feature_summary: summary,
@@ -1166,6 +1174,20 @@ function normalizeGlmCandidatePresentation(value) {
     competitive_impact: { label: "竞争影响", text: "未提供竞争影响" },
     confidence: "low",
     publication_time: { status: "unverified", value: null, source_text: null },
+  };
+}
+
+// 仅展示字段可在 Unicode 字符边界安全截断；其余无效形态保持为固定分类。
+export function classifyGlmCandidatePresentation(value) {
+  const title = typeof value?.feature_title === "string" ? value.feature_title.trim() : "";
+  const summary = typeof value?.feature_summary === "string" ? value.feature_summary.trim() : "";
+  if (!title || !summary) return { code: "missing_fields" };
+  if (!isSimplifiedChineseText(title) || !isSimplifiedChineseText(summary)) return { code: "non_chinese_text" };
+  const overflow = Array.from(title).length > 24 || Array.from(summary).length > 160;
+  return {
+    code: overflow ? "length_overflow" : null,
+    title: Array.from(title).slice(0, 24).join(""),
+    summary: Array.from(summary).slice(0, 160).join(""),
   };
 }
 

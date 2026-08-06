@@ -551,6 +551,37 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         for secret in ["zai-secret", "service-secret", "Private title", "secret=1", "Private body", "raw private quota body"]:
             self.assertNotIn(secret, serialized)
 
+    def test_queued_glm_response_uses_fixed_safe_codes_and_trims_only_valid_chinese_overflow(self):
+        result = self.run_module(
+            "async (module) => { const logs=[]; console.warn=(value)=>logs.push(JSON.parse(value)); "
+            "const run=async(raw)=>{const patches=[];globalThis.fetch=async(url,init={})=>{const value=String(url),method=init.method||'GET';"
+            "if(value.endsWith('/rpc/reserve_source_capture_ai_budget'))return Response.json(true);"
+            "if(value.includes('api.z.ai'))return Response.json({choices:[{message:{content:raw}}]});"
+            "if(method==='PATCH'){patches.push({url:value,body:JSON.parse(init.body)});return new Response(null,{status:204});}throw new Error('unexpected')};"
+            "await module.processCandidateAnalysis({SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',ZAI_API_KEY:'zai-secret'},"
+            "{candidate_id:'candidate-id',page_title:'Private title',canonical_url:'https://example.com/?secret=1',input_text:'Private page text',attempt_count:0},new Date('2026-08-06T00:00:00Z'));"
+            "const candidate=patches.find((patch)=>patch.url.includes('/source_capture_candidates?'));const queue=patches.find((patch)=>patch.url.includes('/source_capture_ai_queue?'));return {candidate,queue};};"
+            "return {malformed:await run('not json'),missing:await run(JSON.stringify({feature_title:'功能更新'})),"
+            "nonChinese:await run(JSON.stringify({feature_title:'Feature',feature_summary:'中文摘要'})),"
+            "overflow:await run(JSON.stringify({feature_title:'功'.repeat(25),feature_summary:'摘要'.repeat(81)})),logs}; }"
+        )
+        for name, code in [("malformed", "malformed_json"), ("missing", "missing_fields"), ("nonChinese", "non_chinese_text")]:
+            self.assertEqual(result[name]["candidate"]["body"]["analysis_status"], "pending")
+            self.assertEqual(result[name]["queue"]["body"]["status"], "pending")
+            self.assertEqual(result[name]["queue"]["body"]["failure_code"], code)
+            self.assertEqual(result[name]["queue"]["body"]["next_attempt_at"], "2026-08-06T00:02:00.000Z")
+        self.assertEqual(result["malformed"]["queue"]["body"]["failure_code"], "malformed_json")
+        self.assertEqual(result["missing"]["queue"]["body"]["failure_code"], "missing_fields")
+        self.assertEqual(result["nonChinese"]["queue"]["body"]["failure_code"], "non_chinese_text")
+        self.assertEqual(module_classification := self.run_module("(module) => module.classifyGlmCandidatePresentation({feature_title:'功'.repeat(25),feature_summary:'摘要'.repeat(81)}).code"), "length_overflow")
+        self.assertEqual(result["overflow"]["candidate"]["body"]["analysis_status"], "available")
+        self.assertEqual(len(result["overflow"]["candidate"]["body"]["title"]), 24)
+        self.assertEqual(len(result["overflow"]["candidate"]["body"]["summary"]), 160)
+        self.assertEqual(result["overflow"]["queue"]["body"]["status"], "available")
+        serialized = json.dumps(result)
+        for secret in ["zai-secret", "service-secret", "Private title", "secret=1", "Private page text", "not json"]:
+            self.assertNotIn(secret, serialized)
+
     def test_manual_capture_route_and_cors_allow_only_pages_production_and_previews(self):
         result = self.run_module(
             "async (module) => { "
