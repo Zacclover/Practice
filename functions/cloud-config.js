@@ -10,7 +10,10 @@ export function onRequest({ env }) {
     ? env.SUPABASE_PUBLISHABLE_KEY.trim()
     : "";
 
-  const sourceCaptureWorkerUrl = normalizePublicWorkerUrl(env?.SOURCE_CAPTURE_WORKER_URL);
+  // 来源抓取仅向浏览器发布同源代理路径，外部 Worker 地址不会离开服务端。
+  const sourceCaptureWorkerUrl = isValidSourceCaptureUpstream(env?.SOURCE_CAPTURE_WORKER_URL)
+    ? "/api/source-capture"
+    : "";
 
   if (!isHttpsUrl(url) || !publishableKey) {
     return new Response("", { headers: RESPONSE_HEADERS });
@@ -35,12 +38,12 @@ function isHttpsUrl(value) {
   }
 }
 
-function normalizePublicWorkerUrl(value) {
+function isValidSourceCaptureUpstream(value) {
   if (typeof value !== "string" || !value.trim()) return "";
   try {
     const parsed = new URL(value.trim());
     if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) return "";
-    return parsed.href.replace(/\/$/, "");
+    return true;
   } catch {
     return "";
   }

@@ -4311,17 +4311,20 @@
       .source-item-actions { opacity: 1; visibility: visible; pointer-events: auto; }
       .capture-window-fields { grid-template-columns: 1fr; }
     }
-    /* 候选审核卡：结构化分析按事实与推断分区，操作栏允许换行避免按钮重叠。 */
-    .review-candidate-summary { margin: 12px 0; color: var(--line-medium); }
-    .review-candidate-analysis { display: grid; gap: 10px; margin: 12px 0; }
-    .review-candidate-analysis section { padding: 10px 12px; background: var(--gray-100); border-left: 3px solid var(--line-strong); }
-    .review-candidate-analysis h4 { margin: 0 0 5px; font-size: 12px; }
-    .review-candidate-analysis p, .review-candidate-analysis ul { margin: 0; color: var(--ink); }
-    .review-candidate-analysis ul { padding-left: 18px; }
-    .review-candidate-quotes { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-    .review-candidate-quote { padding: 10px 12px; background: var(--white); border: 1px solid var(--line-subtle); }
-    .review-candidate-quote blockquote { margin: 0 0 5px; color: var(--ink); }
-    .review-candidate-quote p { margin: 0; color: var(--line-medium); }
+    /* 候选审核卡：仅展示功能总结，操作栏允许换行避免按钮重叠。 */
+    .review-candidate-summary { margin: 12px 0; padding: 10px 12px; background: var(--gray-100); border-left: 3px solid var(--line-strong); }
+    .review-candidate-summary h4 { margin: 0 0 5px; font-size: 12px; }
+    .review-candidate-summary p { margin: 0; color: var(--ink); }
+    /* Candidate 私有附件：三列预览仅使用 Worker 返回的 Blob URL，不接触第三方图片地址。 */
+    .candidate-attachment-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0; }
+    .candidate-attachment-preview { position: relative; min-width: 0; aspect-ratio: 4 / 3; padding: 0; overflow: hidden; color: var(--line-medium); background: var(--gray-100); border: 1px solid var(--line-subtle); clip-path: none; }
+    .candidate-attachment-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .candidate-attachment-preview:focus-visible { outline: 2px solid var(--line-strong); outline-offset: 2px; border-color: var(--orange); }
+    .candidate-attachment-unavailable { display: grid; width: 100%; height: 100%; place-items: center; padding: 8px; font-family: var(--font-mono); font-size: 10px; text-align: center; }
+    /* Candidate 附件大图弹窗：独立实底层与页脚操作避免图片和关闭按钮重叠。 */
+    .candidate-attachment-dialog { width: min(960px, calc(100% - 32px)); max-height: calc(100vh - 32px); padding: 0; background: var(--white); border: 2px solid var(--line-strong); }
+    .candidate-attachment-dialog-body { display: grid; gap: 16px; padding: 20px 24px 24px; }
+    .candidate-attachment-full-image { display: block; width: 100%; max-height: calc(100vh - 180px); object-fit: contain; background: var(--gray-100); border: 1px solid var(--line-subtle); }
     .review-candidate .actions { flex-wrap: wrap; }
     .review-queue-empty { padding: 22px; text-align: center; background: var(--gray-100); border: 1px dashed var(--line-medium); }
     @media (max-width: 680px) { .source-form-grid { grid-template-columns: 1fr; } .source-dialog-header, .source-dialog-body { padding-right: 16px; padding-left: 16px; } }
@@ -4869,6 +4872,18 @@
     </div>
   </dialog>
 
+  <!-- ==============================
+       Candidate 私有附件预览弹窗
+       完整图片只使用受控 Worker Blob，并在关闭时撤销临时 URL
+       ============================== -->
+  <dialog id="candidateAttachmentDialog" class="candidate-attachment-dialog" aria-labelledby="candidateAttachmentDialogTitle">
+    <div class="source-dialog-header"><p class="source-dialog-kicker">PRIVATE ATTACHMENT / PREVIEW</p><h2 id="candidateAttachmentDialogTitle">Candidate 附件预览</h2></div>
+    <div class="candidate-attachment-dialog-body">
+      <img id="candidateAttachmentFullImage" class="candidate-attachment-full-image" alt="">
+      <div class="actions"><button id="closeCandidateAttachmentButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>关闭</button></div>
+    </div>
+  </dialog>
+
 
   <!-- ==============================
        Tab 新增与重命名弹窗
@@ -5400,9 +5415,19 @@
 
       let safeSourceCaptureWorkerUrl = '';
       try {
-        const parsedWorkerUrl = new URL(sourceCaptureWorkerUrl);
-        if (parsedWorkerUrl.protocol === 'https:' && !parsedWorkerUrl.username && !parsedWorkerUrl.password) safeSourceCaptureWorkerUrl = parsedWorkerUrl.toString().replace(/\/$/, '');
-      } catch { /* Worker URL 未配置时仅禁用手动抓取，不影响云端同步。 */ }
+        // 手动抓取只接受固定同源代理，防止配置将浏览器重新指向第三方 Worker。
+        const parsedWorkerUrl = new URL(sourceCaptureWorkerUrl, window.location.origin);
+        if (
+          parsedWorkerUrl.origin === window.location.origin &&
+          parsedWorkerUrl.pathname === '/api/source-capture' &&
+          !parsedWorkerUrl.username &&
+          !parsedWorkerUrl.password &&
+          !parsedWorkerUrl.search &&
+          !parsedWorkerUrl.hash
+        ) {
+          safeSourceCaptureWorkerUrl = parsedWorkerUrl.toString().replace(/\/$/, '');
+        }
+      } catch { /* 同源代理未配置时仅禁用手动抓取，不影响云端同步。 */ }
 
       return {
         enabled: true,
@@ -5695,6 +5720,9 @@
     const reviewQueueCount = document.querySelector('#reviewQueueCount');
     const reviewQueueDialog = document.querySelector('#reviewQueueDialog');
     const reviewQueueList = document.querySelector('#reviewQueueList');
+    const candidateAttachmentDialog = document.querySelector('#candidateAttachmentDialog');
+    const candidateAttachmentFullImage = document.querySelector('#candidateAttachmentFullImage');
+    const closeCandidateAttachmentButton = document.querySelector('#closeCandidateAttachmentButton');
     const captureWindowDialog = document.querySelector('#captureWindowDialog');
     const captureWindowForm = document.querySelector('#captureWindowForm');
     const captureWindowSourceId = document.querySelector('#captureWindowSourceId');
@@ -5888,6 +5916,9 @@
     let selectedSourceCompetitorId = null;
     let pendingCandidateDraft = null;
     let candidateBeingApprovedId = null;
+    const candidateAttachmentThumbnailUrls = new Map();
+    let candidateAttachmentRenderVersion = 0;
+    let candidateAttachmentFullImageUrl = '';
     /* 云同步运行态不写入 v3 数据；基线、实体队列和冲突分别持久化。 */
     const cloudSyncState = {
       workspaceId: null,
@@ -6585,7 +6616,8 @@
 
     /* 一次读取所有 v3 实体及来源审核数据；查询只在当前成员 RLS 范围内执行。 */
     async function fetchCloudSnapshot(workspaceId, accessToken) {
-      const pairs = await Promise.all(cloudSnapshotTables.map(async table => {
+      const readOnlyTables = [...cloudSnapshotTables, 'candidate_attachments'];
+      const pairs = await Promise.all(readOnlyTables.map(async table => {
         const pending = table === 'source_capture_candidates' ? '&status=eq.pending' : '';
         const rows = await cloudRestRequest(`${table}?workspace_id=eq.${encodeURIComponent(workspaceId)}${pending}&select=*`, { accessToken });
         return [table, rows];
@@ -6607,6 +6639,7 @@
       const matrix_cells = snapshot.matrix_cells || [];
       const competitor_sources = snapshot.competitor_sources || [];
       const source_capture_candidates = snapshot.source_capture_candidates || [];
+      const candidate_attachments = snapshot.candidate_attachments || [];
       const refs = (rows, owner, ownerId, target) => rows.filter(row => row[owner] === ownerId).map(row => row[target]);
       const tabs = [...workspace_tabs].sort((a, b) => a.sort_order - b.sort_order).map(tab => {
         const tabCompetitors = competitors.filter(row => row.tab_id === tab.id).map(row => ({ id: row.id, name: row.name, website: row.website, positioning: row.positioning, isSample: row.is_sample, createdAt: row.created_at, updatedAt: row.updated_at }));
@@ -6629,6 +6662,10 @@
           detectionWindowStart: item.detection_window_start,
           detectionWindowEnd: item.detection_window_end,
           detectionWindowBasis: item.detection_window_basis,
+          attachments: candidate_attachments
+            .filter(attachment => attachment.candidate_id === item.id)
+            .slice(0, 3)
+            .map(attachment => ({ id: attachment.id, candidateId: attachment.candidate_id })),
           createdAt: item.created_at, updatedAt: item.updated_at
         }))
       };
@@ -6802,10 +6839,15 @@
       await pullCloudWorkspaceSafely();
     }
 
-    /* 候选硬删除沿用实体级出站队列与 updated_at 基线，只触及候选表。 */
-    function hardDeleteCloudCandidate(candidateId) {
-      const baseline = cloudSyncState.baseline.get(snapshotEntityKey('source_capture_candidates', candidateId));
-      enqueueCloudMutation('source_capture_candidates', candidateId, 'delete', null, baseline?.updated_at);
+    /* Candidate 硬删除只调用受控 Worker；失败时保留云端与本机状态以便安全重试。 */
+    async function hardDeleteCloudCandidate(candidateId) {
+      const config = getCloudRuntimeConfig();
+      if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken || !config.sourceCaptureWorkerUrl) throw new Error('附件删除服务暂不可用，请稍后重试。');
+      const response = await fetch(`${config.sourceCaptureWorkerUrl}/candidate-attachments/${encodeURIComponent(candidateId)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${cloudSyncState.accessToken}` }
+      });
+      if (!response.ok) throw new Error('Candidate 未删除，请稍后重试。');
     }
 
     async function createCloudCompetitorSource(record) {
@@ -6950,7 +6992,7 @@
     }
 
     function getCandidateAnalysis(candidate) {
-      return candidate.analysisStatus !== 'unavailable' && candidate.analysis && typeof candidate.analysis === 'object' ? candidate.analysis : null;
+      return candidate.analysisStatus === 'available' && candidate.analysis && typeof candidate.analysis === 'object' ? candidate.analysis : null;
     }
 
     function analysisText(analysis, ...keys) {
@@ -6958,37 +7000,69 @@
       return value ? value.trim() : '';
     }
 
-    function analysisList(analysis, ...keys) {
-      const value = keys.map(key => analysis?.[key]).find(Array.isArray);
-      return (value || []).map(item => typeof item === 'string' ? item.trim() : '').filter(Boolean);
+    /* 候选标题仅接受分析产出的中文功能名，避免原始英文标题进入审核卡。 */
+    function getCandidateFeatureTitle(candidate) {
+      const analysis = getCandidateAnalysis(candidate);
+      const title = analysisText(analysis, 'feature_title', 'featureTitle', 'feature_title_zh', 'featureTitleZh');
+      return /[\u3400-\u9fff]/.test(title) ? title : '待审核功能更新';
     }
 
+    /* Candidate 审核卡按异步分析状态展示安全中文文案，未完成分析时不回退原始内容。 */
     function renderCandidateAnalysis(candidate) {
-      const analysis = getCandidateAnalysis(candidate);
-      if (!analysis) {
-        const rawExcerpt = String(candidate.quotedText || candidate.summary || '暂无摘要').replace(/\s+/g, ' ').trim().slice(0, 360);
-        return `<p class="review-candidate-summary">原始摘录：${escapeHtml(rawExcerpt)}${rawExcerpt.length === 360 ? '…' : ''}</p>`;
+      if (candidate.analysisStatus === 'pending') {
+        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>等待 AI 分析</p></section>';
       }
-      const conclusion = analysisText(analysis, 'conclusionZh', 'conclusion_zh', 'chinese_conclusion', 'conclusion');
-      const facts = analysisList(analysis, 'facts', 'factual_findings');
-      // 兼容后端严格 Schema 的 { label: '推断', text }，同时保留旧版数组候选的可读性。
-      const inferenceObject = analysis.inference && typeof analysis.inference === 'object' && !Array.isArray(analysis.inference) ? analysis.inference : null;
-      const inferences = inferenceObject?.text ? [inferenceObject.text] : analysisList(analysis, 'inferences', 'inference', 'inferred_findings');
-      // 竞争影响同样使用严格 Schema 的对象值，避免把已成功的 AI 结果错误显示为“未提供”。
-      const impactObject = analysis.competitive_impact && typeof analysis.competitive_impact === 'object' && !Array.isArray(analysis.competitive_impact) ? analysis.competitive_impact : null;
-      const competitiveImpact = impactObject?.text || analysisText(analysis, 'competitiveImpact', 'competitive_impact', 'competition_impact');
-      const confidence = analysis.confidence ?? analysis.confidenceScore ?? analysis.confidence_score ?? '未标注';
-      const quoteRows = (analysis.quotes || analysis.quotePairs || analysis.quote_pairs || []).slice(0, 3);
-      const list = values => values.length ? `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>` : '<p>未提供</p>';
-      const quotes = quoteRows.length ? `<section><h4>原文引句与中文释义</h4><ul class="review-candidate-quotes">${quoteRows.map(row => {
-        const original = typeof row === 'object' ? (row.original || row.quote || row.original_quote || row.original_text || '') : '';
-        const gloss = typeof row === 'object' ? (row.chineseGloss || row.chinese_gloss || row.gloss_zh || row.gloss || '') : '';
-        return `<li class="review-candidate-quote"><blockquote lang="en">“${escapeHtml(original)}”</blockquote><p>中文释义：${escapeHtml(gloss || '未提供')}</p></li>`;
-      }).join('')}</ul></section>` : '';
-      return `<div class="review-candidate-analysis"><section><h4>中文结论</h4><p>${escapeHtml(conclusion || '未提供')}</p></section><section><h4>事实</h4>${list(facts)}</section><section><h4>推断</h4>${list(inferences)}</section><section><h4>竞争影响</h4><p>${escapeHtml(competitiveImpact || '未提供')}</p></section><section><h4>置信度</h4><p>${escapeHtml(String(confidence))}</p></section>${quotes}</div>`;
+      if (candidate.analysisStatus === 'rate_limited') {
+        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>等待限流恢复</p></section>';
+      }
+      if (candidate.analysisStatus === 'unavailable') {
+        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>AI 分析暂不可用</p></section>';
+      }
+      const analysis = getCandidateAnalysis(candidate);
+      const summary = analysisText(analysis, 'feature_summary', 'featureSummary', 'feature_summary_zh', 'featureSummaryZh');
+      return `<section class="review-candidate-summary"><h4>功能总结</h4><p>${escapeHtml(summary || 'AI 分析暂不可用，暂无功能总结。')}</p></section>`;
+    }
+
+    /* Candidate 附件始终经 Worker Bearer GET 转换为临时 Blob URL。 */
+    async function fetchCandidateAttachmentBlob(candidateId, attachmentId) {
+      const config = getCloudRuntimeConfig();
+      if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken || !config.sourceCaptureWorkerUrl) throw new Error('附件不可用');
+      const response = await fetch(`${config.sourceCaptureWorkerUrl}/candidate-attachments/${encodeURIComponent(candidateId)}/${encodeURIComponent(attachmentId)}`, {
+        headers: { 'Authorization': `Bearer ${cloudSyncState.accessToken}` }
+      });
+      if (!response.ok) throw new Error('附件不可用');
+      return response.blob();
+    }
+
+    function revokeCandidateAttachmentThumbnails() {
+      candidateAttachmentThumbnailUrls.forEach(url => URL.revokeObjectURL(url));
+      candidateAttachmentThumbnailUrls.clear();
+    }
+
+    async function hydrateCandidateAttachmentThumbnails(renderVersion) {
+      const previews = [...reviewQueueList.querySelectorAll('[data-candidate-attachment-id]')];
+      await Promise.all(previews.map(async preview => {
+        try {
+          const blob = await fetchCandidateAttachmentBlob(preview.dataset.candidateId, preview.dataset.candidateAttachmentId);
+          if (renderVersion !== candidateAttachmentRenderVersion || !preview.isConnected) return;
+          const objectUrl = URL.createObjectURL(blob);
+          candidateAttachmentThumbnailUrls.set(`${preview.dataset.candidateId}:${preview.dataset.candidateAttachmentId}`, objectUrl);
+          preview.innerHTML = `<img src="${escapeHtml(objectUrl)}" alt="${escapeHtml(preview.dataset.attachmentAlt)}">`;
+        } catch (error) {
+          if (renderVersion === candidateAttachmentRenderVersion && preview.isConnected) preview.innerHTML = '<span class="candidate-attachment-unavailable">预览不可用</span>';
+        }
+      }));
+    }
+
+    function renderCandidateAttachmentStrip(candidate) {
+      if (!sourceCaptureState.cloudSynced || !Array.isArray(candidate.attachments) || !candidate.attachments.length) return '';
+      const featureTitle = getCandidateFeatureTitle(candidate);
+      return `<div class="candidate-attachment-strip" aria-label="候选附件">${candidate.attachments.slice(0, 3).map((attachment, index) => `<button class="candidate-attachment-preview" type="button" data-candidate-id="${escapeHtml(candidate.id)}" data-candidate-attachment-id="${escapeHtml(attachment.id)}" data-attachment-alt="${escapeHtml(`${featureTitle}附件 ${index + 1}`)}" aria-label="查看附件 ${index + 1}"><span class="candidate-attachment-unavailable">正在加载</span></button>`).join('')}</div>`;
     }
 
     function renderReviewQueue() {
+      candidateAttachmentRenderVersion += 1;
+      revokeCandidateAttachmentThumbnails();
       const pending = sourceCaptureState.candidates.filter(item =>
         item.tabId === activeWorkspaceTab.id && item.status === 'pending'
       );
@@ -6999,8 +7073,9 @@
         const publicationLabels = { verified: '已核验', not_found: '未找到', unverified: '未核验' };
         const detectionWindow = item.detectionWindowStart && item.detectionWindowEnd ? `${formatDate(item.detectionWindowStart)} — ${formatDate(item.detectionWindowEnd)}` : '未记录';
         const publicationTime = item.publishedAt ? formatDate(item.publishedAt) : '未提供';
-        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>候选标题：${escapeHtml(item.title || '未命名候选')}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p><div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>弃用</button></div></article>`;
+        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>${escapeHtml(getCandidateFeatureTitle(item))}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p>${renderCandidateAttachmentStrip(item)}<div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>弃用</button></div></article>`;
       }).join('') : '<p class="review-queue-empty">当前没有待审核候选。云端同步未启用时，本机不会虚构采集结果。</p>';
+      if (pending.length && sourceCaptureState.cloudSynced) hydrateCandidateAttachmentThumbnails(candidateAttachmentRenderVersion);
     }
 
     /* 人工动作仅把候选内容带入既有证据编辑器；提交前不改变任何研究数据 */
@@ -7062,6 +7137,15 @@
     document.querySelector('#closeSourceDialogButton').addEventListener('click', () => sourceManagementDialog.close());
     reviewQueueButton.addEventListener('click', () => { renderReviewQueue(); reviewQueueDialog.showModal(); });
     document.querySelector('#closeReviewQueueButton').addEventListener('click', () => reviewQueueDialog.close());
+    reviewQueueDialog.addEventListener('close', revokeCandidateAttachmentThumbnails);
+    function closeCandidateAttachmentDialog() {
+      candidateAttachmentDialog.close();
+      candidateAttachmentFullImage.removeAttribute('src');
+      if (candidateAttachmentFullImageUrl) URL.revokeObjectURL(candidateAttachmentFullImageUrl);
+      candidateAttachmentFullImageUrl = '';
+    }
+    closeCandidateAttachmentButton.addEventListener('click', closeCandidateAttachmentDialog);
+    candidateAttachmentDialog.addEventListener('cancel', event => { event.preventDefault(); closeCandidateAttachmentDialog(); });
     document.querySelector('#cancelCaptureWindowButton').addEventListener('click', () => { captureWindowDialog.close(); pendingCaptureButton = null; });
     captureWindowForm.addEventListener('submit', async event => {
       event.preventDefault();
@@ -7084,7 +7168,19 @@
         setCaptureButtonLoading(captureButton, false);
       }
     });
-    reviewQueueList.addEventListener('click', event => {
+    reviewQueueList.addEventListener('click', async event => {
+      const attachmentButton = event.target.closest('[data-candidate-attachment-id]');
+      if (attachmentButton) {
+        try {
+          const blob = await fetchCandidateAttachmentBlob(attachmentButton.dataset.candidateId, attachmentButton.dataset.candidateAttachmentId);
+          candidateAttachmentFullImageUrl = URL.createObjectURL(blob);
+          candidateAttachmentFullImage.src = candidateAttachmentFullImageUrl;
+          candidateAttachmentFullImage.alt = attachmentButton.dataset.attachmentAlt;
+          candidateAttachmentDialog.showModal();
+          closeCandidateAttachmentButton.focus();
+        } catch (error) { window.alert('附件暂时不可用，请稍后重试。'); }
+        return;
+      }
       const prepareButton = event.target.closest('[data-prepare-candidate-id]');
       if (prepareButton) { prepareCandidateAsEvidence(prepareButton.dataset.prepareCandidateId); return; }
       const deleteButton = event.target.closest('[data-delete-candidate-id]');
@@ -7092,7 +7188,10 @@
       const candidateId = deleteButton.dataset.deleteCandidateId;
       const candidate = sourceCaptureState.candidates.find(item => item.id === candidateId && item.status === 'pending');
       if (!candidate || !window.confirm('确定弃用吗？这将永久删除此 Candidate，且只删除此 Candidate。运行、快照、证据、矩阵和洞察均不会被删除。')) return;
-      if (sourceCaptureState.cloudSynced) hardDeleteCloudCandidate(candidateId);
+      if (sourceCaptureState.cloudSynced) {
+        try { await hardDeleteCloudCandidate(candidateId); }
+        catch (error) { updateSourceSyncNotice('error', 'Candidate 未删除，请稍后重试。'); window.alert('Candidate 未删除，请稍后重试。'); return; }
+      }
       sourceCaptureState.candidates = sourceCaptureState.candidates.filter(item => item.id !== candidateId);
       persistSourceCaptureState();
       renderReviewQueue();
