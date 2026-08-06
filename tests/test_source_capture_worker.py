@@ -47,18 +47,11 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         )
         self.assertEqual(result, [True, False, False, False, False, False, False])
 
-    def test_scheduling_is_disabled_in_config_and_event_handler_is_a_noop(self):
+    def test_scheduling_is_absent_from_config_and_worker_handler(self):
         config = WRANGLER.read_text(encoding="utf-8")
         self.assertNotIn("crons", config)
-        result = self.run_module(
-            "async (module) => { let fetched = false; globalThis.fetch = async () => { fetched = true; }; "
-            "const direct = await module.runScheduledCapture({}); let promised; "
-            "await module.default.scheduled({}, {}, {waitUntil(value) { promised = value; }}); "
-            "const event = await promised; return {direct, event, fetched}; }"
-        )
-        self.assertTrue(result["direct"]["disabled"])
-        self.assertTrue(result["event"]["disabled"])
-        self.assertFalse(result["fetched"])
+        result = self.run_module("(module) => ({scheduled:typeof module.default.scheduled,fetch:typeof module.default.fetch})")
+        self.assertEqual(result, {"scheduled": "undefined", "fetch": "function"})
 
     def test_only_changelog_source_types_enable_subpage_discovery(self):
         result = self.run_module(
@@ -509,12 +502,54 @@ class SourceCaptureWorkerTests(unittest.TestCase):
     def test_worker_writes_review_pipeline_only_never_evidence_or_matrix_entities(self):
         source = WORKER.read_text(encoding="utf-8")
         self.assertIn("export default", source)
-        self.assertIn("scheduled", source)
+        self.assertNotIn("async scheduled", source)
         self.assertIn("source_capture_candidates", source)
         self.assertIn("source_capture_snapshots", source)
         self.assertNotIn("/rest/v1/evidence", source)
         self.assertNotIn("/rest/v1/matrix_cells", source)
         self.assertNotIn("/rest/v1/insights", source)
+
+    def test_preview_queue_uses_global_durable_object_alarm_not_wait_until_for_ai(self):
+        source = WORKER.read_text(encoding="utf-8")
+        config = WRANGLER.read_text(encoding="utf-8")
+        self.assertIn('idFromName("global")', source)
+        self.assertIn("export class CandidateAiQueue", source)
+        self.assertIn("async alarm()", source)
+        self.assertIn("source_capture_ai_queue", source)
+        self.assertNotIn("scheduleCandidateAnalysis", source)
+        self.assertIn('class_name = "CandidateAiQueue"', config)
+        self.assertIn('new_sqlite_classes = ["CandidateAiQueue"]', config)
+        self.assertNotIn("crons", config)
+
+    def test_retry_after_and_finite_backoff_contract(self):
+        result = self.run_module(
+            "(module) => ({seconds:module.parseRetryAfter('90',0),date:module.parseRetryAfter('Thu, 01 Jan 1970 00:02:00 GMT',60000),invalid:module.parseRetryAfter('private body',0)})"
+        )
+        self.assertEqual(result, {"seconds": 90000, "date": 60000, "invalid": None})
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn("[2 * 60_000, 5 * 60_000, 15 * 60_000]", source)
+        self.assertIn('const GLM_DEFAULT_MODEL = "glm-4.5-flash"', source)
+        self.assertNotIn('"glm-4.7-flash"', source)
+
+    def test_rate_limit_persists_safe_state_without_key_body_or_raw_error(self):
+        result = self.run_module(
+            "async (module) => {const calls=[],logs=[];console.warn=(value)=>logs.push(JSON.parse(value));"
+            "globalThis.fetch=async(url,init={})=>{const value=String(url),method=init.method||'GET',body=init.body?JSON.parse(init.body):null;"
+            "calls.push({url:value,method,body});if(value.endsWith('/rpc/reserve_source_capture_ai_budget'))return Response.json(true);"
+            "if(value.includes('api.z.ai'))return new Response('raw private quota body',{status:429,headers:{'Retry-After':'90'}});"
+            "if(method==='PATCH')return new Response(null,{status:204});throw new Error('unexpected')};"
+            "await module.processCandidateAnalysis({SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',ZAI_API_KEY:'zai-secret'},"
+            "{candidate_id:'candidate-id',page_title:'Private title',canonical_url:'https://example.com/?secret=1',input_text:'Private body',attempt_count:0},new Date('2026-08-06T00:00:00Z'));"
+            "return {calls,logs};}"
+        )
+        candidate_patch = next(call for call in result["calls"] if "source_capture_candidates?id=eq.candidate-id" in call["url"])
+        queue_patch = next(call for call in result["calls"] if "source_capture_ai_queue?candidate_id=eq.candidate-id" in call["url"])
+        self.assertEqual(candidate_patch["body"]["analysis_status"], "rate_limited")
+        self.assertEqual(queue_patch["body"]["failure_code"], "rate_limited")
+        self.assertEqual(queue_patch["body"]["next_attempt_at"], "2026-08-06T00:01:30.000Z")
+        serialized = json.dumps({"patches": [candidate_patch, queue_patch], "logs": result["logs"]})
+        for secret in ["zai-secret", "service-secret", "Private title", "secret=1", "Private body", "raw private quota body"]:
+            self.assertNotIn(secret, serialized)
 
     def test_manual_capture_route_and_cors_allow_only_pages_production_and_previews(self):
         result = self.run_module(
@@ -636,9 +671,11 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "if (value.includes('/source_capture_snapshots?on_conflict=') && method === 'POST') return Response.json([body]); "
             "if (value.includes('/source_capture_candidates?') && method === 'GET') return Response.json([]); "
             "if (value.includes('/source_capture_candidates?on_conflict=') && method === 'POST') return Response.json([body]); "
+            "if (value.includes('/source_capture_ai_queue?on_conflict=') && method === 'POST') return Response.json([body]); "
             "if (method === 'PATCH') return new Response(null, {status: 204}); throw new Error('unexpected request ' + value); }; "
+            "const queue={idFromName:()=>({}),get:()=>({fetch:async()=>new Response(null,{status:204})})}; "
             "const env = {SUPABASE_URL: 'https://project.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'service-secret', "
-            "SUPABASE_PUBLISHABLE_KEY: 'public-key'}; const response = await module.default.fetch(new Request('https://worker.example/manual-capture', {method: 'POST', "
+            "SUPABASE_PUBLISHABLE_KEY: 'public-key',CANDIDATE_AI_QUEUE:queue}; const response = await module.default.fetch(new Request('https://worker.example/manual-capture', {method: 'POST', "
             "headers: {Origin: 'https://zacclover-competitor.pages.dev', Authorization: 'Bearer user-jwt', 'Content-Type': 'application/json'}, "
             "body: JSON.stringify({sourceId: '11111111-1111-4111-8111-111111111111', observationWindow:{start:'2026-07-01T00:00:00Z',end:'2026-08-03T12:00:00Z'}})}), env, {}); "
             "return {status: response.status, body: await response.json(), calls}; }"
@@ -675,11 +712,10 @@ class SourceCaptureWorkerTests(unittest.TestCase):
             "if(value.includes('/source_capture_snapshots?on_conflict=')&&method==='POST')return Response.json([body]);"
             "if(value.includes('/source_capture_candidates?')&&method==='GET')return Response.json([{id:'existing-candidate',workspace_id:'33333333-3333-4333-8333-333333333333',status:'pending',analysis_status:'unavailable'}]);"
             "if(value.includes('/candidate_attachments?')&&method==='GET')return Response.json([]);"
-            "if(value.endsWith('/rpc/reserve_source_capture_ai_budget'))return Response.json(true);"
-            "if(value.endsWith('/v1beta/models'))return Response.json({models:[{name:'models/gemini-2.5-flash-lite',supportedGenerationMethods:['generateContent']}]});"
-            "if(value.includes(':generateContent'))return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(analysis)}]}}]});"
+            "if(value.includes('/source_capture_ai_queue?on_conflict=')&&method==='POST')return Response.json([body]);"
             "if(method==='PATCH')return new Response(null,{status:204});if(method==='POST'&&value.includes('/source_capture_candidates'))throw new Error('duplicate candidate');throw new Error('unexpected '+value)};"
-            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public-key',GEMINI_API_KEY:'gemini-secret'};"
+            "const queue={idFromName:()=>({}),get:()=>({fetch:async()=>new Response(null,{status:204})})};"
+            "const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',SUPABASE_PUBLISHABLE_KEY:'public-key',CANDIDATE_AI_QUEUE:queue};"
             "const response=await module.default.fetch(new Request('https://worker.example/manual-capture',{method:'POST',headers:{Authorization:'Bearer jwt','Content-Type':'application/json'},body:JSON.stringify({sourceId:'11111111-1111-4111-8111-111111111111',observationWindow:{start:'2026-07-01T00:00:00Z',end:'2026-08-03T12:00:00Z'}})}),env,{});return {status:response.status,body:await response.json(),calls};}"
         )
         self.assertEqual(result["status"], 200)
@@ -689,16 +725,17 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertIn("workspace_id=eq.33333333-3333-4333-8333-333333333333", lookup["url"])
         self.assertIn("source_id=eq.11111111-1111-4111-8111-111111111111", lookup["url"])
         patch = next(call for call in result["calls"] if call["method"] == "PATCH" and "source_capture_candidates?id=eq.existing-candidate" in call["url"])
-        self.assertEqual(patch["body"]["analysis_status"], "available")
+        self.assertEqual(patch["body"]["analysis_status"], "pending")
 
     def test_manual_capture_skips_analysis_retry_for_available_candidate(self):
         result = self.run_module(
             "(module) => ({unavailable:module.shouldRetryExistingCandidate('manual',{status:'pending',analysis_status:'unavailable'}),"
+            "rateLimited:module.shouldRetryExistingCandidate('manual',{status:'pending',analysis_status:'rate_limited'}),"
             "available:module.shouldRetryExistingCandidate('manual',{status:'pending',analysis_status:'available'}),"
             "scheduled:module.shouldRetryExistingCandidate('scheduled',{status:'pending',analysis_status:'unavailable'}),"
             "reviewed:module.shouldRetryExistingCandidate('manual',{status:'accepted',analysis_status:'unavailable'})})"
         )
-        self.assertEqual(result, {"unavailable": True, "available": False, "scheduled": False, "reviewed": False})
+        self.assertEqual(result, {"unavailable": True, "rateLimited": True, "available": False, "scheduled": False, "reviewed": False})
 
 
 if __name__ == "__main__":

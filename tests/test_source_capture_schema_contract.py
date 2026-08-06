@@ -25,6 +25,9 @@ ATTACHMENT_MIGRATION_PATH = (
 PRESENTATION_MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260803050000_candidate_presentation_contract.sql"
 )
+QUEUE_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260806000000_preview_candidate_ai_queue.sql"
+)
 
 
 class SourceCaptureSchemaContractTests(unittest.TestCase):
@@ -153,6 +156,17 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
         self.assertIn("grant execute on function public.reserve_source_capture_ai_budget(integer, integer, bigint) to service_role", migration)
         self.assertNotIn("to anon", migration.lower())
         self.assertNotIn("to authenticated", migration.lower())
+
+    def test_preview_ai_queue_is_durable_candidate_only_and_has_four_states(self):
+        migration = QUEUE_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("create table public.source_capture_ai_queue", migration)
+        self.assertIn("candidate_id uuid primary key references public.source_capture_candidates(id) on delete cascade", migration)
+        self.assertIn("check (analysis_status in ('pending', 'rate_limited', 'available', 'unavailable'))", migration)
+        self.assertIn("attempt_count integer not null default 0 check (attempt_count between 0 and 4)", migration)
+        self.assertIn("source_capture_ai_queue_due_idx", migration)
+        self.assertIn("enable row level security", migration)
+        self.assertIn("to service_role", migration)
+        self.assertNotRegex(migration, r"public\.(evidence|matrix_cells|insights)\b")
 
 
 if __name__ == "__main__":

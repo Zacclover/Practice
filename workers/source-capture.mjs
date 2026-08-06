@@ -14,12 +14,13 @@ const ANALYSIS_RESERVED_TOKENS = 8_000;
 const DAILY_AI_REQUEST_LIMIT = 20;
 const DAILY_AI_TOKEN_LIMIT = 160_000;
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
-const GLM_DEFAULT_MODEL = "glm-4.7-flash";
-const GLM_FALLBACK_MODEL = "glm-4.5-flash";
+const GLM_DEFAULT_MODEL = "glm-4.5-flash";
 const GLM_CHAT_COMPLETIONS_ENDPOINT = "https://api.z.ai/api/paas/v4/chat/completions";
 const GEMINI_MODELS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v2";
 const REQUEST_TIMEOUT_MS = 20_000;
+const INITIAL_PROVIDER_PACE_MS = 30_000;
+const AI_RETRY_DELAYS_MS = [2 * 60_000, 5 * 60_000, 15 * 60_000];
 const MANUAL_CAPTURE_COOLDOWN_MS = 5 * 60 * 1000;
 const MAX_UPDATE_CHILD_PAGES = 20;
 const MAX_CANDIDATE_IMAGES = 3;
@@ -42,10 +43,6 @@ const PAGE_FALLBACK = Object.freeze({
 });
 
 export default {
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(runScheduledCapture(env));
-  },
-
   // 手动采集 HTTP 入口：仅接受受信 Pages 来源发起的认证 POST。
   async fetch(request, env, ctx) {
     return handleManualCaptureRequest(request, env, ctx);
@@ -207,15 +204,8 @@ async function handleCandidateAttachmentDelete(request, env, candidateId, corsHe
   }
 }
 
-// 定时事件是显式禁用边界：不读取来源、不抓取、不写入任何记录。
-export async function runScheduledCapture(_env) {
-  return { disabled: true, inspected: 0, succeeded: 0, failed: 0 };
-}
-
-async function captureSource(source, env, triggerType = "scheduled", explicitWindow = null, plannedAt = new Date(), ctx = null) {
-  const analysisRequestCache = {};
+async function captureSource(source, env, triggerType = "manual", explicitWindow = null, plannedAt = new Date(), ctx = null) {
   const deferredAttachmentTasks = [];
-  const deferredAnalysisTasks = [];
   const observationWindow = explicitWindow || await deriveObservationWindow(env, source.id, plannedAt);
   const run = await insertRecord(env, "source_capture_runs", {
     id: crypto.randomUUID(),
@@ -260,9 +250,9 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
             if (!await candidateHasAttachments(env, existingCandidate.workspace_id, existingCandidate.id)) {
               scheduleCandidateImageAttachments(deferredAttachmentTasks, env, existingCandidate, entry);
             }
-            scheduleCandidateAnalysis(deferredAnalysisTasks, env, existingCandidate.id, {
+            await enqueueCandidateAnalysis(env, existingCandidate.id, {
               title: entry.title, canonicalUrl: entry.url,
-            }, entry.extractedText, analysisRequestCache);
+            }, entry.extractedText);
           }
           continue;
         }
@@ -272,7 +262,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
           competitor_id: source.competitor_id, source_id: source.id, run_id: run.id,
           snapshot_id: savedSnapshot?.id || previousSnapshot?.id, source_url: entry.url,
           title: FEATURE_FALLBACK.title, summary: FEATURE_FALLBACK.summary, quoted_text: "",
-          content_hash: entryHash, status: "pending", analysis_status: "unavailable",
+          content_hash: entryHash, status: "pending", analysis_status: "pending",
           publication_time_status: "verified", published_at: entry.publishedAt,
           detection_window_start: observationWindow.start, detection_window_end: observationWindow.end,
           detection_window_basis: observationWindow.basis,
@@ -283,9 +273,9 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         candidateQueued = true;
         candidateCount += 1;
         scheduleCandidateImageAttachments(deferredAttachmentTasks, env, candidate, entry);
-        scheduleCandidateAnalysis(deferredAnalysisTasks, env, candidate.id, {
+        await enqueueCandidateAnalysis(env, candidate.id, {
           title: entry.title, canonicalUrl: entry.url,
-        }, entry.extractedText, analysisRequestCache);
+        }, entry.extractedText);
       }
     } else if (isChanged) {
       const candidate = await insertRecord(env, "source_capture_candidates", {
@@ -302,14 +292,14 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         quoted_text: "",
         content_hash: snapshot.contentHash,
         status: "pending",
-        analysis_status: "unavailable",
+        analysis_status: "pending",
         publication_time_status: "unverified",
         detection_window_start: observationWindow.start,
         detection_window_end: observationWindow.end,
         detection_window_basis: observationWindow.basis,
       });
       candidateCount = candidate ? 1 : 0;
-      if (candidate) scheduleCandidateAnalysis(deferredAnalysisTasks, env, candidate.id, page, snapshot.extractedText, analysisRequestCache);
+      if (candidate) await enqueueCandidateAnalysis(env, candidate.id, page, snapshot.extractedText);
     }
 
     await updateRecord(env, "competitor_sources", source.id, {
@@ -320,10 +310,7 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       http_status: page.httpStatus,
       finished_at: new Date().toISOString(),
     });
-    const optionalEnrichmentWork = Promise.allSettled([
-      ...deferredAttachmentTasks.map((task) => task()),
-      runDeferredTasksSequentially(deferredAnalysisTasks),
-    ]);
+    const optionalEnrichmentWork = Promise.allSettled(deferredAttachmentTasks.map((task) => task()));
     if (typeof ctx?.waitUntil === "function") ctx.waitUntil(optionalEnrichmentWork);
     else await optionalEnrichmentWork;
     return {
@@ -343,16 +330,32 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
   }
 }
 
-// 免费 Provider 的请求按候选顺序串行，避免单次手动抓取并发耗尽其瞬时频控。
-async function runDeferredTasksSequentially(tasks) {
-  for (const task of tasks) {
-    try { await task(); } catch { /* 单条可选分析失败不影响其余候选。 */ }
+// AI 队列先持久化每个 Candidate，再唤醒全局单例；分析不依赖请求生命周期或 waitUntil。
+export async function enqueueCandidateAnalysis(env, candidateId, page, extractedText) {
+  const input = prepareAnalysisInput(extractedText);
+  const now = new Date().toISOString();
+  if (!input) {
+    await updateRecord(env, "source_capture_candidates", candidateId, { analysis_status: "unavailable" });
+    return false;
   }
-}
-
-// 可选 AI 分析在 Candidate 已创建且 run 成功后执行，不能拖慢手动抓取响应。
-function scheduleCandidateAnalysis(deferredAnalysisTasks, env, candidateId, page, extractedText, analysisRequestCache) {
-  deferredAnalysisTasks.push(() => enrichCandidateWithAnalysis(env, candidateId, page, extractedText, analysisRequestCache));
+  await insertRecord(env, "source_capture_ai_queue?on_conflict=candidate_id", {
+    candidate_id: candidateId,
+    page_title: String(page?.title || "").slice(0, 500),
+    canonical_url: String(page?.canonicalUrl || ""),
+    input_text: input,
+    status: "pending",
+    attempt_count: 0,
+    next_attempt_at: now,
+    failure_code: null,
+  }, "resolution=merge-duplicates,return=representation");
+  await updateRecord(env, "source_capture_candidates", candidateId, {
+    analysis_status: "pending", analysis_input_chars: Array.from(input).length,
+  });
+  if (!env?.CANDIDATE_AI_QUEUE) throw new Error("AI queue binding unavailable");
+  const queue = env.CANDIDATE_AI_QUEUE.get(env.CANDIDATE_AI_QUEUE.idFromName("global"));
+  const response = await queue.fetch("https://candidate-ai-queue.internal/wake", { method: "POST" });
+  if (!response.ok) throw new Error("AI queue wake unavailable");
+  return true;
 }
 
 // 图片是可选私有附件：Candidate 已创建后才在请求生命周期外补抓，不能拖慢手动抓取响应。
@@ -368,7 +371,7 @@ export function supportsUpdateSubpageDiscovery(sourceType) {
 // 仅用户触发的手动采集可重试尚未分析的待审核候选。
 export function shouldRetryExistingCandidate(triggerType, candidate) {
   return triggerType === "manual" && candidate?.status === "pending" &&
-    candidate.analysis_status === "unavailable";
+    ["rate_limited", "unavailable"].includes(candidate.analysis_status);
 }
 
 // 观察窗口：手动显式窗口必须成对、为合法 ISO 时间且不延伸到未来。
@@ -386,7 +389,7 @@ export function validateObservationWindow(value, now = new Date()) {
   return { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString(), basis: "explicit" };
 }
 
-// 定时与未显式指定窗口的手动任务，从上次成功结束时间观察到本次计划时间。
+// 未显式指定窗口的手动任务，从上次成功结束时间观察到本次计划时间。
 export async function deriveObservationWindow(env, sourceId, plannedAt) {
   const records = await supabaseRequest(
     env,
@@ -749,6 +752,141 @@ export function prepareAnalysisInput(text) {
   return Array.from(lines.join("\n")).slice(0, MAX_ANALYSIS_INPUT_CHARS).join("");
 }
 
+// Preview Durable Object：固定名称 global 保证所有 Provider 请求严格串行，Alarm 使队列跨请求持久运行。
+export class CandidateAiQueue {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    if (new URL(request.url).pathname !== "/wake" || request.method !== "POST") {
+      return new Response(null, { status: 404 });
+    }
+    const alarm = await this.state.storage.getAlarm();
+    if (alarm === null) await this.state.storage.setAlarm(Date.now());
+    return new Response(null, { status: 204 });
+  }
+
+  async alarm() {
+    const item = await getNextCandidateAnalysis(this.env, new Date());
+    if (!item) return scheduleNextCandidateAlarm(this.state.storage, this.env, Date.now());
+
+    const paceMs = await this.state.storage.get("provider_pace_ms") || INITIAL_PROVIDER_PACE_MS;
+    const lastRequestAt = await this.state.storage.get("last_provider_request_at") || 0;
+    const waitUntil = lastRequestAt + paceMs;
+    if (waitUntil > Date.now()) {
+      await this.state.storage.setAlarm(waitUntil);
+      return;
+    }
+
+    await this.state.storage.put("last_provider_request_at", Date.now());
+    const outcome = await processCandidateAnalysis(this.env, item);
+    const nextPace = outcome.rateLimited
+      ? Math.max(INITIAL_PROVIDER_PACE_MS, outcome.retryDelayMs)
+      : Math.max(INITIAL_PROVIDER_PACE_MS, Math.floor(paceMs * 0.8));
+    await this.state.storage.put("provider_pace_ms", nextPace);
+    await scheduleNextCandidateAlarm(this.state.storage, this.env, Date.now() + nextPace);
+  }
+}
+
+async function getNextCandidateAnalysis(env, now) {
+  const records = await supabaseRequest(env,
+    "/rest/v1/source_capture_ai_queue?status=in.(pending,rate_limited)" +
+    `&next_attempt_at=lte.${encodeURIComponent(now.toISOString())}` +
+    "&select=candidate_id,page_title,canonical_url,input_text,status,attempt_count,next_attempt_at" +
+    "&order=next_attempt_at.asc,created_at.asc&limit=1");
+  return records[0] || null;
+}
+
+async function scheduleNextCandidateAlarm(storage, env, earliestMs) {
+  const records = await supabaseRequest(env,
+    "/rest/v1/source_capture_ai_queue?status=in.(pending,rate_limited)" +
+    "&select=next_attempt_at&order=next_attempt_at.asc,created_at.asc&limit=1");
+  if (!records[0]) return;
+  const dueMs = Date.parse(records[0].next_attempt_at);
+  await storage.setAlarm(Math.max(earliestMs, Number.isFinite(dueMs) ? dueMs : earliestMs));
+}
+
+// 单次队列消费只调用 GLM-4.5-Flash；分类结果仅保存固定代码，绝不保存原始错误或响应正文。
+export async function processCandidateAnalysis(env, item, now = new Date()) {
+  const attemptCount = Number(item.attempt_count || 0) + 1;
+  if (!env?.ZAI_API_KEY) {
+    await finishCandidateAnalysis(env, item.candidate_id, "unavailable", attemptCount, "missing_model_config");
+    return { rateLimited: false, retryDelayMs: 0 };
+  }
+  let reserved = false;
+  try { reserved = await reserveAnalysisBudget(env); } catch { /* 固定失败分类，不泄漏数据服务错误。 */ }
+  if (!reserved) {
+    await finishCandidateAnalysis(env, item.candidate_id, "unavailable", attemptCount, "budget_unavailable");
+    return { rateLimited: false, retryDelayMs: 0 };
+  }
+
+  try {
+    const analysis = await requestGlmAnalysis(env, GLM_DEFAULT_MODEL, {
+      title: item.page_title, canonicalUrl: item.canonical_url,
+    }, item.input_text);
+    await updateRecord(env, "source_capture_candidates", item.candidate_id, {
+      title: analysis.feature_title,
+      summary: analysis.feature_summary,
+      quoted_text: "",
+      analysis_status: "available",
+      analysis,
+      analysis_model: GLM_DEFAULT_MODEL,
+      analysis_schema_version: ANALYSIS_SCHEMA_VERSION,
+      analysis_input_chars: Array.from(item.input_text).length,
+      analysis_reserved_tokens: ANALYSIS_RESERVED_TOKENS,
+      analyzed_at: now.toISOString(),
+    });
+    await patchCandidateQueue(env, item.candidate_id, {
+      status: "available", attempt_count: attemptCount, failure_code: null,
+    });
+    return { rateLimited: false, retryDelayMs: 0 };
+  } catch (error) {
+    const isRateLimited = error instanceof AnalysisUnavailableError && error.httpStatus === 429;
+    const retryable = isRateLimited || error instanceof AnalysisUnavailableError && error.httpStatus >= 500;
+    if (retryable && attemptCount <= AI_RETRY_DELAYS_MS.length) {
+      const fallbackDelay = AI_RETRY_DELAYS_MS[attemptCount - 1];
+      const retryDelayMs = isRateLimited && Number.isFinite(error.retryAfterMs)
+        ? error.retryAfterMs : fallbackDelay;
+      const status = isRateLimited ? "rate_limited" : "pending";
+      await updateRecord(env, "source_capture_candidates", item.candidate_id, { analysis_status: status });
+      await patchCandidateQueue(env, item.candidate_id, {
+        status, attempt_count: attemptCount,
+        next_attempt_at: new Date(now.getTime() + retryDelayMs).toISOString(),
+        failure_code: isRateLimited ? "rate_limited" : "provider_unavailable",
+      });
+      logAnalysisUnavailable(isRateLimited ? "rate_limited" : "provider_unavailable", error.httpStatus);
+      return { rateLimited: isRateLimited, retryDelayMs };
+    }
+    const failureCode = error instanceof AnalysisUnavailableError && error.reason === "glm_invalid_response"
+      ? "invalid_response" : error instanceof AnalysisUnavailableError && error.reason === "glm_malformed_response"
+        ? "malformed_response" : "provider_unavailable";
+    await finishCandidateAnalysis(env, item.candidate_id, "unavailable", attemptCount, failureCode);
+    logAnalysisUnavailable(failureCode, error instanceof AnalysisUnavailableError ? error.httpStatus : undefined);
+    return { rateLimited: false, retryDelayMs: 0 };
+  }
+}
+
+async function finishCandidateAnalysis(env, candidateId, status, attemptCount, failureCode) {
+  await updateRecord(env, "source_capture_candidates", candidateId, { analysis_status: status });
+  await patchCandidateQueue(env, candidateId, { status, attempt_count: Math.min(attemptCount, 4), failure_code: failureCode });
+}
+
+async function patchCandidateQueue(env, candidateId, values) {
+  await supabaseRequest(env,
+    `/rest/v1/source_capture_ai_queue?candidate_id=eq.${encodeURIComponent(candidateId)}`,
+    { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(values) });
+}
+
+// Retry-After 支持秒数与 HTTP 日期；无效或过去值交由固定指数退避处理。
+export function parseRetryAfter(value, nowMs = Date.now()) {
+  const text = String(value || "").trim();
+  if (/^\d+$/.test(text)) return Number(text) * 1000;
+  const dateMs = Date.parse(text);
+  return Number.isFinite(dateMs) && dateMs > nowMs ? dateMs - nowMs : null;
+}
+
 // Preview-only 候选分析：任何配置、额度、网络或校验失败都保持候选成功且仅记录 unavailable。
 export async function enrichCandidateWithAnalysis(env, candidateId, page, extractedText, analysisRequestCache = {}) {
   if (!env?.ZAI_API_KEY && !env?.GEMINI_API_KEY) {
@@ -783,7 +921,7 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
     let analysis;
     let glmError = null;
     if (env?.ZAI_API_KEY) {
-      for (const candidateModel of [GLM_DEFAULT_MODEL, GLM_FALLBACK_MODEL]) {
+      for (const candidateModel of [GLM_DEFAULT_MODEL]) {
         try {
           analysis = await requestGlmAnalysis(env, candidateModel, page, input);
           model = candidateModel;
@@ -899,11 +1037,12 @@ function logAnalysisUnavailable(reason, httpStatus) {
 }
 
 class AnalysisUnavailableError extends Error {
-  constructor(reason, httpStatus) {
+  constructor(reason, httpStatus, retryAfterMs = null) {
     super("analysis unavailable");
     this.name = "AnalysisUnavailableError";
     this.reason = reason;
     this.httpStatus = httpStatus;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -919,7 +1058,7 @@ async function reserveAnalysisBudget(env) {
   return result === true;
 }
 
-// GLM 免费模型优先级：4.7 Flash 首选，4.5 Flash 仅在首选不可用时安全回退；密钥不会离开 Worker。
+// GLM-4.5-Flash 是 Preview 队列唯一主模型；密钥不会离开 Worker。
 async function requestGlmAnalysis(env, model, page, input) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -941,7 +1080,12 @@ async function requestGlmAnalysis(env, model, page, input) {
         ],
       }),
     });
-    if (!response.ok) throw new AnalysisUnavailableError("glm_http_status", response.status);
+    if (!response.ok) {
+      throw new AnalysisUnavailableError(
+        "glm_http_status", response.status,
+        response.status === 429 ? parseRetryAfter(response.headers.get("Retry-After")) : null,
+      );
+    }
     let payload;
     try { payload = await response.json(); } catch { throw new AnalysisUnavailableError("glm_malformed_response"); }
     const raw = payload?.choices?.[0]?.message?.content;
