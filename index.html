@@ -6992,7 +6992,7 @@
     }
 
     function getCandidateAnalysis(candidate) {
-      return candidate.analysisStatus !== 'unavailable' && candidate.analysis && typeof candidate.analysis === 'object' ? candidate.analysis : null;
+      return candidate.analysisStatus === 'available' && candidate.analysis && typeof candidate.analysis === 'object' ? candidate.analysis : null;
     }
 
     function analysisText(analysis, ...keys) {
@@ -7007,8 +7007,17 @@
       return /[\u3400-\u9fff]/.test(title) ? title : '待审核功能更新';
     }
 
-    /* 候选正文只呈现简洁功能总结，不回退到摘录、原始摘要或其他分析分区。 */
+    /* Candidate 审核卡按异步分析状态展示安全中文文案，未完成分析时不回退原始内容。 */
     function renderCandidateAnalysis(candidate) {
+      if (candidate.analysisStatus === 'pending') {
+        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>等待 AI 分析</p></section>';
+      }
+      if (candidate.analysisStatus === 'rate_limited') {
+        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>等待限流恢复</p></section>';
+      }
+      if (candidate.analysisStatus === 'unavailable') {
+        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>AI 分析暂不可用</p></section>';
+      }
       const analysis = getCandidateAnalysis(candidate);
       const summary = analysisText(analysis, 'feature_summary', 'featureSummary', 'feature_summary_zh', 'featureSummaryZh');
       return `<section class="review-candidate-summary"><h4>功能总结</h4><p>${escapeHtml(summary || 'AI 分析暂不可用，暂无功能总结。')}</p></section>`;
