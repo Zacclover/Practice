@@ -818,8 +818,14 @@ export async function processCandidateAnalysis(env, item, now = new Date()) {
   let reserved = false;
   try { reserved = await reserveAnalysisBudget(env); } catch { /* 固定失败分类，不泄漏数据服务错误。 */ }
   if (!reserved) {
-    await finishCandidateAnalysis(env, item.candidate_id, "unavailable", attemptCount, "budget_unavailable");
-    return { rateLimited: false, retryDelayMs: 0 };
+    // 内部日预算耗尽不是模型不可用：保留任务到下一 UTC 日，避免新 Candidate 立刻终态失败。
+    const nextAttemptAt = nextUtcDayStart(now);
+    await updateRecord(env, "source_capture_candidates", item.candidate_id, { analysis_status: "rate_limited" });
+    await patchCandidateQueue(env, item.candidate_id, {
+      status: "rate_limited", attempt_count: Number(item.attempt_count || 0),
+      next_attempt_at: nextAttemptAt.toISOString(), failure_code: "budget_unavailable",
+    });
+    return { rateLimited: true, retryDelayMs: Math.max(0, nextAttemptAt.getTime() - now.getTime()) };
   }
 
   try {
@@ -878,6 +884,11 @@ async function patchCandidateQueue(env, candidateId, values) {
   await supabaseRequest(env,
     `/rest/v1/source_capture_ai_queue?candidate_id=eq.${encodeURIComponent(candidateId)}`,
     { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(values) });
+}
+
+// 内部日预算以 UTC 日为边界；预算耗尽的任务从下一日零点继续消费。
+function nextUtcDayStart(now) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
 }
 
 // Retry-After 支持秒数与 HTTP 日期；无效或过去值交由固定指数退避处理。
