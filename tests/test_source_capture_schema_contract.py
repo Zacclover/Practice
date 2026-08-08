@@ -16,6 +16,18 @@ SERVICE_ROLE_GRANTS_MIGRATION_PATH = (
 PREVIEW_AI_MIGRATION_PATH = (
     ROOT / "supabase" / "migrations" / "20260803020000_preview_candidate_ai_analysis.sql"
 )
+SUBPAGE_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803030000_changelog_subpage_candidates.sql"
+)
+ATTACHMENT_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803040000_candidate_attachments.sql"
+)
+PRESENTATION_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260803050000_candidate_presentation_contract.sql"
+)
+QUEUE_MIGRATION_PATH = (
+    ROOT / "supabase" / "migrations" / "20260806000000_preview_candidate_ai_queue.sql"
+)
 
 
 class SourceCaptureSchemaContractTests(unittest.TestCase):
@@ -89,6 +101,29 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
         self.assertNotIn("to anon", migration.lower())
         self.assertNotIn("to authenticated", migration.lower())
 
+    def test_changelog_candidates_store_traceable_selected_entry_sets(self):
+        migration = SUBPAGE_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("alter table public.source_capture_candidates", migration)
+        self.assertIn("selected_entries jsonb", migration)
+        self.assertIn("excluded_missing_date_count integer", migration)
+        self.assertNotRegex(migration, r"public\.(evidence|matrix_cells|insights)\b")
+
+    def test_candidate_attachments_are_private_member_readable_and_worker_managed(self):
+        migration = ATTACHMENT_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("insert into storage.buckets", migration)
+        self.assertIn("'candidate-attachments'", migration)
+        self.assertIn("false", migration.lower())
+        self.assertIn("create table public.candidate_attachments", migration)
+        self.assertIn("references public.source_capture_candidates(id) on delete cascade", migration)
+        self.assertIn("alter table public.candidate_attachments enable row level security", migration)
+        self.assertRegex(migration, r"for select\s+to authenticated")
+        self.assertIn("grant select on table public.candidate_attachments to authenticated;", migration)
+        self.assertIn("grant delete on table public.source_capture_candidates to service_role;", migration)
+        self.assertIn("public.is_workspace_member(workspace_id)", migration)
+        self.assertIn("to service_role", migration)
+        self.assertNotRegex(migration, r"for delete\s+to authenticated")
+        self.assertNotIn("delete from storage.objects", migration.lower())
+
     def test_preview_analysis_is_candidate_only_and_has_structured_status_metadata(self):
         migration = PREVIEW_AI_MIGRATION_PATH.read_text(encoding="utf-8")
         self.assertIn("alter table public.source_capture_candidates", migration)
@@ -100,6 +135,14 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
             self.assertIn(column, migration)
         self.assertNotRegex(migration, r"alter table public\.(evidence|matrix_cells|insights)\b")
         self.assertNotRegex(migration, r"insert into public\.(evidence|matrix_cells|insights)\b")
+
+    def test_candidate_presentation_contract_allows_null_quotes_and_versions_analysis(self):
+        migration = PRESENTATION_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("alter table public.source_capture_candidates", migration)
+        self.assertIn("alter column quoted_text drop not null", migration)
+        self.assertIn("alter column quoted_text drop default", migration)
+        self.assertIn("preview_candidate_analysis_v2", migration)
+        self.assertNotRegex(migration, r"public\.(evidence|matrix_cells|insights)\b")
 
     def test_daily_ai_budget_reservation_is_atomic_fail_closed_and_service_role_only(self):
         migration = PREVIEW_AI_MIGRATION_PATH.read_text(encoding="utf-8")
@@ -113,6 +156,17 @@ class SourceCaptureSchemaContractTests(unittest.TestCase):
         self.assertIn("grant execute on function public.reserve_source_capture_ai_budget(integer, integer, bigint) to service_role", migration)
         self.assertNotIn("to anon", migration.lower())
         self.assertNotIn("to authenticated", migration.lower())
+
+    def test_preview_ai_queue_is_durable_candidate_only_and_has_four_states(self):
+        migration = QUEUE_MIGRATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("create table public.source_capture_ai_queue", migration)
+        self.assertIn("candidate_id uuid primary key references public.source_capture_candidates(id) on delete cascade", migration)
+        self.assertIn("check (analysis_status in ('pending', 'rate_limited', 'available', 'unavailable'))", migration)
+        self.assertIn("attempt_count integer not null default 0 check (attempt_count between 0 and 4)", migration)
+        self.assertIn("source_capture_ai_queue_due_idx", migration)
+        self.assertIn("enable row level security", migration)
+        self.assertIn("to service_role", migration)
+        self.assertNotRegex(migration, r"public\.(evidence|matrix_cells|insights)\b")
 
 
 if __name__ == "__main__":

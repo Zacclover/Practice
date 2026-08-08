@@ -1,6 +1,6 @@
 // ============================================================
 // 公开来源抓取 Worker：只生成待审核候选，永不写入正式证据、矩阵或洞察。
-// 通过 Cloudflare Cron 定时运行；服务端密钥仅存在于 Worker 环境变量。
+// 仅由受认证的手动 POST 运行；服务端密钥仅存在于 Worker 环境变量。
 // ============================================================
 const SUPABASE_HEADERS = (serviceRoleKey) => ({
   apikey: serviceRoleKey,
@@ -11,33 +11,58 @@ const MAX_RESPONSE_BYTES = 1_500_000;
 const MAX_EXTRACTED_TEXT_LENGTH = 12_000;
 const MAX_ANALYSIS_INPUT_CHARS = 6_000;
 const ANALYSIS_RESERVED_TOKENS = 8_000;
-const DAILY_AI_REQUEST_LIMIT = 20;
-const DAILY_AI_TOKEN_LIMIT = 160_000;
+const DAILY_AI_REQUEST_LIMIT = 200;
+const DAILY_AI_TOKEN_LIMIT = 1_000_000;
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
-const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v1";
+const GLM_DEFAULT_MODEL = "glm-4.5-flash";
+const GLM_CHAT_COMPLETIONS_ENDPOINT = "https://api.z.ai/api/paas/v4/chat/completions";
+const GEMINI_MODELS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+const ANALYSIS_SCHEMA_VERSION = "preview_candidate_analysis_v2";
 const REQUEST_TIMEOUT_MS = 20_000;
+const INITIAL_PROVIDER_PACE_MS = 30_000;
+const AI_RETRY_DELAYS_MS = [2 * 60_000, 5 * 60_000, 15 * 60_000];
 const MANUAL_CAPTURE_COOLDOWN_MS = 5 * 60 * 1000;
+const MAX_UPDATE_CHILD_PAGES = 20;
+const MAX_CANDIDATE_IMAGES = 3;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const CANDIDATE_ATTACHMENTS_BUCKET = "candidate-attachments";
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const SEMANTIC_SOURCE_TYPES = new Set(["changelog", "release_notes"]);
 const PAGES_PRODUCTION_HOST = "zacclover-competitor.pages.dev";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+const SIMPLIFIED_CHINESE_TEXT_PATTERN = /[\u3400-\u9fff]/u;
+const LATIN_TEXT_PATTERN = /[A-Za-z]/;
+const FEATURE_FALLBACK = Object.freeze({
+  title: "待分析功能更新",
+  summary: "发现一项发布时间符合观察窗口的功能更新，具体内容请查看来源页面。",
+});
+const PAGE_FALLBACK = Object.freeze({
+  title: "待分析页面更新",
+  summary: "检测到公开页面内容发生变化，具体内容请查看来源页面。",
+});
 
 export default {
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(runScheduledCapture(env));
-  },
-
   // 手动采集 HTTP 入口：仅接受受信 Pages 来源发起的认证 POST。
-  async fetch(request, env, _ctx) {
-    return handleManualCaptureRequest(request, env);
+  async fetch(request, env, ctx) {
+    return handleManualCaptureRequest(request, env, ctx);
   },
 };
 
 // 手动采集路由、CORS 与安全错误响应。
-export async function handleManualCaptureRequest(request, env) {
+export async function handleManualCaptureRequest(request, env, ctx = null) {
   const origin = request.headers.get("Origin");
   const corsHeaders = buildCorsHeaders(origin);
   const pathname = new URL(request.url).pathname;
 
+  const attachmentGetMatch = pathname.match(/^\/candidate-attachments\/([0-9a-f-]+)\/([0-9a-f-]+)$/i);
+  if (attachmentGetMatch) {
+    return handleCandidateAttachmentGet(request, env, attachmentGetMatch[1], attachmentGetMatch[2], corsHeaders);
+  }
+  const attachmentDeleteMatch = pathname.match(/^\/candidate-attachments\/([0-9a-f-]+)$/i);
+  if (attachmentDeleteMatch) {
+    return handleCandidateAttachmentDelete(request, env, attachmentDeleteMatch[1], corsHeaders);
+  }
   if (pathname !== "/manual-capture") {
     return jsonResponse(404, "not_found", "请求的资源不存在。", {}, corsHeaders);
   }
@@ -79,7 +104,7 @@ export async function handleManualCaptureRequest(request, env) {
       });
     }
 
-    const result = await captureSource(source, env, "manual", observationWindow);
+    const result = await captureSource(source, env, "manual", observationWindow, new Date(), ctx);
     return new Response(JSON.stringify({ ok: true, result }), {
       status: 200,
       headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders },
@@ -92,36 +117,95 @@ export async function handleManualCaptureRequest(request, env) {
   }
 }
 
-// 允许单元测试与未来受认证的手动触发入口复用核心调度。
-export async function runScheduledCapture(env) {
-  validateEnvironment(env);
-  const plannedAt = new Date();
-  const sources = await queryDueSources(env);
-  const results = await Promise.allSettled(sources.map((source) => captureSource(source, env, "scheduled", null, plannedAt)));
-  return {
-    inspected: sources.length,
-    succeeded: results.filter((result) => result.status === "fulfilled").length,
-    failed: results.filter((result) => result.status === "rejected").length,
-  };
+// 私有候选附件读取：候选工作区授权与附件归属均通过后，才以服务角色读取对象并返回安全位图。
+async function handleCandidateAttachmentGet(request, env, candidateId, attachmentId, corsHeaders) {
+  const origin = request.headers.get("Origin");
+  if (origin && !corsHeaders["Access-Control-Allow-Origin"]) {
+    return jsonResponse(403, "origin_not_allowed", "不允许的请求来源。");
+  }
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (request.method !== "GET") {
+    return jsonResponse(405, "method_not_allowed", "仅支持 GET 请求。", { Allow: "GET" }, corsHeaders);
+  }
+  try {
+    validateManualEnvironment(env);
+    if (!UUID_PATTERN.test(candidateId) || !UUID_PATTERN.test(attachmentId)) {
+      throw new HttpError(400, "invalid_attachment_id", "候选或附件 ID 无效。");
+    }
+    const user = await verifySupabaseUser(env, readBearerToken(request.headers.get("Authorization")));
+    const candidates = await supabaseRequest(env,
+      `/rest/v1/source_capture_candidates?id=eq.${encodeURIComponent(candidateId)}&select=id,workspace_id&limit=1`);
+    const candidate = candidates[0];
+    if (!candidate) throw new HttpError(404, "candidate_not_found", "未找到候选。");
+    if (!await isWorkspaceMember(env, candidate.workspace_id, user.id)) {
+      throw new HttpError(403, "workspace_access_denied", "无权读取此工作区的候选附件。");
+    }
+    const attachments = await supabaseRequest(env,
+      `/rest/v1/candidate_attachments?id=eq.${encodeURIComponent(attachmentId)}&candidate_id=eq.${encodeURIComponent(candidateId)}` +
+      `&workspace_id=eq.${encodeURIComponent(candidate.workspace_id)}&select=id,object_path,media_type,byte_size&limit=1`);
+    const attachment = attachments[0];
+    if (!attachment) throw new HttpError(404, "attachment_not_found", "未找到候选附件。");
+    if (!ALLOWED_IMAGE_TYPES.has(String(attachment.media_type || "").toLowerCase()) ||
+        !Number.isInteger(attachment.byte_size) || attachment.byte_size < 0 || attachment.byte_size > MAX_IMAGE_BYTES) {
+      throw new HttpError(415, "unsafe_attachment", "附件类型或大小不受支持。");
+    }
+    const object = await retrieveStorageObject(env, attachment.object_path);
+    if (object.mediaType !== attachment.media_type.toLowerCase() || object.bytes.byteLength !== attachment.byte_size) {
+      throw new HttpError(415, "unsafe_attachment", "附件类型或大小不受支持。");
+    }
+    return new Response(object.bytes, {
+      status: 200,
+      headers: {
+        "Content-Type": object.mediaType,
+        "Content-Length": String(object.bytes.byteLength),
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        ...corsHeaders,
+      },
+    });
+  } catch (error) {
+    const safeError = error instanceof HttpError ? error : new HttpError(500, "internal_error", "候选附件暂时不可用。");
+    return jsonResponse(safeError.status, safeError.code, safeError.publicMessage, safeError.headers, corsHeaders);
+  }
 }
 
-async function queryDueSources(env) {
-  const records = await supabaseRequest(
-    env,
-    "/rest/v1/competitor_sources?is_enabled=eq.true&select=id,workspace_id,tab_id,competitor_id,url,fetch_interval_hours,last_fetched_at",
-  );
-  return records.filter(isDueForCapture);
+// 候选删除边界：认证并确认工作区成员后，先清理私有对象，再删除附件记录与候选本身。
+async function handleCandidateAttachmentDelete(request, env, candidateId, corsHeaders) {
+  const origin = request.headers.get("Origin");
+  if (origin && !corsHeaders["Access-Control-Allow-Origin"]) {
+    return jsonResponse(403, "origin_not_allowed", "不允许的请求来源。");
+  }
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (request.method !== "DELETE") {
+    return jsonResponse(405, "method_not_allowed", "仅支持 DELETE 请求。", { Allow: "DELETE" }, corsHeaders);
+  }
+  try {
+    validateManualEnvironment(env);
+    if (!UUID_PATTERN.test(candidateId)) throw new HttpError(400, "invalid_candidate_id", "候选 ID 无效。");
+    const user = await verifySupabaseUser(env, readBearerToken(request.headers.get("Authorization")));
+    const records = await supabaseRequest(env,
+      `/rest/v1/source_capture_candidates?id=eq.${encodeURIComponent(candidateId)}&select=id,workspace_id&limit=1`);
+    const candidate = records[0];
+    if (!candidate) throw new HttpError(404, "candidate_not_found", "未找到候选。");
+    if (!await isWorkspaceMember(env, candidate.workspace_id, user.id)) {
+      throw new HttpError(403, "workspace_access_denied", "无权删除此工作区的候选。");
+    }
+    const attachments = await supabaseRequest(env,
+      `/rest/v1/candidate_attachments?candidate_id=eq.${encodeURIComponent(candidateId)}&select=object_path`);
+    for (const attachment of attachments) await deleteStorageObject(env, attachment.object_path);
+    await deleteRecords(env, "candidate_attachments", "candidate_id", candidateId);
+    await deleteRecords(env, "source_capture_candidates", "id", candidateId);
+    return new Response(JSON.stringify({ ok: true, candidateId }), {
+      status: 200, headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders },
+    });
+  } catch (error) {
+    const safeError = error instanceof HttpError ? error : new HttpError(500, "internal_error", "候选删除暂时不可用。");
+    return jsonResponse(safeError.status, safeError.code, safeError.publicMessage, safeError.headers, corsHeaders);
+  }
 }
 
-function isDueForCapture(source, now = Date.now()) {
-  if (!source.last_fetched_at) return true;
-  const lastFetchedAt = Date.parse(source.last_fetched_at);
-  if (Number.isNaN(lastFetchedAt)) return true;
-  const intervalHours = Number(source.fetch_interval_hours) || 24;
-  return now - lastFetchedAt >= intervalHours * 60 * 60 * 1000;
-}
-
-async function captureSource(source, env, triggerType = "scheduled", explicitWindow = null, plannedAt = new Date()) {
+async function captureSource(source, env, triggerType = "manual", explicitWindow = null, plannedAt = new Date(), ctx = null) {
+  const deferredAttachmentTasks = [];
   const observationWindow = explicitWindow || await deriveObservationWindow(env, source.id, plannedAt);
   const run = await insertRecord(env, "source_capture_runs", {
     id: crypto.randomUUID(),
@@ -139,7 +223,10 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     const previousSnapshot = await getLatestSnapshot(env, source.id);
     const page = await fetchPublicSource(source.url);
     const snapshot = await createSnapshot(page.extractedText);
+    const isSemanticSource = supportsUpdateSubpageDiscovery(source.source_type);
     const isChanged = shouldQueueCandidate(previousSnapshot?.content_hash, snapshot.contentHash);
+    let candidateQueued = false;
+    let candidateCount = 0;
 
     const savedSnapshot = await insertRecord(env, "source_capture_snapshots?on_conflict=source_id%2Ccontent_hash", {
       id: crypto.randomUUID(),
@@ -153,7 +240,44 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       http_status: page.httpStatus,
     }, "resolution=ignore-duplicates,return=representation");
 
-    if (isChanged) {
+    if (isSemanticSource) {
+      const discovery = await discoverEligibleUpdates(page, observationWindow);
+      for (const entry of discovery.entries) {
+        const entryHash = await hashSelectedEntries([entry]);
+        const existingCandidate = await getExistingCandidate(env, source.workspace_id, source.id, entryHash);
+        if (existingCandidate) {
+          if (shouldRetryExistingCandidate(triggerType, existingCandidate)) {
+            if (!await candidateHasAttachments(env, existingCandidate.workspace_id, existingCandidate.id)) {
+              scheduleCandidateImageAttachments(deferredAttachmentTasks, env, existingCandidate, entry);
+            }
+            await enqueueCandidateAnalysis(env, existingCandidate.id, {
+              title: entry.title, canonicalUrl: entry.url,
+            }, entry.extractedText);
+          }
+          continue;
+        }
+
+        const candidate = await insertRecord(env, "source_capture_candidates?on_conflict=source_id%2Ccontent_hash", {
+          id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
+          competitor_id: source.competitor_id, source_id: source.id, run_id: run.id,
+          snapshot_id: savedSnapshot?.id || previousSnapshot?.id, source_url: entry.url,
+          title: FEATURE_FALLBACK.title, summary: FEATURE_FALLBACK.summary, quoted_text: "",
+          content_hash: entryHash, status: "pending", analysis_status: "pending",
+          publication_time_status: "verified", published_at: entry.publishedAt,
+          detection_window_start: observationWindow.start, detection_window_end: observationWindow.end,
+          detection_window_basis: observationWindow.basis,
+          selected_entries: [{ url: entry.url, title: entry.title, publishedAt: entry.publishedAt, dateSource: entry.dateSource }],
+          excluded_missing_date_count: discovery.missingDateCount,
+        }, "resolution=ignore-duplicates,return=representation");
+        if (!candidate) continue;
+        candidateQueued = true;
+        candidateCount += 1;
+        scheduleCandidateImageAttachments(deferredAttachmentTasks, env, candidate, entry);
+        await enqueueCandidateAnalysis(env, candidate.id, {
+          title: entry.title, canonicalUrl: entry.url,
+        }, entry.extractedText);
+      }
+    } else if (isChanged) {
       const candidate = await insertRecord(env, "source_capture_candidates", {
         id: crypto.randomUUID(),
         workspace_id: source.workspace_id,
@@ -163,18 +287,19 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
         run_id: run.id,
         snapshot_id: savedSnapshot?.id || previousSnapshot?.id,
         source_url: page.canonicalUrl,
-        title: page.title || "检测到公开页面内容变化",
-        summary: buildSummary(snapshot.extractedText),
-        quoted_text: snapshot.extractedText.slice(0, 1_200),
+        title: PAGE_FALLBACK.title,
+        summary: PAGE_FALLBACK.summary,
+        quoted_text: "",
         content_hash: snapshot.contentHash,
         status: "pending",
-        analysis_status: "unavailable",
+        analysis_status: "pending",
         publication_time_status: "unverified",
         detection_window_start: observationWindow.start,
         detection_window_end: observationWindow.end,
         detection_window_basis: observationWindow.basis,
       });
-      await enrichCandidateWithAnalysis(env, candidate.id, page, snapshot.extractedText);
+      candidateCount = candidate ? 1 : 0;
+      if (candidate) await enqueueCandidateAnalysis(env, candidate.id, page, snapshot.extractedText);
     }
 
     await updateRecord(env, "competitor_sources", source.id, {
@@ -185,10 +310,14 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
       http_status: page.httpStatus,
       finished_at: new Date().toISOString(),
     });
+    const optionalEnrichmentWork = Promise.allSettled(deferredAttachmentTasks.map((task) => task()));
+    if (typeof ctx?.waitUntil === "function") ctx.waitUntil(optionalEnrichmentWork);
+    else await optionalEnrichmentWork;
     return {
       sourceId: source.id,
       runId: run.id,
-      candidateQueued: isChanged,
+      candidateQueued: isSemanticSource ? candidateQueued : isChanged,
+      candidateCount,
       status: "succeeded",
     };
   } catch (error) {
@@ -199,6 +328,50 @@ async function captureSource(source, env, triggerType = "scheduled", explicitWin
     });
     throw error;
   }
+}
+
+// AI 队列先持久化每个 Candidate，再唤醒全局单例；分析不依赖请求生命周期或 waitUntil。
+export async function enqueueCandidateAnalysis(env, candidateId, page, extractedText) {
+  const input = prepareAnalysisInput(extractedText);
+  const now = new Date().toISOString();
+  if (!input) {
+    await updateRecord(env, "source_capture_candidates", candidateId, { analysis_status: "unavailable" });
+    return false;
+  }
+  await insertRecord(env, "source_capture_ai_queue?on_conflict=candidate_id", {
+    candidate_id: candidateId,
+    page_title: String(page?.title || "").slice(0, 500),
+    canonical_url: String(page?.canonicalUrl || ""),
+    input_text: input,
+    status: "pending",
+    attempt_count: 0,
+    next_attempt_at: now,
+    failure_code: null,
+  }, "resolution=merge-duplicates,return=representation");
+  await updateRecord(env, "source_capture_candidates", candidateId, {
+    analysis_status: "pending", analysis_input_chars: Array.from(input).length,
+  });
+  if (!env?.CANDIDATE_AI_QUEUE) throw new Error("AI queue binding unavailable");
+  const queue = env.CANDIDATE_AI_QUEUE.get(env.CANDIDATE_AI_QUEUE.idFromName("global"));
+  const response = await queue.fetch("https://candidate-ai-queue.internal/wake", { method: "POST" });
+  if (!response.ok) throw new Error("AI queue wake unavailable");
+  return true;
+}
+
+// 图片是可选私有附件：Candidate 已创建后才在请求生命周期外补抓，不能拖慢手动抓取响应。
+function scheduleCandidateImageAttachments(deferredAttachmentTasks, env, candidate, entry) {
+  deferredAttachmentTasks.push(() => attachCandidateImages(env, candidate, entry));
+}
+
+// 仅变更日志与发布说明启用子页语义发现，其他来源继续使用单页哈希。
+export function supportsUpdateSubpageDiscovery(sourceType) {
+  return SEMANTIC_SOURCE_TYPES.has(sourceType);
+}
+
+// 仅用户触发的手动采集可重试尚未分析的待审核候选。
+export function shouldRetryExistingCandidate(triggerType, candidate) {
+  return triggerType === "manual" && candidate?.status === "pending" &&
+    ["rate_limited", "unavailable"].includes(candidate.analysis_status);
 }
 
 // 观察窗口：手动显式窗口必须成对、为合法 ISO 时间且不延伸到未来。
@@ -216,7 +389,7 @@ export function validateObservationWindow(value, now = new Date()) {
   return { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString(), basis: "explicit" };
 }
 
-// 定时与未显式指定窗口的手动任务，从上次成功结束时间观察到本次计划时间。
+// 未显式指定窗口的手动任务，从上次成功结束时间观察到本次计划时间。
 export async function deriveObservationWindow(env, sourceId, plannedAt) {
   const records = await supabaseRequest(
     env,
@@ -250,7 +423,7 @@ async function verifySupabaseUser(env, accessToken) {
 async function getSourceById(env, sourceId) {
   const records = await supabaseRequest(
     env,
-    `/rest/v1/competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id,workspace_id,tab_id,competitor_id,url&limit=1`,
+    `/rest/v1/competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id,workspace_id,tab_id,competitor_id,source_type,url&limit=1`,
   );
   return records[0] || null;
 }
@@ -311,6 +484,7 @@ export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
     }
     return {
       canonicalUrl: canonicalizeSourceUrl(sourceUrl),
+      html,
       extractedText: extractReadableText(html),
       httpStatus: response.status,
       title: extractTitle(html),
@@ -323,9 +497,10 @@ export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
 export function isSafePublicSourceUrl(value) {
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" || url.username || url.password) return false;
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return false;
     const hostname = url.hostname.toLowerCase();
-    if (hostname === "localhost" || hostname.endsWith(".localhost") || isPrivateIpv4(hostname)) {
+    if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "0" ||
+        hostname.endsWith(".local") || hostname.includes(":") || isPrivateIpv4(hostname)) {
       return false;
     }
     return hostname.length > 0;
@@ -334,14 +509,211 @@ export function isSafePublicSourceUrl(value) {
   }
 }
 
+// 更新子页发现规则：只读取非导航区的显式 <a href>，且链接必须与索引同源、
+// 在索引路径之下多一层，或位于 changelog/release-notes/releases/updates 路径下。
+// 不猜测 URL、不跟随子页链接，因此深度恒为 1；按文档顺序去重并硬性限制 20 页。
+export function discoverUpdateLinks(indexHtml, indexUrl) {
+  const base = new URL(canonicalizeSourceUrl(indexUrl));
+  const baseSegments = pathSegments(base.pathname);
+  const updateMarker = /^(?:changelog|release-notes|releases|updates)$/i;
+  const stripped = String(indexHtml || "")
+    .replace(/<(nav|header|footer|aside|form)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ");
+  const links = [];
+  const seen = new Set();
+  for (const match of stripped.matchAll(/<a\b[^>]*\bhref\s*=\s*(?:"([^"]+)"|'([^']+)')[^>]*>/gi)) {
+    if (links.length >= MAX_UPDATE_CHILD_PAGES) break;
+    try {
+      const url = new URL(decodeHtmlEntities(match[1] || match[2]), base);
+      url.hash = "";
+      const segments = pathSegments(url.pathname);
+      const belowIndex = baseSegments.length > 0 && segments.length === baseSegments.length + 1 &&
+        baseSegments.every((segment, index) => segment === segments[index]);
+      const markerIndex = segments.findIndex((segment) => updateMarker.test(segment));
+      const belowMarker = markerIndex >= 0 && segments.length === markerIndex + 2;
+      if (url.origin !== base.origin || !isSafePublicSourceUrl(url.toString()) ||
+          url.toString() === base.toString() || (!belowIndex && !belowMarker)) continue;
+      const canonical = canonicalizeSourceUrl(url.toString());
+      if (!seen.has(canonical)) {
+        seen.add(canonical);
+        links.push(canonical);
+      }
+    } catch {
+      // 无效或非 HTTP URL 不是候选子页。
+    }
+  }
+  return links;
+}
+
+function pathSegments(pathname) {
+  return pathname.split("/").filter(Boolean).map((value) => decodeURIComponent(value).toLocaleLowerCase());
+}
+
+// 声明日期仅接受文档元数据、JSON-LD datePublished 或 <time datetime>；
+// 普通正文中看似日期的字符不足以验证发布日期，避免将导航或历史日期误当发布日期。
+export function extractDeclaredUpdateDate(html) {
+  const candidates = [
+    ...String(html || "").matchAll(/<meta\b[^>]*(?:property|name)\s*=\s*["'](?:article:published_time|datePublished|publish(?:ed)?_?date)["'][^>]*content\s*=\s*["']([^"']+)["'][^>]*>/gi),
+    ...String(html || "").matchAll(/<meta\b[^>]*content\s*=\s*["']([^"']+)["'][^>]*(?:property|name)\s*=\s*["'](?:article:published_time|datePublished|publish(?:ed)?_?date)["'][^>]*>/gi),
+    ...String(html || "").matchAll(/<time\b[^>]*datetime\s*=\s*["']([^"']+)["'][^>]*>/gi),
+    ...String(html || "").matchAll(/["']datePublished["']\s*:\s*["']([^"']+)["']/gi),
+  ];
+  for (const match of candidates) {
+    const raw = match[1].trim();
+    const parsed = parseDeclaredDate(raw);
+    if (parsed) return { publishedAt: parsed, dateSource: raw };
+  }
+  return null;
+}
+
+function parseDeclaredDate(raw) {
+  if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2}))?$/.test(raw)) return null;
+  const value = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00.000Z` : raw;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+}
+
+export async function discoverEligibleUpdates(indexPage, observationWindow, fetchImpl = fetch) {
+  const links = discoverUpdateLinks(indexPage.html, indexPage.canonicalUrl);
+  const entries = [];
+  let missingDateCount = 0;
+  const startMs = Date.parse(observationWindow?.start || "");
+  const endMs = Date.parse(observationWindow?.end || "");
+  for (const url of links) {
+    const page = await fetchPublicSource(url, fetchImpl);
+    const declared = extractDeclaredUpdateDate(page.html);
+    if (!declared) {
+      missingDateCount += 1;
+      continue;
+    }
+    const publishedMs = Date.parse(declared.publishedAt);
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && publishedMs >= startMs && publishedMs <= endMs) {
+      entries.push({
+        url: page.canonicalUrl,
+        title: page.title || "产品更新",
+        ...declared,
+        quotedText: page.extractedText.slice(0, 1_200),
+        extractedText: page.extractedText,
+        html: page.html,
+        contentHash: (await createSnapshot(page.extractedText)).contentHash,
+      });
+    }
+  }
+  entries.sort((a, b) => a.publishedAt.localeCompare(b.publishedAt) || a.url.localeCompare(b.url));
+  return { entries, missingDateCount };
+}
+
+export async function hashSelectedEntries(entries) {
+  const identity = entries.map(({ url, publishedAt, contentHash = "" }) => ({ url, publishedAt, contentHash }))
+    .sort((a, b) => a.url.localeCompare(b.url) || a.publishedAt.localeCompare(b.publishedAt));
+  return (await createSnapshot(JSON.stringify(identity))).contentHash;
+}
+
+// 候选图片发现：只接受当前更新子页 HTML 中显式 img[src] 的同源 HTTPS 位图地址。
+export function discoverFeatureImageUrls(html, pageUrl) {
+  const base = new URL(canonicalizeSourceUrl(pageUrl));
+  const cleaned = String(html || "").replace(/<(script|iframe|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
+  const urls = [];
+  const seen = new Set();
+  for (const match of cleaned.matchAll(/<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)')[^>]*>/gi)) {
+    if (urls.length >= MAX_CANDIDATE_IMAGES) break;
+    try {
+      const url = new URL(decodeHtmlEntities(match[1] || match[2]), base);
+      url.hash = "";
+      if (url.origin !== base.origin || !isSafePublicSourceUrl(url.toString()) ||
+          !/\.(?:jpe?g|png|webp|gif)$/i.test(url.pathname)) continue;
+      const canonical = url.toString();
+      if (!seen.has(canonical)) { seen.add(canonical); urls.push(canonical); }
+    } catch {
+      // 无效、data 或非 HTTPS 图片地址直接忽略。
+    }
+  }
+  return urls;
+}
+
+// 图片下载：手动处理重定向并在读取前后校验 MIME 与 5MB 上限。
+export async function fetchFeatureImage(imageUrl, pageUrl, fetchImpl = fetch) {
+  const image = new URL(imageUrl);
+  const page = new URL(pageUrl);
+  if (image.origin !== page.origin || !isSafePublicSourceUrl(image.toString()) ||
+      !/\.(?:jpe?g|png|webp|gif)$/i.test(image.pathname)) throw new Error("图片来源不安全。");
+  const response = await fetchImpl(image.toString(), {
+    headers: { Accept: "image/jpeg,image/png,image/webp,image/gif" }, redirect: "manual",
+  });
+  if (response.status >= 300 && response.status < 400) throw new Error("图片重定向被拒绝。");
+  if (!response.ok) throw new Error(`图片返回 HTTP ${response.status}。`);
+  const mediaType = (response.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+  if (!ALLOWED_IMAGE_TYPES.has(mediaType)) throw new Error("图片 MIME 类型不受支持。");
+  const declaredSize = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredSize) && declaredSize > MAX_IMAGE_BYTES) throw new Error("图片超过大小限制。");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error("图片超过大小限制。");
+  return { bytes, mediaType, byteSize: bytes.byteLength, redirectMode: "manual" };
+}
+
+// 私有 Storage 上传始终使用 Worker service role，绝不生成公开或签名 URL。
+export async function uploadCandidateAttachment(env, objectPath, bytes, mediaType, fetchImpl = fetch) {
+  const response = await fetchImpl(`${env.SUPABASE_URL}/storage/v1/object/${CANDIDATE_ATTACHMENTS_BUCKET}/${objectPath}`, {
+    method: "POST",
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": mediaType, "x-upsert": "false" },
+    body: bytes,
+  });
+  if (!response.ok) throw new Error(`附件存储返回 HTTP ${response.status}。`);
+}
+
+async function attachCandidateImages(env, candidate, entry) {
+  const urls = discoverFeatureImageUrls(entry.html, entry.url);
+  for (let index = 0; index < urls.length; index += 1) {
+    let objectPath = null;
+    let uploaded = false;
+    try {
+      const image = await fetchFeatureImage(urls[index], entry.url);
+      const extension = image.mediaType === "image/jpeg" ? "jpg" : image.mediaType.split("/")[1];
+      objectPath = `${candidate.id}/${index + 1}.${extension}`;
+      await uploadCandidateAttachment(env, objectPath, image.bytes, image.mediaType);
+      uploaded = true;
+      await insertRecord(env, "candidate_attachments", {
+        id: crypto.randomUUID(), candidate_id: candidate.id, workspace_id: candidate.workspace_id,
+        source_url: urls[index], object_path: objectPath, media_type: image.mediaType,
+        byte_size: image.byteSize, created_at: new Date().toISOString(),
+      });
+    } catch {
+      if (uploaded && objectPath) {
+        try { await deleteStorageObject(env, objectPath); } catch { /* 后续候选删除仍保持可重试。 */ }
+      }
+      // 单张图片失败不影响独立候选创建或其余图片。
+    }
+  }
+}
+
+// 语义候选去重与重试严格限定在当前工作区和来源，避免跨来源更新候选。
+async function getExistingCandidate(env, workspaceId, sourceId, contentHash) {
+  const records = await supabaseRequest(env,
+    `/rest/v1/source_capture_candidates?workspace_id=eq.${encodeURIComponent(workspaceId)}` +
+    `&source_id=eq.${encodeURIComponent(sourceId)}&content_hash=eq.${encodeURIComponent(contentHash)}` +
+    "&select=id,workspace_id,status,analysis_status&limit=1");
+  return records[0] || null;
+}
+
+// 已有任一合规附件时不重复上传；完全缺失时才从同页重新尝试。
+async function candidateHasAttachments(env, workspaceId, candidateId) {
+  const records = await supabaseRequest(env,
+    `/rest/v1/candidate_attachments?workspace_id=eq.${encodeURIComponent(workspaceId)}` +
+    `&candidate_id=eq.${encodeURIComponent(candidateId)}&select=id&limit=1`);
+  return records.length > 0;
+}
+
 function isPrivateIpv4(hostname) {
   const octets = hostname.split(".").map(Number);
   if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
     return false;
   }
   const [first, second] = octets;
-  return first === 0 || first === 10 || first === 127 || first === 169 && second === 254 ||
-    first === 172 && second >= 16 && second <= 31 || first === 192 && second === 168;
+  return first === 0 || first === 10 || first === 100 && second >= 64 && second <= 127 ||
+    first === 127 || first === 169 && second === 254 || first === 172 && second >= 16 && second <= 31 ||
+    first === 192 && (second === 0 || second === 168) || first === 198 && (second === 18 || second === 19) ||
+    first >= 224;
 }
 
 function canonicalizeSourceUrl(value) {
@@ -380,19 +752,218 @@ export function prepareAnalysisInput(text) {
   return Array.from(lines.join("\n")).slice(0, MAX_ANALYSIS_INPUT_CHARS).join("");
 }
 
-// Preview-only 候选分析：任何配置、额度、网络或校验失败都保持候选成功且仅记录 unavailable。
-export async function enrichCandidateWithAnalysis(env, candidateId, page, extractedText) {
-  if (!env?.GEMINI_API_KEY) return;
-  const model = String(env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL);
-  if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(model)) return;
-  const input = prepareAnalysisInput(extractedText);
-  if (!input) return;
+// Preview Durable Object：固定名称 global 保证所有 Provider 请求严格串行，Alarm 使队列跨请求持久运行。
+export class CandidateAiQueue {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    if (new URL(request.url).pathname !== "/wake" || request.method !== "POST") {
+      return new Response(null, { status: 404 });
+    }
+    const alarm = await this.state.storage.getAlarm();
+    if (alarm === null) await this.state.storage.setAlarm(Date.now());
+    return new Response(null, { status: 204 });
+  }
+
+  async alarm() {
+    const item = await getNextCandidateAnalysis(this.env, new Date());
+    if (!item) return scheduleNextCandidateAlarm(this.state.storage, this.env, Date.now());
+
+    const paceMs = await this.state.storage.get("provider_pace_ms") || INITIAL_PROVIDER_PACE_MS;
+    const lastRequestAt = await this.state.storage.get("last_provider_request_at") || 0;
+    const waitUntil = lastRequestAt + paceMs;
+    if (waitUntil > Date.now()) {
+      await this.state.storage.setAlarm(waitUntil);
+      return;
+    }
+
+    await this.state.storage.put("last_provider_request_at", Date.now());
+    const outcome = await processCandidateAnalysis(this.env, item);
+    const nextPace = outcome.rateLimited
+      ? Math.max(INITIAL_PROVIDER_PACE_MS, outcome.retryDelayMs)
+      : Math.max(INITIAL_PROVIDER_PACE_MS, Math.floor(paceMs * 0.8));
+    await this.state.storage.put("provider_pace_ms", nextPace);
+    await scheduleNextCandidateAlarm(this.state.storage, this.env, Date.now() + nextPace);
+  }
+}
+
+async function getNextCandidateAnalysis(env, now) {
+  const records = await supabaseRequest(env,
+    "/rest/v1/source_capture_ai_queue?status=in.(pending,rate_limited)" +
+    `&next_attempt_at=lte.${encodeURIComponent(now.toISOString())}` +
+    "&select=candidate_id,page_title,canonical_url,input_text,status,attempt_count,next_attempt_at" +
+    "&order=next_attempt_at.asc,created_at.asc&limit=1");
+  return records[0] || null;
+}
+
+async function scheduleNextCandidateAlarm(storage, env, earliestMs) {
+  const records = await supabaseRequest(env,
+    "/rest/v1/source_capture_ai_queue?status=in.(pending,rate_limited)" +
+    "&select=next_attempt_at&order=next_attempt_at.asc,created_at.asc&limit=1");
+  if (!records[0]) return;
+  const dueMs = Date.parse(records[0].next_attempt_at);
+  await storage.setAlarm(Math.max(earliestMs, Number.isFinite(dueMs) ? dueMs : earliestMs));
+}
+
+// 单次队列消费只调用 GLM-4.5-Flash；分类结果仅保存固定代码，绝不保存原始错误或响应正文。
+export async function processCandidateAnalysis(env, item, now = new Date()) {
+  const attemptCount = Number(item.attempt_count || 0) + 1;
+  if (!env?.ZAI_API_KEY) {
+    await finishCandidateAnalysis(env, item.candidate_id, "unavailable", attemptCount, "missing_model_config");
+    return { rateLimited: false, retryDelayMs: 0 };
+  }
+  let reserved = false;
+  try { reserved = await reserveAnalysisBudget(env); } catch { /* 固定失败分类，不泄漏数据服务错误。 */ }
+  if (!reserved) {
+    // 内部日预算耗尽不是模型不可用：保留任务到下一 UTC 日，避免新 Candidate 立刻终态失败。
+    const nextAttemptAt = nextUtcDayStart(now);
+    await updateRecord(env, "source_capture_candidates", item.candidate_id, { analysis_status: "rate_limited" });
+    await patchCandidateQueue(env, item.candidate_id, {
+      status: "rate_limited", attempt_count: Number(item.attempt_count || 0),
+      next_attempt_at: nextAttemptAt.toISOString(), failure_code: "budget_unavailable",
+    });
+    return { rateLimited: true, retryDelayMs: Math.max(0, nextAttemptAt.getTime() - now.getTime()) };
+  }
 
   try {
-    const reserved = await reserveAnalysisBudget(env);
-    if (!reserved) return;
-    const analysis = await requestGeminiAnalysis(env, model, page, input);
-    await updateRecord(env, "source_capture_candidates", candidateId, {
+    const analysis = await requestGlmAnalysis(env, GLM_DEFAULT_MODEL, {
+      title: item.page_title, canonicalUrl: item.canonical_url,
+    }, item.input_text);
+    await updateRecord(env, "source_capture_candidates", item.candidate_id, {
+      title: analysis.feature_title,
+      summary: analysis.feature_summary,
+      quoted_text: "",
+      analysis_status: "available",
+      analysis,
+      analysis_model: GLM_DEFAULT_MODEL,
+      analysis_schema_version: ANALYSIS_SCHEMA_VERSION,
+      analysis_input_chars: Array.from(item.input_text).length,
+      analysis_reserved_tokens: ANALYSIS_RESERVED_TOKENS,
+      analyzed_at: now.toISOString(),
+    });
+    await patchCandidateQueue(env, item.candidate_id, {
+      status: "available", attempt_count: attemptCount, failure_code: null,
+    });
+    return { rateLimited: false, retryDelayMs: 0 };
+  } catch (error) {
+    const isRateLimited = error instanceof AnalysisUnavailableError && error.httpStatus === 429;
+    const invalidResponseCode = getGlmInvalidResponseCode(error);
+    const retryable = isRateLimited || invalidResponseCode !== null ||
+      error instanceof AnalysisUnavailableError && error.httpStatus >= 500;
+    if (retryable && attemptCount <= AI_RETRY_DELAYS_MS.length) {
+      const fallbackDelay = AI_RETRY_DELAYS_MS[attemptCount - 1];
+      const retryDelayMs = isRateLimited && Number.isFinite(error.retryAfterMs)
+        ? error.retryAfterMs : fallbackDelay;
+      const status = isRateLimited ? "rate_limited" : "pending";
+      const failureCode = isRateLimited ? "rate_limited" : invalidResponseCode || "provider_unavailable";
+      await updateRecord(env, "source_capture_candidates", item.candidate_id, { analysis_status: status });
+      await patchCandidateQueue(env, item.candidate_id, {
+        status, attempt_count: attemptCount,
+        next_attempt_at: new Date(now.getTime() + retryDelayMs).toISOString(),
+        failure_code: failureCode,
+      });
+      logAnalysisUnavailable(failureCode, error.httpStatus);
+      return { rateLimited: isRateLimited, retryDelayMs };
+    }
+    const failureCode = invalidResponseCode || "provider_unavailable";
+    await finishCandidateAnalysis(env, item.candidate_id, "unavailable", attemptCount, failureCode);
+    logAnalysisUnavailable(failureCode, error instanceof AnalysisUnavailableError ? error.httpStatus : undefined);
+    return { rateLimited: false, retryDelayMs: 0 };
+  }
+}
+
+async function finishCandidateAnalysis(env, candidateId, status, attemptCount, failureCode) {
+  await updateRecord(env, "source_capture_candidates", candidateId, { analysis_status: status });
+  await patchCandidateQueue(env, candidateId, { status, attempt_count: Math.min(attemptCount, 4), failure_code: failureCode });
+}
+
+async function patchCandidateQueue(env, candidateId, values) {
+  await supabaseRequest(env,
+    `/rest/v1/source_capture_ai_queue?candidate_id=eq.${encodeURIComponent(candidateId)}`,
+    { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(values) });
+}
+
+// 内部日预算以 UTC 日为边界；预算耗尽的任务从下一日零点继续消费。
+function nextUtcDayStart(now) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+}
+
+// Retry-After 支持秒数与 HTTP 日期；无效或过去值交由固定指数退避处理。
+export function parseRetryAfter(value, nowMs = Date.now()) {
+  const text = String(value || "").trim();
+  if (/^\d+$/.test(text)) return Number(text) * 1000;
+  const dateMs = Date.parse(text);
+  return Number.isFinite(dateMs) && dateMs > nowMs ? dateMs - nowMs : null;
+}
+
+// Preview-only 候选分析：任何配置、额度、网络或校验失败都保持候选成功且仅记录 unavailable。
+export async function enrichCandidateWithAnalysis(env, candidateId, page, extractedText, analysisRequestCache = {}) {
+  if (!env?.ZAI_API_KEY && !env?.GEMINI_API_KEY) {
+    logAnalysisUnavailable("missing_model_config");
+    return;
+  }
+  const configuredModel = String(env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL);
+  if (env?.GEMINI_API_KEY && !/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(configuredModel)) {
+    logAnalysisUnavailable("invalid_model_config");
+    return;
+  }
+  const input = prepareAnalysisInput(extractedText);
+  if (!input) {
+    logAnalysisUnavailable("empty_input");
+    return;
+  }
+
+  let reserved;
+  try {
+    reserved = await reserveAnalysisBudget(env);
+  } catch {
+    logAnalysisUnavailable("budget_unavailable");
+    return;
+  }
+  if (!reserved) {
+    logAnalysisUnavailable("budget_unavailable");
+    return;
+  }
+
+  try {
+    let model;
+    let analysis;
+    let glmError = null;
+    if (env?.ZAI_API_KEY) {
+      for (const candidateModel of [GLM_DEFAULT_MODEL]) {
+        try {
+          analysis = await requestGlmAnalysis(env, candidateModel, page, input);
+          model = candidateModel;
+          break;
+        } catch (error) {
+          if (!(error instanceof AnalysisUnavailableError)) throw error;
+          logAnalysisProviderFallback("glm", error.reason, error.httpStatus);
+          glmError = error;
+          if ([401, 403].includes(error.httpStatus)) break;
+        }
+      }
+    }
+    if (!analysis && env?.GEMINI_API_KEY) {
+      analysisRequestCache.modelsPromise ||= discoverGeminiFlashLiteModels(env);
+      const models = await analysisRequestCache.modelsPromise;
+      for (const candidateModel of models) {
+        try {
+          analysis = await requestGeminiAnalysis(env, candidateModel, page, input);
+          model = candidateModel;
+          break;
+        } catch (error) {
+          if (!(error instanceof AnalysisUnavailableError) || error.httpStatus !== 404) throw error;
+        }
+      }
+    }
+    if (!analysis) throw glmError || new AnalysisUnavailableError("flash_lite_models_unavailable");
+    const analysisUpdate = {
+      title: analysis.feature_title,
+      summary: analysis.feature_summary,
+      quoted_text: "",
       analysis_status: "available",
       analysis,
       analysis_model: model,
@@ -400,12 +971,102 @@ export async function enrichCandidateWithAnalysis(env, candidateId, page, extrac
       analysis_input_chars: Array.from(input).length,
       analysis_reserved_tokens: ANALYSIS_RESERVED_TOKENS,
       analyzed_at: new Date().toISOString(),
-      publication_time_status: analysis.publication_time.status,
-      published_at: analysis.publication_time.status === "verified" ? analysis.publication_time.value : null,
-    });
-  } catch {
+    };
+    if (analysis.publication_time.status === "verified") {
+      analysisUpdate.publication_time_status = "verified";
+      analysisUpdate.published_at = analysis.publication_time.value;
+    }
+    await updateRecord(env, "source_capture_candidates", candidateId, analysisUpdate);
+  } catch (error) {
+    if (error instanceof AnalysisUnavailableError) {
+      logAnalysisUnavailable(error.reason, error.httpStatus);
+    } else {
+      logAnalysisUnavailable("provider_request_failed");
+    }
     // 故意吞掉供应商与额度细节；抓取结果和候选不能因可选分析失败而失败。
   }
+}
+
+// Gemini 模型发现：仅在本次候选分析请求内读取并筛选支持 generateContent 的稳定 Flash-Lite。
+async function discoverGeminiFlashLiteModels(env) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(GEMINI_MODELS_ENDPOINT, {
+      headers: { "x-goog-api-key": env.GEMINI_API_KEY },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new AnalysisUnavailableError("model_discovery_unavailable", response.status);
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new AnalysisUnavailableError("model_discovery_unavailable");
+    }
+    const models = selectGeminiFlashLiteModels(payload?.models);
+    if (!models.length) throw new AnalysisUnavailableError("flash_lite_model_unavailable");
+    return models;
+  } catch (error) {
+    if (error instanceof AnalysisUnavailableError) throw error;
+    throw new AnalysisUnavailableError("model_discovery_unavailable");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Gemini 模型选择：首选 2.5 Flash-Lite，其余仅允许无 preview/experimental/latest 标签的稳定版本。
+export function selectGeminiFlashLiteModel(models) {
+  return selectGeminiFlashLiteModels(models)[0] || null;
+}
+
+export function selectGeminiFlashLiteModels(models) {
+  const stable = (Array.isArray(models) ? models : []).flatMap((entry) => {
+    const name = typeof entry?.name === "string" ? entry.name.replace(/^models\//, "") : "";
+    const methods = Array.isArray(entry?.supportedGenerationMethods) ? entry.supportedGenerationMethods : [];
+    if (!/^gemini-[a-z0-9.-]*flash-lite(?:-[a-z0-9.-]+)?$/i.test(name) || !methods.includes("generateContent") ||
+        /(?:^|[-.])(preview|experimental|exp|latest)(?:$|[-.])/i.test(name)) return [];
+    return [name];
+  });
+  return [...new Set(stable)].sort((left, right) => {
+    if (left === GEMINI_DEFAULT_MODEL) return -1;
+    if (right === GEMINI_DEFAULT_MODEL) return 1;
+    return left.localeCompare(right, "en");
+  });
+}
+
+// 仅记录 Provider 回退类别与状态，绝不记录 Key、输入正文、URL 或供应商原始响应。
+function logAnalysisProviderFallback(provider, reason, httpStatus) {
+  const diagnostic = { event: "candidate_analysis_provider_fallback", provider, reason };
+  if (Number.isInteger(httpStatus)) diagnostic.http_status = httpStatus;
+  console.warn(JSON.stringify(diagnostic));
+}
+
+// 控制台只记录固定分类与可选 HTTP 状态，不包含密钥、正文、来源 URL 或错误响应。
+function logAnalysisUnavailable(reason, httpStatus) {
+  const diagnostic = { event: "candidate_analysis_unavailable", reason };
+  if (Number.isInteger(httpStatus)) diagnostic.http_status = httpStatus;
+  console.warn(JSON.stringify(diagnostic));
+}
+
+class AnalysisUnavailableError extends Error {
+  constructor(reason, httpStatus, retryAfterMs = null) {
+    super("analysis unavailable");
+    this.name = "AnalysisUnavailableError";
+    this.reason = reason;
+    this.httpStatus = httpStatus;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+// GLM 输出只映射为固定的安全诊断代码；调用方绝不保留响应正文。
+function getGlmInvalidResponseCode(error) {
+  const reason = error instanceof AnalysisUnavailableError ? error.reason : "";
+  return {
+    glm_malformed_json: "malformed_json",
+    glm_missing_fields: "missing_fields",
+    glm_non_chinese_text: "non_chinese_text",
+    glm_length_overflow: "length_overflow",
+  }[reason] || null;
 }
 
 async function reserveAnalysisBudget(env) {
@@ -420,6 +1081,47 @@ async function reserveAnalysisBudget(env) {
   return result === true;
 }
 
+// GLM-4.5-Flash 是 Preview 队列唯一主模型；密钥不会离开 Worker。
+async function requestGlmAnalysis(env, model, page, input) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(GLM_CHAT_COMPLETIONS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.ZAI_API_KEY}` },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        stream: false,
+        temperature: 0,
+        max_tokens: 260,
+        thinking: { type: "disabled" },
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: "你是竞品更新审核助手。只根据输入页面作答，只输出 JSON 对象，且仅包含 feature_title 和 feature_summary 两个字段。二者都必须为简体中文：feature_title 是不超过 24 字的具体功能主题，feature_summary 是不超过 160 字的具体功能总结。不得输出英文、引用、事实列表、推断、竞争影响、发布时间或任何其他字段；不得猜测或补造事实。" },
+          { role: "user", content: `来源标题：${page.title || "未提供"}\n来源 URL：${page.canonicalUrl}\n清洗后的页面正文：\n${input}` },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      throw new AnalysisUnavailableError(
+        "glm_http_status", response.status,
+        response.status === 429 ? parseRetryAfter(response.headers.get("Retry-After")) : null,
+      );
+    }
+    let payload;
+    try { payload = await response.json(); } catch { throw new AnalysisUnavailableError("glm_malformed_json"); }
+    const raw = payload?.choices?.[0]?.message?.content;
+    if (typeof raw !== "string") throw new AnalysisUnavailableError("glm_missing_fields");
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { throw new AnalysisUnavailableError("glm_malformed_json"); }
+    try { return validateAnalysis(parsed, input); }
+    catch { return normalizeGlmCandidatePresentation(parsed); }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Gemini 使用严格响应 Schema；密钥只置于服务端请求头，不写入 URL、数据库或响应。
 async function requestGeminiAnalysis(env, model, page, input) {
   const controller = new AbortController();
@@ -432,7 +1134,7 @@ async function requestGeminiAnalysis(env, model, page, input) {
         headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
         signal: controller.signal,
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: "你是严谨的竞品研究助手。只根据输入页面作答。所有生成字段必须使用简体中文，表达简洁；推断和竞争影响必须明确标注。不得补充、猜测或伪造事实、引文和发布时间。原文引文保持页面原始语言，并附简体中文释义。无法确认发布时间时标为 not_found 或 unverified，value 必须为 null。" }] },
+          systemInstruction: { parts: [{ text: "你是严谨的竞品研究助手。只根据输入页面作答。feature_title 必须是简洁的简体中文功能主题，feature_summary 必须是该具体功能的简洁简体中文摘要；所有其他生成字段也必须使用简体中文。推断和竞争影响必须明确标注。不得补充、猜测或伪造事实和发布时间。无法确认发布时间时标为 not_found 或 unverified，value 必须为 null。" }] },
           contents: [{ role: "user", parts: [{ text: `来源标题：${page.title || "未提供"}\n来源 URL：${page.canonicalUrl}\n清洗后的页面正文：\n${input}` }] }],
           generationConfig: {
             temperature: 0,
@@ -443,39 +1145,87 @@ async function requestGeminiAnalysis(env, model, page, input) {
         }),
       },
     );
-    if (!response.ok) throw new Error("analysis unavailable");
-    const payload = await response.json();
+    if (!response.ok) throw new AnalysisUnavailableError("gemini_http_status", response.status);
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new AnalysisUnavailableError("malformed_response");
+    }
     const raw = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof raw !== "string") throw new Error("analysis unavailable");
-    return validateAnalysis(JSON.parse(raw), input);
+    if (typeof raw !== "string") throw new AnalysisUnavailableError("malformed_response");
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new AnalysisUnavailableError("malformed_response");
+    }
+    try {
+      return validateAnalysis(parsed, input);
+    } catch {
+      throw new AnalysisUnavailableError("invalid_response");
+    }
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// GLM 即使未输出完整研究结构，只要其可见中文主题与总结合规，也可安全用于 Candidate；不补造页面事实或发布时间。
+function normalizeGlmCandidatePresentation(value) {
+  const presentation = classifyGlmCandidatePresentation(value);
+  if (presentation.code === "missing_fields") throw new AnalysisUnavailableError("glm_missing_fields");
+  if (presentation.code === "non_chinese_text") throw new AnalysisUnavailableError("glm_non_chinese_text");
+  const { title, summary } = presentation;
+  return {
+    feature_title: title,
+    feature_summary: summary,
+    conclusion: summary,
+    facts: [],
+    inference: { label: "推断", text: "未提供推断" },
+    competitive_impact: { label: "竞争影响", text: "未提供竞争影响" },
+    confidence: "low",
+    publication_time: { status: "unverified", value: null, source_text: null },
+  };
+}
+
+// 仅展示字段可在 Unicode 字符边界安全截断；其余无效形态保持为固定分类。
+export function classifyGlmCandidatePresentation(value) {
+  const title = typeof value?.feature_title === "string" ? value.feature_title.trim() : "";
+  const summary = typeof value?.feature_summary === "string" ? value.feature_summary.trim() : "";
+  if (!title || !summary) return { code: "missing_fields" };
+  if (!isSimplifiedChineseText(title) || !isSimplifiedChineseText(summary)) return { code: "non_chinese_text" };
+  const overflow = Array.from(title).length > 24 || Array.from(summary).length > 160;
+  return {
+    code: overflow ? "length_overflow" : null,
+    title: Array.from(title).slice(0, 24).join(""),
+    summary: Array.from(summary).slice(0, 160).join(""),
+  };
 }
 
 function analysisJsonSchema() {
   return {
     type: "object",
     additionalProperties: false,
-    required: ["conclusion", "facts", "inference", "competitive_impact", "quotes", "confidence", "publication_time"],
+    required: ["feature_title", "feature_summary", "conclusion", "facts", "inference", "competitive_impact", "confidence", "publication_time"],
     properties: {
+      feature_title: { type: "string", minLength: 2, maxLength: 24, description: "简洁的简体中文功能主题" },
+      feature_summary: { type: "string", minLength: 6, maxLength: 160, description: "该具体功能的简洁简体中文摘要" },
       conclusion: { type: "string" },
       facts: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
       inference: { type: "object", additionalProperties: false, required: ["label", "text"], properties: { label: { type: "string", enum: ["推断"] }, text: { type: "string" } } },
       competitive_impact: { type: "object", additionalProperties: false, required: ["label", "text"], properties: { label: { type: "string", enum: ["竞争影响"] }, text: { type: "string" } } },
-      quotes: { type: "array", minItems: 2, maxItems: 3, items: { type: "object", additionalProperties: false, required: ["original", "chinese_gloss"], properties: { original: { type: "string" }, chinese_gloss: { type: "string" } } } },
       confidence: { type: "string", enum: ["high", "medium", "low"] },
       publication_time: { type: "object", additionalProperties: false, required: ["status", "value", "source_text"], properties: { status: { type: "string", enum: ["verified", "not_found", "unverified"] }, value: { type: "string", nullable: true }, source_text: { type: "string", nullable: true } } },
     },
   };
 }
 
-// 输出二次校验：即使模型声称符合 Schema，引文和已验证发布时间也必须能回指输入原文。
+// 输出二次校验：展示字段必须为简体中文；仅已验证发布时间需要回指输入原文。
 export function validateAnalysis(value, input) {
-  if (!value || typeof value !== "object" || typeof value.conclusion !== "string" || !value.conclusion.trim() ||
+  if (!value || typeof value !== "object" || !isSimplifiedChineseText(value.feature_title) ||
+      Array.from(value.feature_title.trim()).length > 24 || !isSimplifiedChineseText(value.feature_summary) ||
+      Array.from(value.feature_summary.trim()).length > 160 || typeof value.conclusion !== "string" || !value.conclusion.trim() ||
       !Array.isArray(value.facts) || value.facts.length < 2 || value.facts.length > 4 || !value.facts.every((fact) => typeof fact === "string" && fact.trim()) ||
-      !Array.isArray(value.quotes) || value.quotes.length < 2 || value.quotes.length > 3 ||
-      !value.quotes.every((quote) => typeof quote?.original === "string" && quote.original.length > 0 && input.includes(quote.original) && typeof quote.chinese_gloss === "string") ||
       !["high", "medium", "low"].includes(value.confidence) || value.inference?.label !== "推断" ||
       typeof value.inference?.text !== "string" || value.competitive_impact?.label !== "竞争影响" ||
       typeof value.competitive_impact?.text !== "string" || !["verified", "not_found", "unverified"].includes(value.publication_time?.status)) {
@@ -492,6 +1242,11 @@ export function validateAnalysis(value, input) {
     value.publication_time.value = null;
   }
   return value;
+}
+
+function isSimplifiedChineseText(value) {
+  return typeof value === "string" && value.trim().length > 0 &&
+    SIMPLIFIED_CHINESE_TEXT_PATTERN.test(value) && !LATIN_TEXT_PATTERN.test(value);
 }
 
 function extractTitle(html) {
@@ -520,10 +1275,6 @@ export function shouldQueueCandidate(previousHash, currentHash) {
   return !previousHash || previousHash !== currentHash;
 }
 
-function buildSummary(text) {
-  return text.slice(0, 500).trim();
-}
-
 async function getLatestSnapshot(env, sourceId) {
   const records = await supabaseRequest(
     env,
@@ -547,6 +1298,44 @@ async function updateRecord(env, table, id, payload) {
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify(payload),
   });
+}
+
+async function deleteRecords(env, table, column, value) {
+  return supabaseRequest(env, `/rest/v1/${table}?${column}=eq.${encodeURIComponent(value)}`, {
+    method: "DELETE", headers: { Prefer: "return=minimal" },
+  });
+}
+
+async function deleteStorageObject(env, objectPath, fetchImpl = fetch) {
+  const response = await fetchImpl(storageObjectUrl(env, objectPath), {
+    method: "DELETE",
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+  });
+  if (!response.ok) throw new Error(`附件删除返回 HTTP ${response.status}。`);
+}
+
+// Storage 对象读取：路径逐段编码，服务角色只发送给 Supabase，并对响应 MIME 与实际字节数重新设限。
+async function retrieveStorageObject(env, objectPath, fetchImpl = fetch) {
+  const response = await fetchImpl(storageObjectUrl(env, objectPath), {
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+  });
+  if (!response.ok) throw new Error(`附件存储返回 HTTP ${response.status}。`);
+  const mediaType = (response.headers.get("Content-Type") || "").split(";", 1)[0].trim().toLowerCase();
+  const declaredSize = Number(response.headers.get("Content-Length"));
+  if (!ALLOWED_IMAGE_TYPES.has(mediaType) ||
+      Number.isFinite(declaredSize) && declaredSize > MAX_IMAGE_BYTES) {
+    throw new HttpError(415, "unsafe_attachment", "附件类型或大小不受支持。");
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > MAX_IMAGE_BYTES) {
+    throw new HttpError(415, "unsafe_attachment", "附件类型或大小不受支持。");
+  }
+  return { bytes, mediaType };
+}
+
+function storageObjectUrl(env, objectPath) {
+  const encodedPath = String(objectPath || "").split("/").map(encodeURIComponent).join("/");
+  return `${env.SUPABASE_URL}/storage/v1/object/${CANDIDATE_ATTACHMENTS_BUCKET}/${encodedPath}`;
 }
 
 async function supabaseRequest(env, path, init = {}) {
@@ -575,7 +1364,7 @@ function validateManualEnvironment(env) {
 // Pages CORS：精确允许生产域名及其预览子域，绝不回显其他 Origin。
 function buildCorsHeaders(origin) {
   const headers = {
-    "Access-Control-Allow-Methods": "POST",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE",
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
