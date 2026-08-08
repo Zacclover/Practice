@@ -534,15 +534,21 @@ class SourceCaptureWorkerTests(unittest.TestCase):
     def test_internal_budget_exhaustion_stays_queued_until_next_utc_day(self):
         result = self.run_module(
             "async (module) => { const calls=[]; globalThis.fetch=async(url,init={})=>{const value=String(url),method=init.method||'GET';"
-            "if(value.endsWith('/rpc/reserve_source_capture_ai_budget'))return Response.json(false);"
+            "if(value.endsWith('/rpc/reserve_source_capture_ai_budget')){calls.push({url:value,body:JSON.parse(init.body)});return Response.json(false);}"
             "if(method==='PATCH'){calls.push({url:value,body:JSON.parse(init.body)});return new Response(null,{status:204});}"
             "throw new Error('provider must not be called');};"
             "await module.processCandidateAnalysis({SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'service-secret',ZAI_API_KEY:'zai-secret'},"
             "{candidate_id:'candidate-id',page_title:'Private title',canonical_url:'https://example.com/?secret=1',input_text:'Private body',attempt_count:0},new Date('2026-08-06T09:00:00Z'));"
             "return calls; }"
         )
+        budget_request = next(call for call in result if call["url"].endswith("/rpc/reserve_source_capture_ai_budget"))
         candidate_patch = next(call for call in result if "source_capture_candidates?id=eq.candidate-id" in call["url"])
         queue_patch = next(call for call in result if "source_capture_ai_queue?candidate_id=eq.candidate-id" in call["url"])
+        self.assertEqual(budget_request["body"], {
+            "requested_tokens": 8000,
+            "daily_request_limit": 200,
+            "daily_token_limit": 1_000_000,
+        })
         self.assertEqual(candidate_patch["body"]["analysis_status"], "rate_limited")
         self.assertEqual(queue_patch["body"]["status"], "rate_limited")
         self.assertEqual(queue_patch["body"]["attempt_count"], 0)
