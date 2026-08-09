@@ -59,6 +59,11 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("create table public.candidate_attachments", MIGRATIONS)
         self.assertIn("create function public.create_local_summary_candidate", MIGRATIONS)
         self.assertIn("status text not null default 'pending'", MIGRATIONS)
+        self.assertIn("revoke insert, update, delete on table public.source_capture_candidates from authenticated", MIGRATIONS)
+        self.assertIn("workspace members read source_capture_candidates", MIGRATIONS)
+        self.assertIn("for update", MIGRATIONS)
+        self.assertIn("snapshot_already_summarized", MIGRATIONS)
+        self.assertIn("summary_status = 'generated'", MIGRATIONS)
 
     def test_unavailable_model_guidance_does_not_create_candidate(self):
         self.assertIn("请重新加载后重试", INDEX)

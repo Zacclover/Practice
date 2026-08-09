@@ -39,6 +39,16 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         )
         self.assertEqual(result, [True, False, False, False, False])
 
+    def test_ipv6_and_special_use_ip_literals_are_rejected_for_sources_and_images(self):
+        result = self.run_module(
+            "(module) => ["
+            "'https://[::1]/', 'https://[::]/', 'https://[fd00::1]/', "
+            "'https://[fe80::1]/', 'https://[ff02::1]/', 'https://[::ffff:127.0.0.1]/', "
+            "'https://[2001:4860:4860::8888]/'"
+            "].map(module.isSafePublicSourceUrl)"
+        )
+        self.assertEqual(result, [False, False, False, False, False, False, False])
+
     def test_equivalent_text_has_one_fingerprint_and_changed_text_generates_review_candidate(self):
         result = self.run_module(
             "async (module) => { "

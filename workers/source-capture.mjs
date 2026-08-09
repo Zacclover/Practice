@@ -198,23 +198,20 @@ export function isSafePublicSourceUrl(value) {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password) return false;
     const hostname = url.hostname.toLowerCase();
-    if (hostname === "localhost" || hostname.endsWith(".localhost") || isPrivateIpv4(hostname)) {
-      return false;
-    }
+    // 只接受域名，不接受任何 IPv4/IPv6 字面量：避免环回、私网、链路本地、ULA、IPv4-mapped IPv6 等 Worker SSRF 变体。
+    if (
+      hostname === "localhost" || hostname.endsWith(".localhost")
+      || isIpv4Literal(hostname) || hostname.includes(":")
+    ) return false;
     return hostname.length > 0;
   } catch {
     return false;
   }
 }
 
-function isPrivateIpv4(hostname) {
+function isIpv4Literal(hostname) {
   const octets = hostname.split(".").map(Number);
-  if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
-    return false;
-  }
-  const [first, second] = octets;
-  return first === 0 || first === 10 || first === 127 || first === 169 && second === 254 ||
-    first === 172 && second >= 16 && second <= 31 || first === 192 && second === 168;
+  return octets.length === 4 && octets.every((value) => Number.isInteger(value) && value >= 0 && value <= 255);
 }
 
 function canonicalizeSourceUrl(value) {
