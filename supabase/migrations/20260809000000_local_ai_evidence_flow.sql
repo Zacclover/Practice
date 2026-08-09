@@ -41,27 +41,25 @@ create table public.source_capture_snapshot_images (
     references public.competitor_sources(workspace_id, tab_id, id) on delete cascade
 );
 
--- Candidate 附件是快照图片的不可变关联元数据，随候选删除但不影响原始快照。
-create table public.candidate_attachments (
-  id uuid primary key,
-  workspace_id uuid not null,
-  tab_id uuid not null,
-  candidate_id uuid not null,
-  snapshot_image_id uuid not null,
-  image_url text not null check (image_url ~ '^https://'),
-  alt_text text not null default '',
-  sort_order integer not null default 0,
-  created_at timestamptz not null default now(),
-  unique (candidate_id, snapshot_image_id),
-  foreign key (workspace_id, tab_id, candidate_id)
-    references public.source_capture_candidates(workspace_id, tab_id, id) on delete cascade,
-  foreign key (snapshot_image_id) references public.source_capture_snapshot_images(id) on delete restrict
-);
+-- 复用既有私有 Candidate 附件表：新增公开抓取图片关联字段，不改变已有对象存储附件。
+alter table public.candidate_attachments
+  add column if not exists tab_id uuid,
+  add column if not exists snapshot_image_id uuid references public.source_capture_snapshot_images(id) on delete restrict,
+  add column if not exists image_url text check (image_url ~ '^https://'),
+  add column if not exists alt_text text not null default '',
+  add column if not exists sort_order integer not null default 0 check (sort_order between 0 and 11);
+alter table public.candidate_attachments
+  alter column object_path drop not null,
+  alter column media_type drop not null,
+  alter column byte_size drop not null;
+create unique index if not exists candidate_attachments_snapshot_image_unique_idx
+  on public.candidate_attachments(candidate_id, snapshot_image_id)
+  where snapshot_image_id is not null;
 
 alter table public.source_capture_snapshot_images enable row level security;
-alter table public.candidate_attachments enable row level security;
 create policy "workspace members read snapshot images" on public.source_capture_snapshot_images
 for select to authenticated using (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members read candidate attachments" on public.candidate_attachments;
 create policy "workspace members read candidate attachments" on public.candidate_attachments
 for select to authenticated using (public.is_workspace_member(workspace_id));
 grant select on public.source_capture_snapshot_images, public.candidate_attachments to authenticated;
@@ -131,8 +129,8 @@ begin
     snapshot_row.content_hash, 'pending'
   );
   insert into public.candidate_attachments (
-    id, workspace_id, tab_id, candidate_id, snapshot_image_id, image_url, alt_text, sort_order
-  ) select gen_random_uuid(), workspace_id, tab_id, candidate_id, id, image_url, alt_text, sort_order
+    id, workspace_id, tab_id, candidate_id, snapshot_image_id, source_url, image_url, alt_text, sort_order
+  ) select gen_random_uuid(), workspace_id, tab_id, candidate_id, id, image_url, image_url, alt_text, sort_order
     from public.source_capture_snapshot_images where snapshot_id = snapshot_row.id;
   update public.source_capture_snapshots set summary_status = 'generated' where id = snapshot_row.id;
   return candidate_id;
