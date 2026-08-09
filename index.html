@@ -4281,6 +4281,13 @@
     .source-sync-notice { margin: 0; padding: 12px; color: var(--ink); background: var(--gray-100); border-left: 3px solid var(--orange); }
     .source-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .source-list, .review-queue-list { display: grid; gap: 10px; }
+    /* 待总结来源分组：沿用白色内容面、工业边线与 Mono 状态标签。 */
+    .review-source-group { display: grid; gap: 10px; padding: 12px; background: var(--white); border: 1px solid var(--line-medium); }
+    .review-source-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 2px solid var(--line-strong); }
+    .review-source-group > header h3 { margin: 0 0 8px; font-size: 16px; }
+    .review-raw-item { padding: 12px; background: var(--gray-100); border: 1px solid var(--line-subtle); }
+    .review-raw-item .actions { margin-top: 12px; }
+    .local-model-guidance { margin: 8px 0 0; color: var(--line-medium); font-size: 12px; }
     .source-list-item, .review-candidate { padding: 14px; background: var(--white); border: 1px solid var(--line-subtle); }
     .source-list-heading, .review-candidate-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
     .source-list-item h3, .review-candidate h3 { margin: 0; font-size: 16px; }
@@ -4866,7 +4873,7 @@
   <dialog id="reviewQueueDialog" class="source-dialog" aria-labelledby="reviewQueueTitle">
     <div class="source-dialog-header"><p class="source-dialog-kicker">HUMAN REVIEW / PENDING</p><h2 id="reviewQueueTitle">来源审核队列</h2></div>
     <div class="source-dialog-body">
-      <p class="source-sync-notice">仅准备证据草稿，不会自动写入证据或横向对比。</p>
+      <p class="source-sync-notice">原始抓取先在浏览器本地总结；成功后仍只生成待审核候选，不会自动写入证据或横向对比。</p>
       <div id="reviewQueueList" class="review-queue-list"></div>
       <div class="actions"><button id="closeReviewQueueButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>关闭</button></div>
     </div>
@@ -6499,6 +6506,7 @@
         version: 1,
         sources: Array.isArray(stored?.sources) ? stored.sources : [],
         candidates: Array.isArray(stored?.candidates) ? stored.candidates : [],
+        rawItems: Array.isArray(stored?.rawItems) ? stored.rawItems : [],
         cloudSynced: false,
         cloudWorkspaceId: null
       };
@@ -6508,7 +6516,8 @@
       const localSnapshot = {
         version: 1,
         sources: sourceCaptureState.sources,
-        candidates: sourceCaptureState.candidates
+        candidates: sourceCaptureState.candidates,
+        rawItems: sourceCaptureState.rawItems
       };
       localStorage.setItem(sourceCaptureStorageKey, JSON.stringify(localSnapshot));
     }
@@ -6616,7 +6625,7 @@
 
     /* 一次读取所有 v3 实体及来源审核数据；查询只在当前成员 RLS 范围内执行。 */
     async function fetchCloudSnapshot(workspaceId, accessToken) {
-      const readOnlyTables = [...cloudSnapshotTables, 'candidate_attachments'];
+      const readOnlyTables = [...cloudSnapshotTables, 'source_capture_snapshots', 'source_capture_snapshot_images', 'candidate_attachments'];
       const pairs = await Promise.all(readOnlyTables.map(async table => {
         const pending = table === 'source_capture_candidates' ? '&status=eq.pending' : '';
         const rows = await cloudRestRequest(`${table}?workspace_id=eq.${encodeURIComponent(workspaceId)}${pending}&select=*`, { accessToken });
@@ -6639,6 +6648,8 @@
       const matrix_cells = snapshot.matrix_cells || [];
       const competitor_sources = snapshot.competitor_sources || [];
       const source_capture_candidates = snapshot.source_capture_candidates || [];
+      const source_capture_snapshots = snapshot.source_capture_snapshots || [];
+      const source_capture_snapshot_images = snapshot.source_capture_snapshot_images || [];
       const candidate_attachments = snapshot.candidate_attachments || [];
       const refs = (rows, owner, ownerId, target) => rows.filter(row => row[owner] === ownerId).map(row => row[target]);
       const tabs = [...workspace_tabs].sort((a, b) => a.sort_order - b.sort_order).map(tab => {
@@ -6653,11 +6664,18 @@
       return {
         workspace: { version: 3, activeTabId: tabs[0]?.id || null, tabs },
         sources: competitor_sources.map(mapCloudSourceToLocal),
+        rawItems: source_capture_snapshots.filter(item => item.summary_status === 'pending').map(item => ({
+          id: item.id, tabId: item.tab_id, sourceId: item.source_id, runId: item.run_id,
+          title: item.page_title, sourceUrl: item.canonical_url, rawText: item.extracted_text,
+          capturedAt: item.fetched_at, summaryStatus: item.summary_status,
+          images: source_capture_snapshot_images.filter(image => image.snapshot_id === item.id)
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map(image => ({ id: image.id, url: image.image_url, alt: image.alt_text }))
+        })),
         candidates: source_capture_candidates.map(item => ({
           id: item.id, tabId: item.tab_id, competitorId: item.competitor_id,
           sourceUrl: item.source_url, title: item.title, summary: item.summary,
-          quotedText: item.quoted_text, status: item.status, analysisStatus: item.analysis_status,
-          analysis: item.analysis, publishedAt: item.published_at,
+          quotedText: item.quoted_text, status: item.status, publishedAt: item.published_at,
           publicationTimeStatus: item.publication_time_status,
           detectionWindowStart: item.detection_window_start,
           detectionWindowEnd: item.detection_window_end,
@@ -6687,6 +6705,7 @@
       competitors = activeWorkspaceTab.competitors; evidenceItems = activeWorkspaceTab.evidenceItems;
       comparisonData = activeWorkspaceTab.comparisonData; insights = activeWorkspaceTab.insights;
       sourceCaptureState.sources = mapped.sources; sourceCaptureState.candidates = mapped.candidates;
+      sourceCaptureState.rawItems = mapped.rawItems;
       sourceCaptureState.cloudSynced = true; sourceCaptureState.cloudWorkspaceId = cloudSyncState.workspaceId;
       persistWorkspaceState(); persistSourceCaptureState(); setCloudBaseline(snapshot);
       cloudSyncState.hydrating = false;
@@ -6992,7 +7011,7 @@
     }
 
     function getCandidateAnalysis(candidate) {
-      return candidate.analysisStatus === 'available' && candidate.analysis && typeof candidate.analysis === 'object' ? candidate.analysis : null;
+      return candidate?.title && candidate?.summary ? { feature_title: candidate.title, feature_summary: candidate.summary } : null;
     }
 
     function analysisText(analysis, ...keys) {
@@ -7009,15 +7028,6 @@
 
     /* Candidate 审核卡按异步分析状态展示安全中文文案，未完成分析时不回退原始内容。 */
     function renderCandidateAnalysis(candidate) {
-      if (candidate.analysisStatus === 'pending') {
-        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>等待 AI 分析</p></section>';
-      }
-      if (candidate.analysisStatus === 'rate_limited') {
-        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>等待限流恢复</p></section>';
-      }
-      if (candidate.analysisStatus === 'unavailable') {
-        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>AI 分析暂不可用</p></section>';
-      }
       const analysis = getCandidateAnalysis(candidate);
       const summary = analysisText(analysis, 'feature_summary', 'featureSummary', 'feature_summary_zh', 'featureSummaryZh');
       return `<section class="review-candidate-summary"><h4>功能总结</h4><p>${escapeHtml(summary || 'AI 分析暂不可用，暂无功能总结。')}</p></section>`;
@@ -7066,16 +7076,113 @@
       const pending = sourceCaptureState.candidates.filter(item =>
         item.tabId === activeWorkspaceTab.id && item.status === 'pending'
       );
-      reviewQueueCount.textContent = String(pending.length);
-      reviewQueueList.innerHTML = pending.length ? pending.map(item => {
+      const rawPending = sourceCaptureState.rawItems.filter(item => item.tabId === activeWorkspaceTab.id && item.summaryStatus === 'pending');
+      reviewQueueCount.textContent = String(pending.length + rawPending.length);
+      const groupedRaw = new Map();
+      rawPending.forEach(item => { const items = groupedRaw.get(item.sourceId) || []; items.push(item); groupedRaw.set(item.sourceId, items); });
+      const rawHtml = [...groupedRaw].map(([sourceId, rawItems]) => {
+        const source = sourceCaptureState.sources.find(item => item.id === sourceId);
+        const competitor = competitors.find(item => item.id === source?.competitorId);
+        return `<section class="review-source-group"><header><h3>${escapeHtml(source?.label || '已移除来源')}</h3><span class="insight-status">待总结证据（${rawItems.length}）</span></header><p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span></p>${rawItems.map(raw => `<article class="review-raw-item"><strong>${escapeHtml(raw.title || '公开页面抓取')}</strong><p class="review-candidate-meta"><span>${escapeHtml(formatDate(raw.capturedAt))}</span><span>${raw.images.length} 张采集图片</span></p><div class="actions"><button type="button" data-generate-summary-snapshot-id="${escapeHtml(raw.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>AI 总结生成证据</button></div><p class="local-model-guidance" data-local-model-status="${escapeHtml(raw.id)}">仅在本浏览器设备上运行本地模型。</p></article>`).join('')}</section>`;
+      }).join('');
+      const candidateHtml = pending.map(item => {
         const competitor = competitors.find(entry => entry.id === item.competitorId);
         const safeUrl = normalizePublicHttpsSourceUrl(item.sourceUrl);
         const publicationLabels = { verified: '已核验', not_found: '未找到', unverified: '未核验' };
         const detectionWindow = item.detectionWindowStart && item.detectionWindowEnd ? `${formatDate(item.detectionWindowStart)} — ${formatDate(item.detectionWindowEnd)}` : '未记录';
         const publicationTime = item.publishedAt ? formatDate(item.publishedAt) : '未提供';
         return `<article class="review-candidate"><div class="review-candidate-heading"><h3>${escapeHtml(getCandidateFeatureTitle(item))}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p>${renderCandidateAttachmentStrip(item)}<div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>弃用</button></div></article>`;
-      }).join('') : '<p class="review-queue-empty">当前没有待审核候选。云端同步未启用时，本机不会虚构采集结果。</p>';
+      }).join('');
+      reviewQueueList.innerHTML = rawHtml + candidateHtml || '<p class="review-queue-empty">当前没有待总结内容或待审核候选。</p>';
       if (pending.length && sourceCaptureState.cloudSynced) hydrateCandidateAttachmentThumbnails(candidateAttachmentRenderVersion);
+    }
+
+    /* 浏览器本地模型：固定 BitGPU 版本与 Bonsai 1.7B 权重，下载后推理只在当前设备的 WebGPU 执行。 */
+    const localEvidenceModelConfig = {
+      runtimeUrl: 'https://cdn.jsdelivr.net/npm/bitgpu@0.19.1/+esm',
+      chatUrl: 'https://cdn.jsdelivr.net/npm/bitgpu@0.19.1/chat/+esm',
+      manifestUrl: 'https://cdn.jsdelivr.net/gh/stfurkan/bitgpu@v0.19.1/models/bonsai-1.7b-gguf/manifest.json',
+      auxUrl: 'https://cdn.jsdelivr.net/gh/stfurkan/bitgpu@v0.19.1/models/bonsai-1.7b-gguf/Bonsai-1.7B-Q1_0.aux.bin',
+      dataUrl: 'https://huggingface.co/prism-ml/Bonsai-1.7B-gguf/resolve/main/Bonsai-1.7B-Q1_0.gguf',
+      tokenizerJsonUrl: 'https://huggingface.co/onnx-community/Bonsai-1.7B-ONNX/resolve/main/tokenizer.json',
+      tokenizerConfigUrl: 'https://huggingface.co/onnx-community/Bonsai-1.7B-ONNX/resolve/main/tokenizer_config.json'
+    };
+    let localEvidenceModelPromise = null;
+
+    async function loadLocalEvidenceModel() {
+      if (window.localEvidenceModel?.generate) return window.localEvidenceModel;
+      if (!localEvidenceModelPromise) {
+        localEvidenceModelPromise = (async () => {
+          const [{ createEngine }, { createChat }] = await Promise.all([
+            import(localEvidenceModelConfig.runtimeUrl), import(localEvidenceModelConfig.chatUrl)
+          ]);
+          const engine = await createEngine({
+            manifestUrl: localEvidenceModelConfig.manifestUrl,
+            auxUrl: localEvidenceModelConfig.auxUrl,
+            dataUrl: localEvidenceModelConfig.dataUrl,
+            kvCache: 'q8', maxSeqLen: 2048
+          });
+          const chat = await createChat(engine, {
+            tokenizerJsonUrl: localEvidenceModelConfig.tokenizerJsonUrl,
+            tokenizerConfigUrl: localEvidenceModelConfig.tokenizerConfigUrl
+          });
+          window.localEvidenceModel = {
+            async generate({ text }) {
+              const prompt = `将以下公开网页内容提炼成简体中文竞品功能证据。不要编造事实。只输出 JSON。\n\n网页内容：\n${text}`;
+              const response = await chat.send([{ role: 'user', content: prompt }], {
+                format: { json: { schema: {
+                  type: 'object', additionalProperties: false,
+                  required: ['featureTitle', 'featureSummary'],
+                  properties: {
+                    featureTitle: { type: 'string', minLength: 2, maxLength: 40 },
+                    featureSummary: { type: 'string', minLength: 10, maxLength: 1200 }
+                  }
+                } } },
+                maxTokens: 360, thinkBudget: 0
+              });
+              return JSON.parse(response.text);
+            }
+          };
+          return window.localEvidenceModel;
+        })().catch(error => { localEvidenceModelPromise = null; throw error; });
+      }
+      return localEvidenceModelPromise;
+    }
+
+    /* 浏览器本地模型就绪检查：WebGPU 与适配器缺一不可，不存在云端推理回退。 */
+    async function checkLocalEvidenceModelReadiness() {
+      if (!navigator.gpu) return { ready: false, message: '当前浏览器不支持 WebGPU。请使用支持 WebGPU 的设备和浏览器，请重新加载后重试。' };
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) return { ready: false, message: '未找到可用图形设备。请检查设备加速设置，请重新加载后重试。' };
+      try { return { ready: true, adapter, model: await loadLocalEvidenceModel() }; }
+      catch (error) { return { ready: false, message: `本地模型加载失败：${error.message || '请检查网络、存储与显存'}。请重新加载后重试。` }; }
+    }
+
+    /* BitGPU 的 JSON 约束解码在本浏览器设备完成结构化中文总结，不请求云端推理接口。 */
+    async function generateLocalEvidenceSummary(rawItem, model) {
+      const result = await model.generate({ language: 'zh-CN', text: rawItem.rawText.slice(0, 12000) });
+      const title = String(result?.featureTitle || '').trim();
+      const summary = String(result?.featureSummary || '').trim();
+      if (!/[\u3400-\u9fff]/.test(title) || !/[\u3400-\u9fff]/.test(summary) || title.length > 40 || summary.length < 10 || summary.length > 1200) throw new Error('本地模型未返回有效的结构化中文总结，请重试。');
+      return { title, summary };
+    }
+
+    /* 就绪和输出校验均成功后才调用 RLS RPC 保存 pending 候选。 */
+    async function createCandidateFromLocalSummary(snapshotId, button) {
+      const rawItem = sourceCaptureState.rawItems.find(item => item.id === snapshotId && item.summaryStatus === 'pending');
+      if (!rawItem) return;
+      const status = reviewQueueList.querySelector(`[data-local-model-status="${snapshotId}"]`);
+      button.disabled = true;
+      try {
+        const readiness = await checkLocalEvidenceModelReadiness();
+        if (!readiness.ready) { status.textContent = readiness.message; return; }
+        status.textContent = '正在此设备上生成中文总结…';
+        const summary = await generateLocalEvidenceSummary(rawItem, readiness.model);
+        await cloudRestRequest('rpc/create_local_summary_candidate', { method: 'POST', body: { target_snapshot_id: snapshotId, feature_title: summary.title, feature_summary: summary.summary } });
+        await pullCloudWorkspaceSafely();
+        renderReviewQueue();
+      } catch (error) { status.textContent = `${error.message} 请重新加载后重试。`; }
+      finally { if (button.isConnected) button.disabled = false; }
     }
 
     /* 人工动作仅把候选内容带入既有证据编辑器；提交前不改变任何研究数据 */
@@ -7160,7 +7267,7 @@
       updateSourceSyncNotice('pending', '正在抓取此来源…');
       try {
         const result = await requestManualSourceCapture(sourceIdValue, validation.observationWindow);
-        updateSourceSyncNotice('success', result.result?.candidateQueued ? '已生成待审核候选。' : '抓取完成，未发现内容变化。');
+        updateSourceSyncNotice('success', result.result?.pendingSummary ? '抓取完成，已加入待总结证据。' : '抓取完成。');
         renderSourceList(); renderReviewQueue();
       } catch (error) {
         updateSourceSyncNotice('error', error.message);
@@ -7169,6 +7276,8 @@
       }
     });
     reviewQueueList.addEventListener('click', async event => {
+      const generateButton = event.target.closest('[data-generate-summary-snapshot-id]');
+      if (generateButton) { await createCandidateFromLocalSummary(generateButton.dataset.generateSummarySnapshotId, generateButton); return; }
       const attachmentButton = event.target.closest('[data-candidate-attachment-id]');
       if (attachmentButton) {
         try {

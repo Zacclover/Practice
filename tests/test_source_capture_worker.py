@@ -66,6 +66,14 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertNotIn("/rest/v1/matrix_cells", source)
         self.assertNotIn("/rest/v1/insights", source)
 
+    def test_public_image_urls_are_resolved_deduplicated_and_filtered(self):
+        result = self.run_module(
+            "(module) => module.extractPublicImageUrls("
+            "'<img src=\"/shot.png\" alt=\"界面\"><img src=\"/shot.png\"><img src=\"http://bad.test/a.png\"><img src=\"https://127.0.0.1/a.png\">', "
+            "'https://example.com/releases')"
+        )
+        self.assertEqual(result, [{"url": "https://example.com/shot.png", "alt": "界面"}])
+
 
 if __name__ == "__main__":
     unittest.main()

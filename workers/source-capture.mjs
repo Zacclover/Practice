@@ -1,5 +1,5 @@
 // ============================================================
-// 公开来源抓取 Worker：只生成待审核候选，永不写入正式证据、矩阵或洞察。
+// 公开来源抓取 Worker：手动抓取只保存待总结原始快照，永不调用模型。
 // 通过 Cloudflare Cron 定时运行；服务端密钥仅存在于 Worker 环境变量。
 // ============================================================
 const SUPABASE_HEADERS = (serviceRoleKey) => ({
@@ -15,13 +15,40 @@ export default {
   async scheduled(_event, env, ctx) {
     ctx.waitUntil(runScheduledCapture(env));
   },
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    try {
+      validateEnvironment(env);
+      const token = readBearerToken(request);
+      const user = await authenticateUser(env, token);
+      if (url.pathname === "/manual-capture" && request.method === "POST") {
+        const body = await request.json();
+        const source = await getAuthorizedSource(env, body?.sourceId, user.id);
+        const result = await captureSource(source, env, "manual");
+        return Response.json({ ok: true, result });
+      }
+      const attachmentRoute = url.pathname.match(new RegExp(`^/candidate-attachments/(${UUID_PATTERN})(?:/(${UUID_PATTERN}))?$`, "i"));
+      if (attachmentRoute && request.method === "GET" && attachmentRoute[2]) {
+        return fetchAuthorizedCandidateImage(env, user.id, attachmentRoute[1], attachmentRoute[2]);
+      }
+      if (attachmentRoute && request.method === "DELETE" && !attachmentRoute[2]) {
+        await deleteAuthorizedCandidate(env, user.id, attachmentRoute[1]);
+        return new Response(null, { status: 204 });
+      }
+      return Response.json({ error: { message: "未找到接口。" } }, { status: 404 });
+    } catch (error) {
+      return Response.json({ error: { message: safeErrorMessage(error) } }, { status: 400 });
+    }
+  },
 };
+
+const UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 
 // 允许单元测试与未来受认证的手动触发入口复用核心调度。
 export async function runScheduledCapture(env) {
   validateEnvironment(env);
   const sources = await queryDueSources(env);
-  const results = await Promise.allSettled(sources.map((source) => captureSource(source, env)));
+  const results = await Promise.allSettled(sources.map((source) => captureSource(source, env, "scheduled")));
   return {
     inspected: sources.length,
     succeeded: results.filter((result) => result.status === "fulfilled").length,
@@ -45,13 +72,13 @@ function isDueForCapture(source, now = Date.now()) {
   return now - lastFetchedAt >= intervalHours * 60 * 60 * 1000;
 }
 
-async function captureSource(source, env) {
+async function captureSource(source, env, triggerType = "scheduled") {
   const run = await insertRecord(env, "source_capture_runs", {
     id: crypto.randomUUID(),
     workspace_id: source.workspace_id,
     tab_id: source.tab_id,
     source_id: source.id,
-    trigger_type: "scheduled",
+    trigger_type: triggerType,
     status: "running",
   });
 
@@ -59,7 +86,6 @@ async function captureSource(source, env) {
     const previousSnapshot = await getLatestSnapshot(env, source.id);
     const page = await fetchPublicSource(source.url);
     const snapshot = await createSnapshot(page.extractedText);
-    const isChanged = shouldQueueCandidate(previousSnapshot?.content_hash, snapshot.contentHash);
 
     const savedSnapshot = await insertRecord(env, "source_capture_snapshots", {
       id: crypto.randomUUID(),
@@ -71,25 +97,21 @@ async function captureSource(source, env) {
       extracted_text: snapshot.extractedText,
       content_hash: snapshot.contentHash,
       http_status: page.httpStatus,
+      page_title: page.title,
+      capture_mode: triggerType,
+      summary_status: "pending",
     }, "resolution=ignore-duplicates,return=representation");
 
-    if (isChanged) {
-      await insertRecord(env, "source_capture_candidates", {
-        id: crypto.randomUUID(),
-        workspace_id: source.workspace_id,
-        tab_id: source.tab_id,
-        competitor_id: source.competitor_id,
-        source_id: source.id,
-        run_id: run.id,
-        snapshot_id: savedSnapshot?.id || previousSnapshot?.id,
-        source_url: page.canonicalUrl,
-        title: page.title || "检测到公开页面内容变化",
-        summary: buildSummary(snapshot.extractedText),
-        quoted_text: snapshot.extractedText.slice(0, 1_200),
-        content_hash: snapshot.contentHash,
-        status: "pending",
-      });
+    const targetSnapshot = savedSnapshot || previousSnapshot;
+    if (savedSnapshot?.id) {
+      await Promise.all(page.imageUrls.map((image, sortOrder) => insertRecord(env, "source_capture_snapshot_images", {
+        id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
+        snapshot_id: savedSnapshot.id, source_id: source.id, image_url: image.url,
+        alt_text: image.alt, sort_order: sortOrder,
+      }, "resolution=ignore-duplicates,return=minimal")));
     }
+
+    // 抓取器只保存原始快照和公开图片；Candidate 必须由浏览器本地 AI 总结成功后创建。
 
     await updateRecord(env, "competitor_sources", source.id, {
       last_fetched_at: new Date().toISOString(),
@@ -99,6 +121,7 @@ async function captureSource(source, env) {
       http_status: page.httpStatus,
       finished_at: new Date().toISOString(),
     });
+    return { snapshotId: targetSnapshot?.id || null, pendingSummary: Boolean(savedSnapshot?.id), candidateQueued: false };
   } catch (error) {
     await updateRecord(env, "source_capture_runs", run.id, {
       status: "failed",
@@ -145,10 +168,29 @@ export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
       extractedText: extractReadableText(html),
       httpStatus: response.status,
       title: extractTitle(html),
+      imageUrls: extractPublicImageUrls(html, sourceUrl),
     };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// HTML 图片仅解析 src；相对地址按公开页面解析，拒绝凭据、私网和非 HTTPS URL。
+export function extractPublicImageUrls(html, sourceUrl) {
+  const results = [];
+  const seen = new Set();
+  const pattern = /<img\b[^>]*?\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
+  let match;
+  while ((match = pattern.exec(html)) && results.length < 12) {
+    try {
+      const url = new URL(decodeHtmlEntities(match[1] || match[2] || match[3] || ""), sourceUrl).toString();
+      if (!isSafePublicSourceUrl(url) || seen.has(url)) continue;
+      seen.add(url);
+      const altMatch = match[0].match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+      results.push({ url: canonicalizeSourceUrl(url), alt: decodeHtmlEntities(altMatch?.[1] || altMatch?.[2] || "").slice(0, 240) });
+    } catch { /* 忽略无法安全解析的图片地址。 */ }
+  }
+  return results;
 }
 
 export function isSafePublicSourceUrl(value) {
@@ -229,6 +271,58 @@ async function getLatestSnapshot(env, sourceId) {
     `/rest/v1/source_capture_snapshots?source_id=eq.${encodeURIComponent(sourceId)}&select=id,content_hash&order=fetched_at.desc&limit=1`,
   );
   return records[0] || null;
+}
+
+// 手动入口用用户 JWT 确认身份，再以成员表验证来源归属；密钥从不返回浏览器。
+function readBearerToken(request) {
+  const match = (request.headers.get("Authorization") || "").match(/^Bearer\s+(.+)$/i);
+  if (!match) throw new Error("请先登录后再抓取。");
+  return match[1];
+}
+
+async function authenticateUser(env, token) {
+  const response = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("登录已失效，请重新登录。");
+  return response.json();
+}
+
+async function getAuthorizedSource(env, sourceId, userId) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(sourceId || ""))) throw new Error("来源无效。");
+  const sources = await supabaseRequest(env, `/rest/v1/competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id,workspace_id,tab_id,competitor_id,url,last_fetched_at`);
+  const source = sources[0];
+  if (!source) throw new Error("来源不存在。");
+  const memberships = await supabaseRequest(env, `/rest/v1/workspace_members?workspace_id=eq.${source.workspace_id}&user_id=eq.${encodeURIComponent(userId)}&select=workspace_id&limit=1`);
+  if (!memberships.length) throw new Error("无权访问此来源。");
+  return source;
+}
+
+async function assertWorkspaceMember(env, workspaceId, userId) {
+  const memberships = await supabaseRequest(env, `/rest/v1/workspace_members?workspace_id=eq.${workspaceId}&user_id=eq.${encodeURIComponent(userId)}&select=workspace_id&limit=1`);
+  if (!memberships.length) throw new Error("无权访问此内容。");
+}
+
+// 附件读取由 Worker 重新校验候选归属和图片 URL，浏览器只接收无凭据的图片字节。
+async function fetchAuthorizedCandidateImage(env, userId, candidateId, attachmentId) {
+  const rows = await supabaseRequest(env, `/rest/v1/candidate_attachments?id=eq.${attachmentId}&candidate_id=eq.${candidateId}&select=image_url,workspace_id&limit=1`);
+  const attachment = rows[0];
+  if (!attachment) throw new Error("附件不存在。");
+  await assertWorkspaceMember(env, attachment.workspace_id, userId);
+  if (!isSafePublicSourceUrl(attachment.image_url)) throw new Error("附件地址不安全。");
+  const response = await fetch(attachment.image_url, { redirect: "manual", headers: { Accept: "image/*" } });
+  const type = response.headers.get("content-type") || "";
+  if (!response.ok || !type.toLowerCase().startsWith("image/")) throw new Error("附件暂不可用。");
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength > 5_000_000) throw new Error("附件超过大小限制。");
+  return new Response(bytes, { headers: { "Content-Type": type, "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" } });
+}
+
+async function deleteAuthorizedCandidate(env, userId, candidateId) {
+  const rows = await supabaseRequest(env, `/rest/v1/source_capture_candidates?id=eq.${candidateId}&select=workspace_id&limit=1`);
+  if (!rows[0]) throw new Error("候选不存在。");
+  await assertWorkspaceMember(env, rows[0].workspace_id, userId);
+  await supabaseRequest(env, `/rest/v1/source_capture_candidates?id=eq.${candidateId}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
 }
 
 async function insertRecord(env, table, payload, prefer = "return=representation") {

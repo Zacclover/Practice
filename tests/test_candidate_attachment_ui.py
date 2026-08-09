@@ -13,7 +13,7 @@ class CandidateAttachmentUiContractTests(unittest.TestCase):
         return match.group("body")
 
     def test_metadata_is_hydrated_and_mapped_to_its_candidate(self):
-        self.assertIn("[...cloudSnapshotTables, 'candidate_attachments']", SOURCE)
+        self.assertIn("'source_capture_snapshot_images', 'candidate_attachments'", SOURCE)
         mapping = self.function_body("mapCloudSnapshotToV3")
         self.assertIn("attachment.candidate_id === item.id", mapping)
         self.assertIn("attachments:", mapping)

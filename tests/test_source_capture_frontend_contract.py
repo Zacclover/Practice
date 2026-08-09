@@ -65,14 +65,10 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIn("'feature_summary'", structured)
         self.assertIn("'featureSummary'", structured)
         self.assertIn("AI 分析暂不可用，暂无功能总结。", structured)
-        self.assertIn("candidate.analysisStatus === 'pending'", structured)
-        self.assertIn("等待 AI 分析", structured)
-        self.assertIn("candidate.analysisStatus === 'rate_limited'", structured)
-        self.assertIn("等待限流恢复", structured)
-        self.assertIn("candidate.analysisStatus === 'unavailable'", structured)
-        self.assertIn("AI 分析暂不可用", structured)
+        self.assertNotIn("analysisStatus", structured)
+        self.assertNotIn("rate_limited", structured)
         analysis = self.function_body("getCandidateAnalysis", "analysisText")
-        self.assertIn("candidate.analysisStatus === 'available'", analysis)
+        self.assertIn("candidate?.title", analysis)
         for forbidden in ("quotedText", "candidate.summary", "facts", "inference", "competitive_impact", "quotes", "quotePairs", "原始摘录", "原文引句"):
             self.assertNotIn(forbidden, structured)
 
