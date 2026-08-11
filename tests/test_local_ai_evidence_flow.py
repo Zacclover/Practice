@@ -62,7 +62,10 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("maxBudget = 1400", INDEX)
         self.assertIn("generate: prompt length", INDEX)
         self.assertIn("原始页面内容过长", INDEX)
-        self.assertIn("重试本地总结", INDEX)
+        self.assertIn("response.finishReason !== 'stop'", INDEX)
+        self.assertIn("本地模型输出未完成", INDEX)
+        self.assertIn("maxLength: 400", INDEX)
+        self.assertIn("maxTokens: 512", INDEX)
 
     def test_browser_local_inference_has_no_remote_fallback(self):
         readiness = re.search(

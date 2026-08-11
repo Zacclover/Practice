@@ -7172,12 +7172,14 @@
                   required: ['featureTitle', 'featureSummary'],
                   properties: {
                     featureTitle: { type: 'string', minLength: 2, maxLength: 40 },
-                    featureSummary: { type: 'string', minLength: 10, maxLength: 1200 }
+                    featureSummary: { type: 'string', minLength: 10, maxLength: 400 }
                   }
                 } } },
-                maxTokens: 360, thinkBudget: 0
+                maxTokens: 512, thinkBudget: 0
               });
-              return JSON.parse(response.text);
+              if (response.finishReason !== 'stop') throw new Error('本地模型输出未完成，请点击“重试本地总结”。');
+              try { return JSON.parse(response.text); }
+              catch { throw new Error('本地模型输出格式不完整，请点击“重试本地总结”。'); }
             }
           };
           return window.localEvidenceModel;
