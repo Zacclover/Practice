@@ -45,6 +45,10 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("downloadProgress", INDEX)
         self.assertIn("下载进度超过 5 分钟没有增加", INDEX)
         self.assertIn("已用 ${elapsedSec}s", INDEX)
+        self.assertIn("local-summary-loader", INDEX)
+        self.assertIn("stroke-dasharray=\"25 10\"", INDEX)
+        self.assertIn("transform-box: fill-box", INDEX)
+        self.assertNotIn("border-right-color: transparent", INDEX)
         self.assertIn("data-generate-summary-source-id", INDEX)
 
     def test_review_queue_shows_batch_count_and_local_summary_entry(self):
