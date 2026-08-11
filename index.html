@@ -7137,6 +7137,7 @@
           const [{ createEngine }, { createChat }] = await Promise.all([
             import(localEvidenceModelConfig.runtimeUrl), import(localEvidenceModelConfig.chatUrl)
           ]);
+          let lastDownloadedBytes = -1;
           const engine = await createEngine({
             manifestUrl: localEvidenceModelConfig.manifestUrl,
             auxUrl: localEvidenceModelConfig.auxUrl,
@@ -7148,7 +7149,9 @@
                 const loaded = progress.loaded || 0;
                 const total = progress.total || 248302272;
                 const percent = Math.min(99, Math.floor((loaded / total) * 100));
-                onProgress?.(`正在下载本地模型 ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total)}）…`);
+                const progressed = loaded > lastDownloadedBytes;
+                lastDownloadedBytes = Math.max(lastDownloadedBytes, loaded);
+                onProgress?.(`正在下载本地模型 ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total)}）…`, { downloadProgress: progressed });
               } else if (progress.phase === 'manifest') {
                 onProgress?.('正在读取本地模型配置…');
               } else {
@@ -7222,8 +7225,10 @@
       const startTime = Date.now();
       let timerId = null;
       let timedOut = false;
+      let lastDownloadProgressAt = startTime;
       let currentStageMessage = '检查本机 WebGPU…';
-      const setProgress = message => {
+      const setProgress = (message, options = {}) => {
+        if (options.downloadProgress) lastDownloadProgressAt = Date.now();
         currentStageMessage = message || currentStageMessage;
         const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
         const elapsedLabel = elapsedSec > 0 ? `（已用 ${elapsedSec}s）` : '';
@@ -7237,12 +7242,13 @@
       setProgress('检查本机 WebGPU…');
       timerId = window.setInterval(() => {
         const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
-        if (elapsedSec > 300 && currentStageMessage.includes('模型')) {
+        const stalledDownloadMs = Date.now() - lastDownloadProgressAt;
+        if (currentStageMessage.startsWith('正在下载本地模型') && stalledDownloadMs > 300000) {
           timedOut = true;
           window.clearInterval(timerId); timerId = null;
           localSummaryBatchState.delete(batchId);
           const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
-          if (status) { status.textContent = '本地模型加载超过 5 分钟，可能因网络或显存阻塞。请点击“重新加载”后重试。'; status.classList.remove('is-processing'); }
+          if (status) { status.textContent = '本地模型下载进度超过 5 分钟没有增加，可能因网络或浏览器缓存阻塞。请点击“重新加载”后重试。'; status.classList.remove('is-processing'); }
           if (button?.isConnected) { button.disabled = false; button.classList.remove('is-loading'); button.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重新加载本地模型</span>'; }
           return;
         }
