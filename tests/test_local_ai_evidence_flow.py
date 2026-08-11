@@ -71,6 +71,14 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("maxLength: 400", INDEX)
         self.assertIn("maxTokens: 512", INDEX)
 
+    def test_expired_cloud_session_refreshes_before_capture_or_rpc(self):
+        self.assertIn("cloudAuthRefreshTokenKey", INDEX)
+        self.assertIn("refreshCloudAccessToken", INDEX)
+        self.assertIn("grant_type=refresh_token", INDEX)
+        self.assertIn("ensureFreshCloudAccessToken", INDEX)
+        self.assertIn("const accessToken = await ensureFreshCloudAccessToken();", INDEX)
+        self.assertIn("response.status === 401 || response.status === 403", INDEX)
+
     def test_browser_local_inference_has_no_remote_fallback(self):
         readiness = re.search(
             r"async function checkLocalEvidenceModelReadiness\([^)]*\) \{(?P<body>.*?)\n    \}",

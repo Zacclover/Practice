@@ -66,6 +66,20 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertTrue(result["changedCandidate"])
         self.assertEqual(result["text"], "Update shipped today.")
 
+    def test_same_origin_first_level_subpages_are_safely_discovered_and_capped(self):
+        result = self.run_module(
+            "(module) => module.discoverFirstLevelSameOriginHtmlLinks("
+            "'<a href=\"/releases/a#overview\">A</a><a href=\"https://example.com/releases/b\">B</a><a href=\"https://outside.test/x\">X</a><a href=\"http://example.com/no\">No</a><a href=\"/releases/a\">Duplicate</a>', "
+            "'https://example.com/releases')"
+        )
+        self.assertEqual(result, ["https://example.com/releases/a", "https://example.com/releases/b"])
+
+    def test_subpage_discovery_has_a_hard_limit_of_thirty(self):
+        result = self.run_module(
+            "(module) => module.discoverFirstLevelSameOriginHtmlLinks(Array.from({length: 35}, (_, i) => `<a href=\"/updates/${i}\">${i}</a>`).join(''), 'https://example.com/releases').length"
+        )
+        self.assertEqual(result, 30)
+
     def test_worker_writes_review_pipeline_only_never_evidence_or_matrix_entities(self):
         source = WORKER.read_text(encoding="utf-8")
         self.assertIn("export default", source)

@@ -5469,8 +5469,8 @@
        GitHub OAuth 回调与账户会话
        访问令牌仅保留在当前标签页，并只发送到配置的 Supabase 项目
        ============================== */
-    const cloudAuthSessionKey =
-      'competitor-insights-cloud-access-token-v1';
+    const cloudAuthSessionKey = 'competitor-insights-cloud-access-token-v1';
+    const cloudAuthRefreshTokenKey = 'competitor-insights-cloud-refresh-token-v1';
 
     function clearCloudAuthHash() {
       const callbackHash = new URLSearchParams(
@@ -5486,30 +5486,62 @@
       );
     }
 
+    function storeCloudSession(accessToken, refreshToken = '') {
+      try {
+        if (accessToken) sessionStorage.setItem(cloudAuthSessionKey, accessToken);
+        if (refreshToken) sessionStorage.setItem(cloudAuthRefreshTokenKey, refreshToken);
+      } catch (error) {
+        /* 浏览器禁用会话存储时仅保留当前回调生命周期。 */
+      }
+    }
+
     function readCloudAccessToken() {
-      const callbackHash = new URLSearchParams(
-        window.location.hash.replace(/^#/, '')
-      );
+      const callbackHash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
       const callbackToken = callbackHash.get('access_token');
       if (callbackToken) {
-        try {
-          sessionStorage.setItem(cloudAuthSessionKey, callbackToken);
-        } catch (error) {
-          /* 浏览器禁用会话存储时仍允许本次回调完成。 */
-        }
+        storeCloudSession(callbackToken, callbackHash.get('refresh_token') || '');
         clearCloudAuthHash();
         return callbackToken;
       }
-      try {
-        return sessionStorage.getItem(cloudAuthSessionKey) || '';
-      } catch (error) {
-        return '';
+      try { return sessionStorage.getItem(cloudAuthSessionKey) || ''; }
+      catch (error) { return ''; }
+    }
+
+    async function refreshCloudAccessToken() {
+      const config = getCloudRuntimeConfig();
+      let refreshToken = '';
+      try { refreshToken = sessionStorage.getItem(cloudAuthRefreshTokenKey) || ''; }
+      catch (error) { /* 会话存储不可用时不能静默刷新。 */ }
+      if (!config.enabled || !refreshToken) throw new Error('登录会话已过期，请重新通过 GitHub 登录。');
+      const response = await fetch(`${config.url.replace(/\/$/, '')}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: { apikey: config.publishableKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken })
+      });
+      if (!response.ok) {
+        clearCloudAuthSession();
+        throw new Error('登录会话已过期，请重新通过 GitHub 登录。');
       }
+      const session = await response.json();
+      if (!session?.access_token) throw new Error('登录会话刷新失败，请重新通过 GitHub 登录。');
+      storeCloudSession(session.access_token, session.refresh_token || '');
+      if (typeof cloudSyncState !== 'undefined') cloudSyncState.accessToken = session.access_token;
+      return session.access_token;
+    }
+
+    async function ensureFreshCloudAccessToken() {
+      const accessToken = readCloudAccessToken();
+      try {
+        const payload = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (Number(payload.exp) * 1000 > Date.now() + 60000) return accessToken;
+      } catch (error) { /* 令牌不可解析时让受控刷新端点进行验证。 */ }
+      return refreshCloudAccessToken();
     }
 
     function clearCloudAuthSession() {
       try {
         sessionStorage.removeItem(cloudAuthSessionKey);
+        sessionStorage.removeItem(cloudAuthRefreshTokenKey);
       } catch (error) {
         /* 会话存储不可用时无需处理其他应用数据。 */
       }
@@ -5620,7 +5652,9 @@
       cloudLoginButton.hidden = false;
       const accessToken = readCloudAccessToken();
       if (accessToken) {
-        void loadCloudAccount(config, accessToken);
+        void ensureFreshCloudAccessToken()
+          .then(token => loadCloudAccount(config, token))
+          .catch(() => { clearCloudAuthSession(); renderCloudLogin(); });
       }
     }
 
@@ -6560,20 +6594,28 @@
 
     async function cloudRestRequest(resource, options = {}) {
       const config = getCloudRuntimeConfig();
-      const accessToken = options.accessToken || readCloudAccessToken();
+      let accessToken = options.accessToken || readCloudAccessToken();
       if (!config.enabled || !accessToken) throw new Error('云端会话不可用。');
       if (options.method === 'POST' && Array.isArray(options.body) && options.body.length === 0) return [];
-      const headers = {
-        apikey: config.publishableKey,
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-        ...(options.headers || {})
-      };
-      if (options.body !== undefined) headers['Content-Type'] = 'application/json';
-      const response = await fetch(
+      const request = token => fetch(
         `${config.url.replace(/\/$/, '')}/rest/v1/${resource}`,
-        { method: options.method || 'GET', headers, body: options.body === undefined ? undefined : JSON.stringify(options.body) }
+        {
+          method: options.method || 'GET',
+          headers: {
+            apikey: config.publishableKey,
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            ...(options.headers || {}),
+            ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {})
+          },
+          body: options.body === undefined ? undefined : JSON.stringify(options.body)
+        }
       );
+      let response = await request(accessToken);
+      if (response.status === 401 || response.status === 403) {
+        accessToken = await refreshCloudAccessToken();
+        response = await request(accessToken);
+      }
       if (!response.ok) {
         let message = `云端请求失败（${response.status}）。`;
         try { message = (await response.json()).message || message; } catch (error) { /* 非 JSON 错误使用安全状态说明。 */ }
@@ -6848,9 +6890,10 @@
       const config = getCloudRuntimeConfig();
       if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken) throw new Error('请先登录并完成来源云端同步。');
       if (!config.sourceCaptureWorkerUrl) throw new Error('手动抓取服务暂未配置。');
+      const accessToken = await ensureFreshCloudAccessToken();
       const response = await fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cloudSyncState.accessToken}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
         body: JSON.stringify({ sourceId, observationWindow })
       });
       const payload = await response.json().catch(() => ({}));
@@ -7443,7 +7486,12 @@
       updateSourceSyncNotice('pending', '正在抓取此来源…');
       try {
         const result = await requestManualSourceCapture(sourceIdValue, validation.observationWindow);
-        updateSourceSyncNotice('success', result.result?.pendingSummary ? '抓取完成，已加入待总结证据。' : '抓取完成。');
+        const capturedPages = Number(result.result?.capturedPages || 0);
+        const subpageFailures = Number(result.result?.subpageFailures || 0);
+        const detail = result.result?.pendingSummary
+          ? `抓取完成，已加入待总结证据（${capturedPages} 页）${subpageFailures ? `；${subpageFailures} 个子页面未能抓取` : ''}。`
+          : '抓取完成。';
+        updateSourceSyncNotice('success', detail);
         renderSourceList(); renderReviewQueue();
       } catch (error) {
         updateSourceSyncNotice('error', error.message);

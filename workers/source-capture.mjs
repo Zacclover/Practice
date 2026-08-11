@@ -10,6 +10,7 @@ const SUPABASE_HEADERS = (serviceRoleKey) => ({
 const MAX_RESPONSE_BYTES = 1_500_000;
 const MAX_EXTRACTED_TEXT_LENGTH = 12_000;
 const REQUEST_TIMEOUT_MS = 20_000;
+const MAX_SUBPAGES_PER_CAPTURE = 30;
 
 export default {
   async scheduled(_event, env, ctx) {
@@ -83,45 +84,39 @@ async function captureSource(source, env, triggerType = "scheduled") {
   });
 
   try {
-    const previousSnapshot = await getLatestSnapshot(env, source.id);
-    const page = await fetchPublicSource(source.url);
-    const snapshot = await createSnapshot(page.extractedText);
-
-    const savedSnapshot = await insertRecord(env, "source_capture_snapshots", {
-      id: crypto.randomUUID(),
-      workspace_id: source.workspace_id,
-      tab_id: source.tab_id,
-      source_id: source.id,
-      run_id: run.id,
-      canonical_url: page.canonicalUrl,
-      extracted_text: snapshot.extractedText,
-      content_hash: snapshot.contentHash,
-      http_status: page.httpStatus,
-      page_title: page.title,
-      capture_mode: triggerType,
-      summary_status: "pending",
-    }, "resolution=ignore-duplicates,return=representation");
-
-    const targetSnapshot = savedSnapshot || previousSnapshot;
-    if (savedSnapshot?.id) {
-      await Promise.all(page.imageUrls.map((image, sortOrder) => insertRecord(env, "source_capture_snapshot_images", {
-        id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
-        snapshot_id: savedSnapshot.id, source_id: source.id, image_url: image.url,
-        alt_text: image.alt, sort_order: sortOrder,
-      }, "resolution=ignore-duplicates,return=minimal")));
-    }
-
-    // 抓取器只保存原始快照和公开图片；Candidate 必须由浏览器本地 AI 总结成功后创建。
+    const entryPage = await fetchPublicSource(source.url);
+    // Candidate 必须由浏览器本地 AI 总结成功后创建；抓取器仅保存入口页及子页面原始快照。
+    const childResults = await Promise.allSettled(
+      entryPage.subpageUrls.map((url) => fetchPublicSource(url)),
+    );
+    const successfulPages = [entryPage, ...childResults
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value)];
+    const savedResults = await Promise.allSettled(
+      successfulPages.map((page) => saveRawSnapshot(env, source, run, page, triggerType)),
+    );
+    const savedSnapshots = savedResults
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value)
+      .filter(Boolean);
+    if (!savedSnapshots.length) throw new Error("本次抓取未能保存任何公开页面快照。");
 
     await updateRecord(env, "competitor_sources", source.id, {
       last_fetched_at: new Date().toISOString(),
     });
     await updateRecord(env, "source_capture_runs", run.id, {
       status: "succeeded",
-      http_status: page.httpStatus,
+      http_status: entryPage.httpStatus,
       finished_at: new Date().toISOString(),
     });
-    return { snapshotId: targetSnapshot?.id || null, pendingSummary: Boolean(savedSnapshot?.id), candidateQueued: false };
+    return {
+      snapshotId: savedSnapshots[0]?.id || null,
+      pendingSummary: savedSnapshots.length > 0,
+      capturedPages: savedSnapshots.length,
+      subpageFailures: childResults.filter((result) => result.status === "rejected").length
+        + savedResults.filter((result) => result.status === "rejected").length,
+      candidateQueued: false,
+    };
   } catch (error) {
     await updateRecord(env, "source_capture_runs", run.id, {
       status: "failed",
@@ -130,6 +125,32 @@ async function captureSource(source, env, triggerType = "scheduled") {
     });
     throw error;
   }
+}
+
+// 每页都保存独立原始快照；同一抓取 run 内同 URL/正文重复时由数据库约束安全去重。
+async function saveRawSnapshot(env, source, run, page, triggerType) {
+  const snapshot = await createSnapshot(page.extractedText);
+  const savedSnapshot = await insertRecord(env, "source_capture_snapshots?on_conflict=run_id%2Ccanonical_url%2Ccontent_hash", {
+    id: crypto.randomUUID(),
+    workspace_id: source.workspace_id,
+    tab_id: source.tab_id,
+    source_id: source.id,
+    run_id: run.id,
+    canonical_url: page.canonicalUrl,
+    extracted_text: snapshot.extractedText,
+    content_hash: snapshot.contentHash,
+    http_status: page.httpStatus,
+    page_title: page.title,
+    capture_mode: triggerType,
+    summary_status: "pending",
+  }, "resolution=ignore-duplicates,return=representation");
+  if (!savedSnapshot?.id) return null;
+  await Promise.allSettled(page.imageUrls.map((image, sortOrder) => insertRecord(env, "source_capture_snapshot_images", {
+    id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
+    snapshot_id: savedSnapshot.id, source_id: source.id, image_url: image.url,
+    alt_text: image.alt, sort_order: sortOrder,
+  }, "resolution=ignore-duplicates,return=minimal")));
+  return savedSnapshot;
 }
 
 export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
@@ -169,10 +190,34 @@ export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
       httpStatus: response.status,
       title: extractTitle(html),
       imageUrls: extractPublicImageUrls(html, sourceUrl),
+      subpageUrls: discoverFirstLevelSameOriginHtmlLinks(html, sourceUrl),
     };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// 入口页仅发现一层同源公开 HTML 链接：不递归、不跨域、按文档顺序最多 30 条。
+export function discoverFirstLevelSameOriginHtmlLinks(html, entryUrl) {
+  const links = [];
+  const seen = new Set();
+  let entry;
+  try { entry = new URL(entryUrl); } catch { return links; }
+  const entryCanonical = canonicalizeSourceUrl(entry.href);
+  const pattern = /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
+  let match;
+  while ((match = pattern.exec(html)) && links.length < MAX_SUBPAGES_PER_CAPTURE) {
+    try {
+      const rawHref = decodeHtmlEntities(match[1] || match[2] || match[3] || '').trim();
+      if (!rawHref || rawHref.startsWith('#')) continue;
+      const target = new URL(rawHref, entry);
+      const canonical = canonicalizeSourceUrl(target.href);
+      if (target.origin !== entry.origin || canonical === entryCanonical || !isSafePublicSourceUrl(canonical) || seen.has(canonical)) continue;
+      seen.add(canonical);
+      links.push(canonical);
+    } catch { /* 忽略不安全、无效或无法解析的子页面地址。 */ }
+  }
+  return links;
 }
 
 // HTML 图片仅解析 src；相对地址按公开页面解析，拒绝凭据、私网和非 HTTPS URL。
