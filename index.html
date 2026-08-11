@@ -4293,7 +4293,7 @@
     .local-model-guidance.is-processing { color: var(--ink); font-weight: 700; }
     .review-raw-item { padding: 12px; background: var(--gray-100); border: 1px solid var(--line-subtle); }
     .review-raw-item .actions { margin-top: 12px; }
-    .local-model-guidance { margin: 8px 0 0; color: var(--line-medium); font-size: 12px; }
+    .local-model-guidance { margin: 8px 0 0; color: var(--line-medium); font-size: 12px; text-align: right; }
     .source-list-item, .review-candidate { padding: 14px; background: var(--white); border: 1px solid var(--line-subtle); }
     .source-list-heading, .review-candidate-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
     .source-list-item h3, .review-candidate h3 { margin: 0; font-size: 16px; }
@@ -7097,7 +7097,7 @@
         const competitor = competitors.find(item => item.id === source?.competitorId);
         const batchState = localSummaryBatchState.get(captureKey);
         const processing = batchState?.processing === true;
-        const buttonLabel = processing ? batchState.message : 'AI 总结生成证据';
+        const buttonLabel = processing ? (batchState.buttonMessage || batchState.message) : 'AI 总结生成证据';
         return `<section class="review-source-group${processing ? ' local-summary-processing' : ''}"><header><h3>${escapeHtml(competitor?.name || '已移除竞品')}</h3><span class="insight-status">待总结证据（${batchRawItems.length}）</span></header><p class="review-candidate-meta"><span>来源：${escapeHtml(source?.label || '已移除来源')}</span><span>抓取时间：${escapeHtml(formatDate(representative.capturedAt))}</span><span>${batchRawItems.reduce((count, raw) => count + raw.images.length, 0)} 张采集图片</span></p><div class="actions"><button class="local-summary-action" type="button" data-generate-summary-source-id="${escapeHtml(representative.sourceId)}" data-generate-summary-run-id="${escapeHtml(representative.runId || representative.id)}" data-local-summary-batch-id="${escapeHtml(captureKey)}"${processing ? ' disabled' : ''}>${processing ? '<span class="local-summary-loader" aria-hidden="true"></span>' : '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>'}<span class="button-label">${escapeHtml(buttonLabel)}</span></button></div><p class="local-model-guidance${processing ? ' is-processing' : ''}" data-local-model-status="${escapeHtml(captureKey)}">${escapeHtml(processing ? `${batchState.message} 仅在此浏览器设备运行本地模型。` : '仅在本浏览器设备上运行本地模型。')}</p></section>`;
       }).join('');
       const candidateHtml = pending.map(item => {
@@ -7148,7 +7148,7 @@
                 const loaded = progress.loaded || 0;
                 const total = progress.total || 248302272;
                 const percent = Math.min(99, Math.floor((loaded / total) * 100));
-                onProgress?.(`正在下载本地模型权重 ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total)}）…`);
+                onProgress?.(`正在下载本地模型 ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total)}）…`);
               } else if (progress.phase === 'manifest') {
                 onProgress?.('正在读取本地模型配置…');
               } else {
@@ -7204,6 +7204,14 @@
       return { title, summary };
     }
 
+    function getLocalModelButtonLabel(message) {
+      if (message.startsWith('正在下载本地模型')) return '正在下载本地模型…';
+      if (message.startsWith('正在读取本地模型配置')) return '正在读取模型配置…';
+      if (message.startsWith('正在初始化 WebGPU')) return '正在初始化 WebGPU…';
+      if (message.startsWith('正在加载本地分词器')) return '正在加载本地分词器…';
+      return message.replace(/（.*$/, '').replace(/…$/, '') + '…';
+    }
+
     /* 单击按抓取批次顺序生成 Candidate：先完成全部本地总结，再经受控 RPC 写入 pending 记录。 */
     async function createCandidatesFromLocalSummary(sourceId, runId, batchId, button) {
       const rawItems = sourceCaptureState.rawItems.filter(item =>
@@ -7220,10 +7228,11 @@
         const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
         const elapsedLabel = elapsedSec > 0 ? `（已用 ${elapsedSec}s）` : '';
         const fullMessage = `${currentStageMessage}${elapsedLabel}`;
-        localSummaryBatchState.set(batchId, { processing: true, message: fullMessage });
+        const buttonMessage = getLocalModelButtonLabel(currentStageMessage);
+        localSummaryBatchState.set(batchId, { processing: true, message: fullMessage, buttonMessage });
         const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
         if (status) { status.textContent = `${fullMessage} 仅在此浏览器设备运行本地模型。`; status.classList.add('is-processing'); }
-        if (button?.isConnected) { button.disabled = true; button.classList.add('is-loading'); button.innerHTML = `<span class="local-summary-loader" aria-hidden="true"></span><span class="button-label">${escapeHtml(fullMessage)}</span>`; }
+        if (button?.isConnected) { button.disabled = true; button.classList.add('is-loading'); button.innerHTML = `<span class="local-summary-loader" aria-hidden="true"></span><span class="button-label">${escapeHtml(buttonMessage)}</span>`; }
       };
       setProgress('检查本机 WebGPU…');
       timerId = window.setInterval(() => {
