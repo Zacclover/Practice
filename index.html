@@ -7125,7 +7125,12 @@
     let localEvidenceModelPromise = null;
     const localSummaryBatchState = new Map();
 
-    async function loadLocalEvidenceModel() {
+    function formatProgressSize(bytes) {
+      if (!bytes || Number.isNaN(bytes)) return '0 MB';
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    async function loadLocalEvidenceModel(onProgress) {
       if (window.localEvidenceModel?.generate) return window.localEvidenceModel;
       if (!localEvidenceModelPromise) {
         localEvidenceModelPromise = (async () => {
@@ -7136,8 +7141,22 @@
             manifestUrl: localEvidenceModelConfig.manifestUrl,
             auxUrl: localEvidenceModelConfig.auxUrl,
             dataUrl: localEvidenceModelConfig.dataUrl,
-            kvCache: 'q8', maxSeqLen: 2048
+            kvCache: 'q8', maxSeqLen: 2048,
+            onProgress(progress) {
+              lastPhase = progress.phase;
+              if (progress.phase === 'weights') {
+                const loaded = progress.loaded || 0;
+                const total = progress.total || 248302272;
+                const percent = Math.min(99, Math.floor((loaded / total) * 100));
+                onProgress?.(`正在下载本地模型权重 ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total)}）…`);
+              } else if (progress.phase === 'manifest') {
+                onProgress?.('正在读取本地模型配置…');
+              } else {
+                onProgress?.('正在初始化 WebGPU 推理管线…');
+              }
+            }
           });
+          onProgress?.('正在加载本地分词器…');
           const chat = await createChat(engine, {
             tokenizerJsonUrl: localEvidenceModelConfig.tokenizerJsonUrl,
             tokenizerConfigUrl: localEvidenceModelConfig.tokenizerConfigUrl
@@ -7172,7 +7191,7 @@
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter) return { ready: false, message: '未找到可用图形设备。请检查设备加速设置，请重新加载后重试。' };
       onProgress?.('正在加载本地模型…');
-      try { return { ready: true, adapter, model: await loadLocalEvidenceModel() }; }
+      try { return { ready: true, adapter, model: await loadLocalEvidenceModel(onProgress) }; }
       catch (error) { return { ready: false, message: `本地模型加载失败：${error.message || '请检查网络、存储与显存'}。请重新加载后重试。` }; }
     }
 
@@ -7192,34 +7211,59 @@
         (item.runId || item.id) === runId && item.summaryStatus === 'pending'
       );
       if (!rawItems.length) return;
+      const startTime = Date.now();
+      let timerId = null;
+      let timedOut = false;
+      let currentStageMessage = '检查本机 WebGPU…';
       const setProgress = message => {
-        localSummaryBatchState.set(batchId, { processing: true, message });
+        currentStageMessage = message || currentStageMessage;
+        const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+        const elapsedLabel = elapsedSec > 0 ? `（已用 ${elapsedSec}s）` : '';
+        const fullMessage = `${currentStageMessage}${elapsedLabel}`;
+        localSummaryBatchState.set(batchId, { processing: true, message: fullMessage });
         const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
-        if (status) { status.textContent = `${message} 仅在此浏览器设备运行本地模型。`; status.classList.add('is-processing'); }
-        if (button?.isConnected) { button.disabled = true; button.classList.add('is-loading'); button.innerHTML = `<span class="local-summary-loader" aria-hidden="true"></span><span class="button-label">${escapeHtml(message)}</span>`; }
+        if (status) { status.textContent = `${fullMessage} 仅在此浏览器设备运行本地模型。`; status.classList.add('is-processing'); }
+        if (button?.isConnected) { button.disabled = true; button.classList.add('is-loading'); button.innerHTML = `<span class="local-summary-loader" aria-hidden="true"></span><span class="button-label">${escapeHtml(fullMessage)}</span>`; }
       };
       setProgress('检查本机 WebGPU…');
+      timerId = window.setInterval(() => {
+        const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+        if (elapsedSec > 300 && currentStageMessage.includes('模型')) {
+          timedOut = true;
+          window.clearInterval(timerId); timerId = null;
+          localSummaryBatchState.delete(batchId);
+          const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
+          if (status) { status.textContent = '本地模型加载超过 5 分钟，可能因网络或显存阻塞。请点击“重新加载”后重试。'; status.classList.remove('is-processing'); }
+          if (button?.isConnected) { button.disabled = false; button.classList.remove('is-loading'); button.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重新加载本地模型</span>'; }
+          return;
+        }
+        setProgress(currentStageMessage);
+      }, 1000);
       try {
         const readiness = await checkLocalEvidenceModelReadiness(setProgress);
+        if (timedOut) return;
         if (!readiness.ready) throw new Error(readiness.message);
         const summaries = [];
         for (let index = 0; index < rawItems.length; index += 1) {
-          setProgress(`正在生成中文总结（${index + 1}/${rawItems.length}）…`);
+          setProgress(`正在生成中文总结（${index + 1}/${rawItems.length}）`);
           summaries.push(await generateLocalEvidenceSummary(rawItems[index], readiness.model));
         }
         for (let index = 0; index < rawItems.length; index += 1) {
-          setProgress(`正在保存待审核证据（${index + 1}/${rawItems.length}）…`);
+          setProgress(`正在保存待审核证据（${index + 1}/${rawItems.length}）`);
           const rawItem = rawItems[index]; const summary = summaries[index];
           await cloudRestRequest('rpc/create_local_summary_candidate', { method: 'POST', body: { target_snapshot_id: rawItem.id, feature_title: summary.title, feature_summary: summary.summary } });
         }
+        if (timerId) { window.clearInterval(timerId); timerId = null; }
         localSummaryBatchState.delete(batchId);
         await pullCloudWorkspaceSafely();
         renderReviewQueue();
       } catch (error) {
+        if (timerId) { window.clearInterval(timerId); timerId = null; }
         localSummaryBatchState.delete(batchId);
         const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
         if (status) { status.textContent = `${error.message || '本次批量生成失败。'} 请重新加载后重试。`; status.classList.remove('is-processing'); }
       } finally {
+        if (timerId) { window.clearInterval(timerId); }
         if (button?.isConnected) { button.disabled = false; button.classList.remove('is-loading'); }
       }
     }

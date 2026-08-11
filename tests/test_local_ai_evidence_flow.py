@@ -35,9 +35,12 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
     def test_batch_generation_has_visible_processing_states_and_preserves_local_only_boundary(self):
         self.assertIn("检查本机 WebGPU…", INDEX)
         self.assertIn("正在加载本地模型…", INDEX)
-        self.assertIn("正在生成中文总结（${index + 1}/${rawItems.length}）…", INDEX)
-        self.assertIn("正在保存待审核证据（${index + 1}/${rawItems.length}）…", INDEX)
-        self.assertIn("local-summary-processing", INDEX)
+        self.assertIn("正在生成中文总结（${index + 1}/${rawItems.length}）", INDEX)
+        self.assertIn("正在保存待审核证据（${index + 1}/${rawItems.length}）", INDEX)
+        self.assertIn("正在下载本地模型权重 ${percent}%", INDEX)
+        self.assertIn("onProgress(progress)", INDEX)
+        self.assertIn("本地模型加载超过 5 分钟", INDEX)
+        self.assertIn("已用 ${elapsedSec}s", INDEX)
         self.assertIn("data-generate-summary-source-id", INDEX)
 
     def test_review_queue_shows_batch_count_and_local_summary_entry(self):
