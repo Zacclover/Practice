@@ -7144,7 +7144,6 @@
             dataUrl: localEvidenceModelConfig.dataUrl,
             kvCache: 'q8', maxSeqLen: 2048,
             onProgress(progress) {
-              lastPhase = progress.phase;
               if (progress.phase === 'weights') {
                 const loaded = progress.loaded || 0;
                 const total = progress.total || 248302272;

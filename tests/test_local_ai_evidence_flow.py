@@ -42,6 +42,7 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("正在下载本地模型…", INDEX)
         self.assertIn("text-align: right", INDEX)
         self.assertIn("onProgress(progress)", INDEX)
+        self.assertNotIn("lastPhase = progress.phase", INDEX)
         self.assertIn("downloadProgress", INDEX)
         self.assertIn("下载进度超过 5 分钟没有增加", INDEX)
         self.assertIn("已用 ${elapsedSec}s", INDEX)
