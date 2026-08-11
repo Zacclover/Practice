@@ -7125,6 +7125,51 @@
     let localEvidenceModelPromise = null;
     const localSummaryBatchState = new Map();
 
+    const LOCAL_MODEL_CACHE_NAME = 'local-evidence-model-v1';
+    const LOCAL_MODEL_WEIGHT_URLS = [
+      localEvidenceModelConfig.manifestUrl,
+      localEvidenceModelConfig.auxUrl,
+      localEvidenceModelConfig.dataUrl,
+      localEvidenceModelConfig.tokenizerJsonUrl,
+      localEvidenceModelConfig.tokenizerConfigUrl
+    ];
+
+    async function fetchWithPersistentCache(url, onBytesProgress) {
+      if ('caches' in window) {
+        try {
+          const cache = await window.caches.open(LOCAL_MODEL_CACHE_NAME);
+          const cachedResponse = await cache.match(url);
+          if (cachedResponse) {
+            const blob = await cachedResponse.blob();
+            onBytesProgress?.(blob.size, blob.size);
+            return new Response(blob, { status: 200, headers: cachedResponse.headers });
+          }
+        } catch (error) { /* 忽略 Cache Storage 异常并降级到网络下载 */ }
+      }
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`模型权重下载失败 (${response.status})`);
+      const total = Number(response.headers.get('content-length') || 0);
+      if (!response.body || !('caches' in window)) {
+        onBytesProgress?.(total, total);
+        return response;
+      }
+      const reader = response.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.byteLength;
+        onBytesProgress?.(loaded, total || loaded);
+      }
+      const blob = new Blob(chunks, { type: response.headers.get('content-type') || 'application/octet-stream' });
+      try {
+        const cache = await window.caches.open(LOCAL_MODEL_CACHE_NAME);
+        await cache.put(url, new Response(blob, { status: 200, headers: response.headers }));
+      } catch (error) { /* 缓存写入失败不阻塞模型使用 */ }
+      return new Response(blob, { status: 200, headers: response.headers });
+    }
     function formatProgressSize(bytes) {
       if (!bytes || Number.isNaN(bytes)) return '0 MB';
       return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -7143,6 +7188,14 @@
             auxUrl: localEvidenceModelConfig.auxUrl,
             dataUrl: localEvidenceModelConfig.dataUrl,
             kvCache: 'q8', maxSeqLen: 2048,
+            fetchJson: async url => (await fetchWithPersistentCache(url)).json(),
+            fetchArrayBuffer: async url => {
+              const response = await fetchWithPersistentCache(url, (loaded, total) => {
+                const percent = Math.min(99, Math.floor((loaded / (total || 248302272)) * 100));
+                onProgress?.(`正在下载本地模型 ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total || 248302272)}）…`, { downloadProgress: true });
+              });
+              return response.arrayBuffer();
+            },
             onProgress(progress) {
               if (progress.phase === 'weights') {
                 const loaded = progress.loaded || 0;
