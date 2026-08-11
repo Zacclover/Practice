@@ -4285,6 +4285,12 @@
     .review-source-group { display: grid; gap: 10px; padding: 12px; background: var(--white); border: 1px solid var(--line-medium); }
     .review-source-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 2px solid var(--line-strong); }
     .review-source-group > header h3 { margin: 0 0 8px; font-size: 16px; }
+    /* 批量本地总结：每次抓取只显示一条记录，处理中用持续旋转圆环和阶段文字避免无反馈。 */
+    .review-source-group.local-summary-processing { border-color: var(--orange); }
+    .local-summary-action { min-width: 188px; }
+    .local-summary-action[disabled] { cursor: wait; opacity: 1; }
+    .local-summary-loader { display: inline-block; width: 13px; height: 13px; margin-right: 7px; vertical-align: -2px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: source-capture-spin 780ms linear infinite; }
+    .local-model-guidance.is-processing { color: var(--ink); font-weight: 700; }
     .review-raw-item { padding: 12px; background: var(--gray-100); border: 1px solid var(--line-subtle); }
     .review-raw-item .actions { margin-top: 12px; }
     .local-model-guidance { margin: 8px 0 0; color: var(--line-medium); font-size: 12px; }
@@ -7079,11 +7085,20 @@
       const rawPending = sourceCaptureState.rawItems.filter(item => item.tabId === activeWorkspaceTab.id && item.summaryStatus === 'pending');
       reviewQueueCount.textContent = String(pending.length + rawPending.length);
       const groupedRaw = new Map();
-      rawPending.forEach(item => { const items = groupedRaw.get(item.sourceId) || []; items.push(item); groupedRaw.set(item.sourceId, items); });
-      const rawHtml = [...groupedRaw].map(([sourceId, rawItems]) => {
-        const source = sourceCaptureState.sources.find(item => item.id === sourceId);
+      rawPending.forEach(item => {
+        const captureKey = `${item.sourceId}:${item.runId || item.id}`;
+        const batchRawItems = groupedRaw.get(captureKey) || [];
+        batchRawItems.push(item);
+        groupedRaw.set(captureKey, batchRawItems);
+      });
+      const rawHtml = [...groupedRaw].map(([captureKey, batchRawItems]) => {
+        const representative = batchRawItems[0];
+        const source = sourceCaptureState.sources.find(item => item.id === representative.sourceId);
         const competitor = competitors.find(item => item.id === source?.competitorId);
-        return `<section class="review-source-group"><header><h3>${escapeHtml(source?.label || '已移除来源')}</h3><span class="insight-status">待总结证据（${rawItems.length}）</span></header><p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span></p>${rawItems.map(raw => `<article class="review-raw-item"><strong>${escapeHtml(raw.title || '公开页面抓取')}</strong><p class="review-candidate-meta"><span>${escapeHtml(formatDate(raw.capturedAt))}</span><span>${raw.images.length} 张采集图片</span></p><div class="actions"><button type="button" data-generate-summary-snapshot-id="${escapeHtml(raw.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>AI 总结生成证据</button></div><p class="local-model-guidance" data-local-model-status="${escapeHtml(raw.id)}">仅在本浏览器设备上运行本地模型。</p></article>`).join('')}</section>`;
+        const batchState = localSummaryBatchState.get(captureKey);
+        const processing = batchState?.processing === true;
+        const buttonLabel = processing ? batchState.message : 'AI 总结生成证据';
+        return `<section class="review-source-group${processing ? ' local-summary-processing' : ''}"><header><h3>${escapeHtml(competitor?.name || '已移除竞品')}</h3><span class="insight-status">待总结证据（${batchRawItems.length}）</span></header><p class="review-candidate-meta"><span>来源：${escapeHtml(source?.label || '已移除来源')}</span><span>抓取时间：${escapeHtml(formatDate(representative.capturedAt))}</span><span>${batchRawItems.reduce((count, raw) => count + raw.images.length, 0)} 张采集图片</span></p><div class="actions"><button class="local-summary-action" type="button" data-generate-summary-source-id="${escapeHtml(representative.sourceId)}" data-generate-summary-run-id="${escapeHtml(representative.runId || representative.id)}" data-local-summary-batch-id="${escapeHtml(captureKey)}"${processing ? ' disabled' : ''}>${processing ? '<span class="local-summary-loader" aria-hidden="true"></span>' : '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>'}<span class="button-label">${escapeHtml(buttonLabel)}</span></button></div><p class="local-model-guidance${processing ? ' is-processing' : ''}" data-local-model-status="${escapeHtml(captureKey)}">${escapeHtml(processing ? `${batchState.message} 仅在此浏览器设备运行本地模型。` : '仅在本浏览器设备上运行本地模型。')}</p></section>`;
       }).join('');
       const candidateHtml = pending.map(item => {
         const competitor = competitors.find(entry => entry.id === item.competitorId);
@@ -7108,6 +7123,7 @@
       tokenizerConfigUrl: 'https://huggingface.co/onnx-community/Bonsai-1.7B-ONNX/resolve/main/tokenizer_config.json'
     };
     let localEvidenceModelPromise = null;
+    const localSummaryBatchState = new Map();
 
     async function loadLocalEvidenceModel() {
       if (window.localEvidenceModel?.generate) return window.localEvidenceModel;
@@ -7150,10 +7166,12 @@
     }
 
     /* 浏览器本地模型就绪检查：WebGPU 与适配器缺一不可，不存在云端推理回退。 */
-    async function checkLocalEvidenceModelReadiness() {
+    async function checkLocalEvidenceModelReadiness(onProgress) {
       if (!navigator.gpu) return { ready: false, message: '当前浏览器不支持 WebGPU。请使用支持 WebGPU 的设备和浏览器，请重新加载后重试。' };
+      onProgress?.('检查本机 WebGPU…');
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter) return { ready: false, message: '未找到可用图形设备。请检查设备加速设置，请重新加载后重试。' };
+      onProgress?.('正在加载本地模型…');
       try { return { ready: true, adapter, model: await loadLocalEvidenceModel() }; }
       catch (error) { return { ready: false, message: `本地模型加载失败：${error.message || '请检查网络、存储与显存'}。请重新加载后重试。` }; }
     }
@@ -7167,22 +7185,43 @@
       return { title, summary };
     }
 
-    /* 就绪和输出校验均成功后才调用 RLS RPC 保存 pending 候选。 */
-    async function createCandidateFromLocalSummary(snapshotId, button) {
-      const rawItem = sourceCaptureState.rawItems.find(item => item.id === snapshotId && item.summaryStatus === 'pending');
-      if (!rawItem) return;
-      const status = reviewQueueList.querySelector(`[data-local-model-status="${snapshotId}"]`);
-      button.disabled = true;
+    /* 单击按抓取批次顺序生成 Candidate：先完成全部本地总结，再经受控 RPC 写入 pending 记录。 */
+    async function createCandidatesFromLocalSummary(sourceId, runId, batchId, button) {
+      const rawItems = sourceCaptureState.rawItems.filter(item =>
+        item.tabId === activeWorkspaceTab.id && item.sourceId === sourceId &&
+        (item.runId || item.id) === runId && item.summaryStatus === 'pending'
+      );
+      if (!rawItems.length) return;
+      const setProgress = message => {
+        localSummaryBatchState.set(batchId, { processing: true, message });
+        const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
+        if (status) { status.textContent = `${message} 仅在此浏览器设备运行本地模型。`; status.classList.add('is-processing'); }
+        if (button?.isConnected) { button.disabled = true; button.classList.add('is-loading'); button.innerHTML = `<span class="local-summary-loader" aria-hidden="true"></span><span class="button-label">${escapeHtml(message)}</span>`; }
+      };
+      setProgress('检查本机 WebGPU…');
       try {
-        const readiness = await checkLocalEvidenceModelReadiness();
-        if (!readiness.ready) { status.textContent = readiness.message; return; }
-        status.textContent = '正在此设备上生成中文总结…';
-        const summary = await generateLocalEvidenceSummary(rawItem, readiness.model);
-        await cloudRestRequest('rpc/create_local_summary_candidate', { method: 'POST', body: { target_snapshot_id: snapshotId, feature_title: summary.title, feature_summary: summary.summary } });
+        const readiness = await checkLocalEvidenceModelReadiness(setProgress);
+        if (!readiness.ready) throw new Error(readiness.message);
+        const summaries = [];
+        for (let index = 0; index < rawItems.length; index += 1) {
+          setProgress(`正在生成中文总结（${index + 1}/${rawItems.length}）…`);
+          summaries.push(await generateLocalEvidenceSummary(rawItems[index], readiness.model));
+        }
+        for (let index = 0; index < rawItems.length; index += 1) {
+          setProgress(`正在保存待审核证据（${index + 1}/${rawItems.length}）…`);
+          const rawItem = rawItems[index]; const summary = summaries[index];
+          await cloudRestRequest('rpc/create_local_summary_candidate', { method: 'POST', body: { target_snapshot_id: rawItem.id, feature_title: summary.title, feature_summary: summary.summary } });
+        }
+        localSummaryBatchState.delete(batchId);
         await pullCloudWorkspaceSafely();
         renderReviewQueue();
-      } catch (error) { status.textContent = `${error.message} 请重新加载后重试。`; }
-      finally { if (button.isConnected) button.disabled = false; }
+      } catch (error) {
+        localSummaryBatchState.delete(batchId);
+        const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
+        if (status) { status.textContent = `${error.message || '本次批量生成失败。'} 请重新加载后重试。`; status.classList.remove('is-processing'); }
+      } finally {
+        if (button?.isConnected) { button.disabled = false; button.classList.remove('is-loading'); }
+      }
     }
 
     /* 人工动作仅把候选内容带入既有证据编辑器；提交前不改变任何研究数据 */
@@ -7276,8 +7315,16 @@
       }
     });
     reviewQueueList.addEventListener('click', async event => {
-      const generateButton = event.target.closest('[data-generate-summary-snapshot-id]');
-      if (generateButton) { await createCandidateFromLocalSummary(generateButton.dataset.generateSummarySnapshotId, generateButton); return; }
+      const generateButton = event.target.closest('[data-generate-summary-source-id]');
+      if (generateButton) {
+        await createCandidatesFromLocalSummary(
+          generateButton.dataset.generateSummarySourceId,
+          generateButton.dataset.generateSummaryRunId,
+          generateButton.dataset.localSummaryBatchId,
+          generateButton
+        );
+        return;
+      }
       const attachmentButton = event.target.closest('[data-candidate-attachment-id]');
       if (attachmentButton) {
         try {

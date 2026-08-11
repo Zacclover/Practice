@@ -25,11 +25,25 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("source_capture_snapshot_images", WORKER)
         self.assertIn("isSafePublicSourceUrl", WORKER)
 
-    def test_review_queue_groups_sources_and_exposes_local_summary_action(self):
-        self.assertIn("待总结证据（${rawItems.length}）", INDEX)
-        self.assertIn("来源竞品：${escapeHtml(competitor?.name", INDEX)
+    def test_review_queue_uses_one_competitor_batch_record_per_capture_source(self):
+        self.assertIn("<h3>${escapeHtml(competitor?.name || '已移除竞品')}</h3>", INDEX)
+        self.assertIn("来源：${escapeHtml(source?.label || '已移除来源')}", INDEX)
+        self.assertIn("data-generate-summary-source-id", INDEX)
+        self.assertIn("batchRawItems", INDEX)
+        self.assertNotIn("rawItems.map(raw => `<article class=\"review-raw-item\"", INDEX)
+
+    def test_batch_generation_has_visible_processing_states_and_preserves_local_only_boundary(self):
+        self.assertIn("检查本机 WebGPU…", INDEX)
+        self.assertIn("正在加载本地模型…", INDEX)
+        self.assertIn("正在生成中文总结（${index + 1}/${rawItems.length}）…", INDEX)
+        self.assertIn("正在保存待审核证据（${index + 1}/${rawItems.length}）…", INDEX)
+        self.assertIn("local-summary-processing", INDEX)
+        self.assertIn("data-generate-summary-source-id", INDEX)
+
+    def test_review_queue_shows_batch_count_and_local_summary_entry(self):
+        self.assertIn("待总结证据（${batchRawItems.length}）", INDEX)
         self.assertIn("AI 总结生成证据", INDEX)
-        self.assertIn("data-generate-summary-snapshot-id", INDEX)
+        self.assertIn("createCandidatesFromLocalSummary", INDEX)
 
     def test_browser_local_inference_has_no_remote_fallback(self):
         readiness = re.search(
@@ -70,7 +84,7 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("请重新加载后重试", INDEX)
         self.assertIn("支持 WebGPU 的设备和浏览器", INDEX)
         handler = re.search(
-            r"async function createCandidateFromLocalSummary\([^)]*\) \{(?P<body>.*?)\n    \}",
+            r"async function createCandidatesFromLocalSummary\([^)]*\) \{(?P<body>.*?)\n    \}",
             INDEX,
             re.S,
         )
