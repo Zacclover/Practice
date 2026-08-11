@@ -7198,9 +7198,31 @@
       catch (error) { return { ready: false, message: `本地模型加载失败：${error.message || '请检查网络、存储与显存'}。请重新加载后重试。` }; }
     }
 
+    /* 在 2K 上下文中为输出 JSON 留出余量；CJK 字符按单 token 保守计费，拉丁字符按 0.35 token 估算。 */
+    function truncateLocalEvidenceText(text) {
+      const maxBudget = 1400;
+      let budget = 0;
+      let output = '';
+      for (const character of String(text || '')) {
+        const cost = /[\u3400-\u9fff\uF900-\uFAFF]/.test(character) ? 1 : 0.35;
+        if (budget + cost > maxBudget) break;
+        budget += cost;
+        output += character;
+      }
+      return output.trim();
+    }
+
     /* BitGPU 的 JSON 约束解码在本浏览器设备完成结构化中文总结，不请求云端推理接口。 */
     async function generateLocalEvidenceSummary(rawItem, model) {
-      const result = await model.generate({ language: 'zh-CN', text: rawItem.rawText.slice(0, 12000) });
+      let result;
+      try {
+        result = await model.generate({ language: 'zh-CN', text: truncateLocalEvidenceText(rawItem.rawText) });
+      } catch (error) {
+        if (String(error?.message || error).includes('generate: prompt length')) {
+          throw new Error('原始页面内容过长，已按本地模型上下文上限截取后仍无法总结。请缩短来源内容后重试。');
+        }
+        throw error;
+      }
       const title = String(result?.featureTitle || '').trim();
       const summary = String(result?.featureSummary || '').trim();
       if (!/[\u3400-\u9fff]/.test(title) || !/[\u3400-\u9fff]/.test(summary) || title.length > 40 || summary.length < 10 || summary.length > 1200) throw new Error('本地模型未返回有效的结构化中文总结，请重试。');
@@ -7276,7 +7298,9 @@
         if (timerId) { window.clearInterval(timerId); timerId = null; }
         localSummaryBatchState.delete(batchId);
         const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
-        if (status) { status.textContent = `${error.message || '本次批量生成失败。'} 请重新加载后重试。`; status.classList.remove('is-processing'); }
+        const retryMessage = error.message || '本次批量生成失败。';
+        if (status) { status.textContent = `${retryMessage} 请点击“重试本地总结”。`; status.classList.remove('is-processing'); }
+        if (button?.isConnected) { button.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重试本地总结</span>'; }
       } finally {
         if (timerId) { window.clearInterval(timerId); }
         if (button?.isConnected) { button.disabled = false; button.classList.remove('is-loading'); }

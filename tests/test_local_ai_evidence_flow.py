@@ -56,6 +56,13 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("AI 总结生成证据", INDEX)
         self.assertIn("createCandidatesFromLocalSummary", INDEX)
 
+    def test_local_model_input_is_token_budgeted_and_errors_are_localized(self):
+        self.assertIn("truncateLocalEvidenceText", INDEX)
+        self.assertIn("maxBudget = 1400", INDEX)
+        self.assertIn("generate: prompt length", INDEX)
+        self.assertIn("原始页面内容过长", INDEX)
+        self.assertIn("重试本地总结", INDEX)
+
     def test_browser_local_inference_has_no_remote_fallback(self):
         readiness = re.search(
             r"async function checkLocalEvidenceModelReadiness\([^)]*\) \{(?P<body>.*?)\n    \}",
