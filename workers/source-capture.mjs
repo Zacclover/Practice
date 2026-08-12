@@ -36,6 +36,11 @@ export default {
         await deleteAuthorizedCandidate(env, user.id, attachmentRoute[1]);
         return new Response(null, { status: 204 });
       }
+      const batchRoute = url.pathname.match(new RegExp(`^/capture-runs/(${UUID_PATTERN})$`, "i"));
+      if (batchRoute && request.method === "DELETE") {
+        await deleteAuthorizedCaptureRun(env, user.id, batchRoute[1]);
+        return new Response(null, { status: 204 });
+      }
       return Response.json({ error: { message: "未找到接口。" } }, { status: 404 });
     } catch (error) {
       return Response.json({ error: { message: safeErrorMessage(error) } }, { status: 400 });
@@ -371,10 +376,24 @@ async function fetchAuthorizedCandidateImage(env, userId, candidateId, attachmen
 }
 
 async function deleteAuthorizedCandidate(env, userId, candidateId) {
-  const rows = await supabaseRequest(env, `/rest/v1/source_capture_candidates?id=eq.${candidateId}&select=workspace_id&limit=1`);
+  const rows = await supabaseRequest(env, `/rest/v1/source_capture_candidates?id=eq.${candidateId}&select=workspace_id,status&limit=1`);
   if (!rows[0]) throw new Error("候选不存在。");
   await assertWorkspaceMember(env, rows[0].workspace_id, userId);
+  if (rows[0].status !== "pending") throw new Error("只能删除待审核 Candidate，已采纳内容必须从正式证据中处理。");
   await supabaseRequest(env, `/rest/v1/source_capture_candidates?id=eq.${candidateId}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+}
+
+// 删除整批仅面向待审核 run：级联清理其 raw snapshots、图片元数据和 pending Candidate，绝不触碰正式证据、矩阵或洞察。
+async function deleteAuthorizedCaptureRun(env, userId, runId) {
+  const runs = await supabaseRequest(env, `/rest/v1/source_capture_runs?id=eq.${encodeURIComponent(runId)}&select=id,workspace_id&limit=1`);
+  const run = runs[0];
+  if (!run) throw new Error("抓取批次不存在。");
+  await assertWorkspaceMember(env, run.workspace_id, userId);
+  const candidates = await supabaseRequest(env, `/rest/v1/source_capture_candidates?run_id=eq.${encodeURIComponent(runId)}&select=id,status`);
+  if (candidates.some((candidate) => candidate.status !== "pending")) {
+    throw new Error("该批次含已处理 Candidate，无法整批删除；请保留正式证据链。");
+  }
+  await supabaseRequest(env, `/rest/v1/source_capture_runs?id=eq.${encodeURIComponent(runId)}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
 }
 
 async function insertRecord(env, table, payload, prefer = "return=representation") {

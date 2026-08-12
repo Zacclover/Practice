@@ -6913,11 +6913,25 @@
     async function hardDeleteCloudCandidate(candidateId) {
       const config = getCloudRuntimeConfig();
       if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken || !config.sourceCaptureWorkerUrl) throw new Error('附件删除服务暂不可用，请稍后重试。');
+      const accessToken = await ensureFreshCloudAccessToken();
       const response = await fetch(`${config.sourceCaptureWorkerUrl}/candidate-attachments/${encodeURIComponent(candidateId)}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${cloudSyncState.accessToken}` }
+        headers: { 'Authorization': `Bearer ${accessToken}` }
       });
-      if (!response.ok) throw new Error('Candidate 未删除，请稍后重试。');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || 'Candidate 未删除，请稍后重试。');
+    }
+
+    async function hardDeleteCloudCaptureRun(runId) {
+      const config = getCloudRuntimeConfig();
+      if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken || !config.sourceCaptureWorkerUrl) throw new Error('批次删除服务暂不可用，请稍后重试。');
+      const accessToken = await ensureFreshCloudAccessToken();
+      const response = await fetch(`${config.sourceCaptureWorkerUrl}/capture-runs/${encodeURIComponent(runId)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || '抓取批次未删除，请稍后重试。');
     }
 
     async function createCloudCompetitorSource(record) {
@@ -7153,7 +7167,7 @@
         const batchState = localSummaryBatchState.get(captureKey);
         const processing = batchState?.processing === true;
         const buttonLabel = processing ? (batchState.buttonMessage || batchState.message) : 'AI 总结生成证据';
-        return `<section class="review-source-group${processing ? ' local-summary-processing' : ''}"><header><h3>${escapeHtml(competitor?.name || '已移除竞品')}</h3><span class="insight-status">待总结证据（${batchRawItems.length}）</span></header><p class="review-candidate-meta"><span>来源：${escapeHtml(source?.label || '已移除来源')}</span><span>抓取时间：${escapeHtml(formatDate(representative.capturedAt))}</span><span>${batchRawItems.reduce((count, raw) => count + raw.images.length, 0)} 张采集图片</span></p><div class="actions"><button class="local-summary-action" type="button" data-generate-summary-source-id="${escapeHtml(representative.sourceId)}" data-generate-summary-run-id="${escapeHtml(representative.runId || representative.id)}" data-local-summary-batch-id="${escapeHtml(captureKey)}"${processing ? ' disabled' : ''}>${processing ? '<svg class="local-summary-loader" aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" stroke-dasharray="25 10"></circle></svg>' : '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>'}<span class="button-label">${escapeHtml(buttonLabel)}</span></button></div><p class="local-model-guidance${processing ? ' is-processing' : ''}" data-local-model-status="${escapeHtml(captureKey)}">${escapeHtml(processing ? `${batchState.message} 仅在此浏览器设备运行本地模型。` : '仅在本浏览器设备上运行本地模型。')}</p></section>`;
+        return `<section class="review-source-group${processing ? ' local-summary-processing' : ''}"><header><h3>${escapeHtml(competitor?.name || '已移除竞品')}</h3><span class="insight-status">待总结证据（${batchRawItems.length}）</span></header><p class="review-candidate-meta"><span>来源：${escapeHtml(source?.label || '已移除来源')}</span><span>抓取时间：${escapeHtml(formatDate(representative.capturedAt))}</span><span>${batchRawItems.reduce((count, raw) => count + raw.images.length, 0)} 张采集图片</span></p><div class="actions"><button class="local-summary-action" type="button" data-generate-summary-source-id="${escapeHtml(representative.sourceId)}" data-generate-summary-run-id="${escapeHtml(representative.runId || representative.id)}" data-local-summary-batch-id="${escapeHtml(captureKey)}"${processing ? ' disabled' : ''}>${processing ? '<svg class="local-summary-loader" aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" stroke-dasharray="25 10"></circle></svg>' : '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>'}<span class="button-label">${escapeHtml(buttonLabel)}</span></button><button class="delete-button" type="button" data-delete-capture-run-id="${escapeHtml(representative.runId || '')}"${processing || !representative.runId ? ' disabled' : ''}><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>删除此批次</button></div><p class="local-model-guidance${processing ? ' is-processing' : ''}" data-local-model-status="${escapeHtml(captureKey)}">${escapeHtml(processing ? `${batchState.message} 仅在此浏览器设备运行本地模型。` : '仅在本浏览器设备上运行本地模型。')}</p></section>`;
       }).join('');
       const candidateHtml = pending.map(item => {
         const competitor = competitors.find(entry => entry.id === item.competitorId);
@@ -7161,7 +7175,7 @@
         const publicationLabels = { verified: '已核验', not_found: '未找到', unverified: '未核验' };
         const detectionWindow = item.detectionWindowStart && item.detectionWindowEnd ? `${formatDate(item.detectionWindowStart)} — ${formatDate(item.detectionWindowEnd)}` : '未记录';
         const publicationTime = item.publishedAt ? formatDate(item.publishedAt) : '未提供';
-        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>${escapeHtml(getCandidateFeatureTitle(item))}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p>${renderCandidateAttachmentStrip(item)}<div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>弃用</button></div></article>`;
+        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>${escapeHtml(getCandidateFeatureTitle(item))}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p>${renderCandidateAttachmentStrip(item)}<div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>删除 Candidate</button><button class="delete-button" type="button" data-delete-capture-run-id="${escapeHtml(item.runId || '')}"${item.runId ? '' : ' disabled'}><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>删除此抓取批次</button></div></article>`;
       }).join('');
       reviewQueueList.innerHTML = rawHtml + candidateHtml || '<p class="review-queue-empty">当前没有待总结内容或待审核候选。</p>';
       if (pending.length && sourceCaptureState.cloudSynced) hydrateCandidateAttachmentThumbnails(candidateAttachmentRenderVersion);
@@ -7514,6 +7528,24 @@
       }
     });
     reviewQueueList.addEventListener('click', async event => {
+      const deleteCaptureRunButton = event.target.closest('[data-delete-capture-run-id]');
+      if (deleteCaptureRunButton) {
+        const runId = deleteCaptureRunButton.dataset.deleteCaptureRunId;
+        if (!runId || !window.confirm('确定删除此抓取批次吗？这会永久删除本批原始快照、采集图片和待审核 Candidate；正式证据、矩阵和洞察不会被删除。')) return;
+        deleteCaptureRunButton.disabled = true;
+        try {
+          if (sourceCaptureState.cloudSynced) await hardDeleteCloudCaptureRun(runId);
+          sourceCaptureState.rawItems = sourceCaptureState.rawItems.filter(item => item.runId !== runId);
+          sourceCaptureState.candidates = sourceCaptureState.candidates.filter(item => item.runId !== runId);
+          persistSourceCaptureState();
+          renderReviewQueue();
+        } catch (error) {
+          updateSourceSyncNotice('error', error.message);
+          window.alert(`抓取批次未删除：${error.message}`);
+          if (deleteCaptureRunButton.isConnected) deleteCaptureRunButton.disabled = false;
+        }
+        return;
+      }
       const generateButton = event.target.closest('[data-generate-summary-source-id]');
       if (generateButton) {
         await createCandidatesFromLocalSummary(

@@ -90,9 +90,12 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
     def test_hard_delete_is_candidate_only_and_uses_worker(self):
         deletion = self.function_body("hardDeleteCloudCandidate")
         self.assertIn("sourceCaptureWorkerUrl", deletion)
-        self.assertIn("/candidate-attachments/", deletion)
-        self.assertIn("method: 'DELETE'", deletion)
-        self.assertIn("Authorization", deletion)
+        self.assertIn("hardDeleteCloudCaptureRun", SOURCE)
+        self.assertIn("data-delete-capture-run-id", SOURCE)
+        self.assertIn("删除此抓取批次", SOURCE)
+        self.assertIn("删除 Candidate", SOURCE)
+        self.assertIn("正式证据、矩阵和洞察不会被删除", SOURCE)
+        self.assertIn("ensureFreshCloudAccessToken", deletion)
         self.assertNotIn("cloudRestRequest", deletion)
         self.assertNotIn("enqueueCloudMutation", deletion)
         for forbidden in ("source_capture_runs", "source_capture_snapshots", "evidence", "matrix", "insight"):

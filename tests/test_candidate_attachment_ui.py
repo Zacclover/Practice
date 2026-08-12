@@ -57,7 +57,8 @@ class CandidateAttachmentUiContractTests(unittest.TestCase):
         handler = re.search(r"reviewQueueList\.addEventListener\('click', async event => \{(?P<body>.*?)\n    \}\);", SOURCE, re.S)
         self.assertIsNotNone(handler)
         body = handler.group("body")
-        self.assertLess(body.index("await hardDeleteCloudCandidate(candidateId)"), body.index("sourceCaptureState.candidates = sourceCaptureState.candidates.filter"))
+        candidate_handler = body[body.index("const candidateId = deleteButton.dataset.deleteCandidateId;"):]
+        self.assertLess(candidate_handler.index("await hardDeleteCloudCandidate(candidateId)"), candidate_handler.index("sourceCaptureState.candidates = sourceCaptureState.candidates.filter"))
         for forbidden in ("evidenceItems", "comparisonData", "insights", "source_capture_runs", "source_capture_snapshots"):
             self.assertNotIn(forbidden, deletion)
 

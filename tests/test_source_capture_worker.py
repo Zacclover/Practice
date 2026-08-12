@@ -87,6 +87,17 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertIn("JSON.stringify(imageRows)", source)
         self.assertNotIn("async function saveRawSnapshot(env", source)
 
+    def test_worker_deletes_only_pending_candidates_or_capture_runs_for_workspace_members(self):
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn("^/capture-runs/", source)
+        self.assertIn("deleteAuthorizedCaptureRun", source)
+        self.assertIn('candidate.status !== "pending"', source)
+        self.assertIn("只能删除待审核 Candidate", source)
+        self.assertIn("该批次含已处理 Candidate", source)
+        self.assertNotIn("/rest/v1/evidence", source)
+        self.assertNotIn("/rest/v1/matrix_cells", source)
+        self.assertNotIn("/rest/v1/insights", source)
+
     def test_worker_writes_review_pipeline_only_never_evidence_or_matrix_entities(self):
         source = WORKER.read_text(encoding="utf-8")
         self.assertIn("export default", source)
