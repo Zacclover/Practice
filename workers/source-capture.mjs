@@ -92,13 +92,8 @@ async function captureSource(source, env, triggerType = "scheduled") {
     const successfulPages = [entryPage, ...childResults
       .filter((result) => result.status === "fulfilled")
       .map((result) => result.value)];
-    const savedResults = await Promise.allSettled(
-      successfulPages.map((page) => saveRawSnapshot(env, source, run, page, triggerType)),
-    );
-    const savedSnapshots = savedResults
-      .filter((result) => result.status === "fulfilled")
-      .map((result) => result.value)
-      .filter(Boolean);
+    // 快照与图片元数据均按本批次写入，避免每页/每张图片各占一个 Worker 子请求。
+    const savedSnapshots = await saveRawSnapshots(env, source, run, successfulPages, triggerType);
     if (!savedSnapshots.length) throw new Error("本次抓取未能保存任何公开页面快照。");
 
     await updateRecord(env, "competitor_sources", source.id, {
@@ -113,8 +108,7 @@ async function captureSource(source, env, triggerType = "scheduled") {
       snapshotId: savedSnapshots[0]?.id || null,
       pendingSummary: savedSnapshots.length > 0,
       capturedPages: savedSnapshots.length,
-      subpageFailures: childResults.filter((result) => result.status === "rejected").length
-        + savedResults.filter((result) => result.status === "rejected").length,
+      subpageFailures: childResults.filter((result) => result.status === "rejected").length,
       candidateQueued: false,
     };
   } catch (error) {
@@ -127,10 +121,10 @@ async function captureSource(source, env, triggerType = "scheduled") {
   }
 }
 
-// 每页都保存独立原始快照；同一抓取 run 内同 URL/正文重复时由数据库约束安全去重。
-async function saveRawSnapshot(env, source, run, page, triggerType) {
-  const snapshot = await createSnapshot(page.extractedText);
-  const savedSnapshot = await insertRecord(env, "source_capture_snapshots?on_conflict=run_id%2Ccanonical_url%2Ccontent_hash", {
+// 同一 run 的页面快照先批量 upsert，再读取本批次 ID 后一次性写入图片元数据，控制 Worker 子请求预算。
+async function saveRawSnapshots(env, source, run, pages, triggerType) {
+  const prepared = await Promise.all(pages.map(async (page) => ({ page, snapshot: await createSnapshot(page.extractedText) })));
+  const snapshotRows = prepared.map(({ page, snapshot }) => ({
     id: crypto.randomUUID(),
     workspace_id: source.workspace_id,
     tab_id: source.tab_id,
@@ -143,15 +137,31 @@ async function saveRawSnapshot(env, source, run, page, triggerType) {
     page_title: page.title,
     capture_mode: triggerType,
     summary_status: "pending",
-  }, "resolution=ignore-duplicates,return=representation");
-  if (!savedSnapshot?.id) return null;
-  await Promise.allSettled(page.imageUrls.map((image, sortOrder) => insertRecord(env, "source_capture_snapshot_images", {
+  }));
+  await supabaseRequest(env, "/rest/v1/source_capture_snapshots?on_conflict=run_id%2Ccanonical_url%2Ccontent_hash", {
+    method: "POST",
+    headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+    body: JSON.stringify(snapshotRows),
+  });
+  const savedSnapshots = await supabaseRequest(env,
+    `/rest/v1/source_capture_snapshots?run_id=eq.${encodeURIComponent(run.id)}&select=id,canonical_url`,
+  );
+  const snapshotIdByUrl = new Map(savedSnapshots.map((item) => [item.canonical_url, item.id]));
+  const imageRows = prepared.flatMap(({ page }) => page.imageUrls.map((image, sortOrder) => ({
     id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
-    snapshot_id: savedSnapshot.id, source_id: source.id, image_url: image.url,
-    alt_text: image.alt, sort_order: sortOrder,
-  }, "resolution=ignore-duplicates,return=minimal")));
-  return savedSnapshot;
+    snapshot_id: snapshotIdByUrl.get(page.canonicalUrl), source_id: source.id,
+    image_url: image.url, alt_text: image.alt, sort_order: sortOrder,
+  })).filter((item) => item.snapshot_id));
+  if (imageRows.length) {
+    await supabaseRequest(env, "/rest/v1/source_capture_snapshot_images", {
+      method: "POST",
+      headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: JSON.stringify(imageRows),
+    });
+  }
+  return savedSnapshots;
 }
+
 
 export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
   if (!isSafePublicSourceUrl(sourceUrl)) {

@@ -5777,6 +5777,8 @@
     const captureWindowEnd = document.querySelector('#captureWindowEnd');
     const captureWindowError = document.querySelector('#captureWindowError');
     let pendingCaptureButton = null;
+    // 来源抓取加载态按来源 ID 保存；列表重绘后仍能持续显示，避免旧 DOM 节点失效。
+    const capturingSourceIds = new Set();
 
     /* ==============================
        获取横向对比矩阵相关页面元素
@@ -7006,12 +7008,15 @@
       const typeLabels = { product: '产品', changelog: '更新日志', help: '帮助中心', pricing: '定价', blog: '博客', 'release-notes': '发布说明' };
       const frequencyLabels = { 24: '每天', 72: '每 3 天', 168: '每周', 336: '每 2 周', 720: '每月' };
       const sources = getCompetitorSources(selectedSourceCompetitorId);
-      sourceList.innerHTML = sources.length ? sources.map(item => `
+      sourceList.innerHTML = sources.length ? sources.map(item => {
+        const isCapturing = capturingSourceIds.has(item.id);
+        return `
         <article class="source-list-item">
           <div class="source-list-heading"><div><h3>${escapeHtml(item.label)}</h3><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a></div>
-          <div class="source-item-actions"><button class="secondary source-capture-button" type="button" data-capture-source-id="${escapeHtml(item.id)}" aria-label="立即抓取此来源" aria-describedby="source-capture-tooltip-${escapeHtml(item.id)}"><svg aria-hidden="true"><use href="#icon-source-capture-hand"></use></svg><span class="source-action-tooltip" id="source-capture-tooltip-${escapeHtml(item.id)}" role="tooltip">立即抓取此来源</span></button><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
+          <div class="source-item-actions"><button class="secondary source-capture-button${isCapturing ? ' is-loading' : ''}" type="button" data-capture-source-id="${escapeHtml(item.id)}" aria-label="${isCapturing ? '正在抓取此来源' : '立即抓取此来源'}" aria-describedby="source-capture-tooltip-${escapeHtml(item.id)}"${isCapturing ? ' disabled' : ''}><svg aria-hidden="true"><use href="#${isCapturing ? 'icon-capture-loader' : 'icon-source-capture-hand'}"></use></svg><span class="source-action-tooltip" id="source-capture-tooltip-${escapeHtml(item.id)}" role="tooltip">${isCapturing ? '正在抓取此来源…' : '立即抓取此来源'}</span></button><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
           <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>${sourceCaptureState.cloudSynced ? '来源已连接' : '本机保存'}</span></p>
-        </article>`).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
+        </article>`;
+      }).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
     }
 
     /* datetime-local 与 ISO 转换及窗口校验：比较绝对时间，避免把本地时区误当 UTC。 */
@@ -7049,6 +7054,13 @@
       pendingCaptureButton = captureButton;
       captureWindowDialog.showModal();
       captureWindowStart.focus();
+    }
+
+    function setSourceCaptureLoading(sourceId, isLoading) {
+      if (!sourceId) return;
+      if (isLoading) capturingSourceIds.add(sourceId);
+      else capturingSourceIds.delete(sourceId);
+      renderSourceList();
     }
 
     function setCaptureButtonLoading(button, isLoading) {
@@ -7482,7 +7494,7 @@
       const captureButton = pendingCaptureButton;
       captureWindowDialog.close();
       pendingCaptureButton = null;
-      setCaptureButtonLoading(captureButton, true);
+      setSourceCaptureLoading(sourceIdValue, true);
       updateSourceSyncNotice('pending', '正在抓取此来源…');
       try {
         const result = await requestManualSourceCapture(sourceIdValue, validation.observationWindow);
@@ -7492,11 +7504,13 @@
           ? `抓取完成，已加入待总结证据（${capturedPages} 页）${subpageFailures ? `；${subpageFailures} 个子页面未能抓取` : ''}。`
           : '抓取完成。';
         updateSourceSyncNotice('success', detail);
-        renderSourceList(); renderReviewQueue();
+        renderReviewQueue();
       } catch (error) {
         updateSourceSyncNotice('error', error.message);
+        setSourceCaptureLoading(sourceIdValue, false);
         window.alert(`抓取失败：${error.message}`);
-        setCaptureButtonLoading(captureButton, false);
+      } finally {
+        setSourceCaptureLoading(sourceIdValue, false);
       }
     });
     reviewQueueList.addEventListener('click', async event => {

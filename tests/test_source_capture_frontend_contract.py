@@ -39,7 +39,15 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIsNotNone(source_click)
         self.assertIn("openCaptureWindow", source_click.group("body"))
         self.assertNotIn("requestManualSourceCapture", source_click.group("body"))
-        self.assertIn("setCaptureButtonLoading(captureButton, true)", SOURCE)
+        self.assertIn("setSourceCaptureLoading(sourceIdValue, true)", SOURCE)
+
+    def test_capture_loading_is_rendered_from_source_id_state_and_cleared_before_failure_alert(self):
+        self.assertIn("const capturingSourceIds = new Set();", SOURCE)
+        self.assertIn("function setSourceCaptureLoading(sourceId, isLoading)", SOURCE)
+        self.assertIn("capturingSourceIds.has(item.id)", SOURCE)
+        self.assertIn("setSourceCaptureLoading(sourceIdValue, true);", SOURCE)
+        self.assertIn("setSourceCaptureLoading(sourceIdValue, false);\n        window.alert(`抓取失败：${error.message}`);", SOURCE)
+        self.assertIn("finally {\n        setSourceCaptureLoading(sourceIdValue, false);", SOURCE)
 
     def test_local_only_source_cannot_request_worker(self):
         opener = self.function_body("openCaptureWindow", "setCaptureButtonLoading")

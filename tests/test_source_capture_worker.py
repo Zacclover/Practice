@@ -80,6 +80,13 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         )
         self.assertEqual(result, 30)
 
+    def test_worker_batches_snapshot_and_image_writes_to_stay_within_subrequest_budget(self):
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn("async function saveRawSnapshots", source)
+        self.assertIn("JSON.stringify(snapshotRows)", source)
+        self.assertIn("JSON.stringify(imageRows)", source)
+        self.assertNotIn("async function saveRawSnapshot(env", source)
+
     def test_worker_writes_review_pipeline_only_never_evidence_or_matrix_entities(self):
         source = WORKER.read_text(encoding="utf-8")
         self.assertIn("export default", source)
