@@ -95,6 +95,7 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIn("删除此抓取批次", SOURCE)
         self.assertIn("删除 Candidate", SOURCE)
         self.assertIn("正式证据、矩阵和洞察不会被删除", SOURCE)
+        self.assertIn("抓取批次删除后端尚未发布", SOURCE)
         self.assertIn("ensureFreshCloudAccessToken", deletion)
         self.assertNotIn("cloudRestRequest", deletion)
         self.assertNotIn("enqueueCloudMutation", deletion)
