@@ -87,6 +87,13 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertIn("JSON.stringify(imageRows)", source)
         self.assertNotIn("async function saveRawSnapshot(env", source)
 
+    def test_worker_accepts_successful_empty_supabase_mutation_responses(self):
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn("const contentLength = response.headers.get(\"content-length\");", source)
+        self.assertIn("if (response.status === 204 || contentLength === \"0\") return null;", source)
+        self.assertIn("const body = await response.text();", source)
+        self.assertIn("return body ? JSON.parse(body) : null;", source)
+
     def test_worker_deletes_only_pending_candidates_or_capture_runs_for_workspace_members(self):
         source = WORKER.read_text(encoding="utf-8")
         self.assertIn("^/capture-runs/", source)

@@ -419,8 +419,10 @@ async function supabaseRequest(env, path, init = {}) {
     headers: { ...SUPABASE_HEADERS(env.SUPABASE_SERVICE_ROLE_KEY), ...(init.headers || {}) },
   });
   if (!response.ok) throw new Error(`数据服务返回 HTTP ${response.status}。`);
-  if (response.status === 204) return null;
-  return response.json();
+  const contentLength = response.headers.get("content-length");
+  if (response.status === 204 || contentLength === "0") return null;
+  const body = await response.text();
+  return body ? JSON.parse(body) : null;
 }
 
 function validateEnvironment(env) {
