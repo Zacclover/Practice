@@ -77,19 +77,34 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         )
         self.assertEqual(result, [True, False, True, False])
 
-    def test_same_origin_first_level_subpages_are_safely_discovered_and_capped(self):
+    def test_update_sections_keep_their_own_title_date_text_and_product_images(self):
         result = self.run_module(
-            "(module) => module.discoverFirstLevelSameOriginHtmlLinks("
-            "'<a href=\"/releases/a#overview\">A</a><a href=\"https://example.com/releases/b\">B</a><a href=\"https://outside.test/x\">X</a><a href=\"http://example.com/no\">No</a><a href=\"/releases/a\">Duplicate</a>', "
+            "(module) => module.extractDatedUpdateSections("
+            "'<article><time datetime=\"2026-08-07\">Aug 7, 2026</time><h2>Share context</h2><p>Share an agent from the menu.</p><img src=\"/images/share-dashboard.png\" alt=\"Share menu product interface screenshot\"></article><article><h2>Undated item</h2><p>No date here.</p></article><article><time>August 2, 2026</time><h2>Workflow improvements</h2><p>Faster review workflow.</p><img src=\"/images/workflow.png\" alt=\"Workflow dashboard screenshot\"></article>', "
             "'https://example.com/releases')"
         )
-        self.assertEqual(result, ["https://example.com/releases/a", "https://example.com/releases/b"])
+        self.assertEqual(result, [
+            {"title": "Share context", "publishedAt": "2026-08-07T00:00:00.000Z", "text": "Share an agent from the menu.", "images": [{"url": "https://example.com/images/share-dashboard.png", "alt": "Share menu product interface screenshot"}], "canonicalUrl": "https://example.com/releases"},
+            {"title": "Workflow improvements", "publishedAt": "2026-08-02T00:00:00.000Z", "text": "Faster review workflow.", "images": [{"url": "https://example.com/images/workflow.png", "alt": "Workflow dashboard screenshot"}], "canonicalUrl": "https://example.com/releases"},
+        ])
 
-    def test_subpage_discovery_has_a_hard_limit_of_thirty(self):
+    def test_dated_update_sections_filter_by_web_publication_window_and_find_next_page(self):
         result = self.run_module(
-            "(module) => module.discoverFirstLevelSameOriginHtmlLinks(Array.from({length: 35}, (_, i) => `<a href=\"/updates/${i}\">${i}</a>`).join(''), 'https://example.com/releases').length"
+            "(module) => ({ "
+            "kept: module.filterUpdateSectionsByPublicationWindow([{publishedAt:'2026-08-07T00:00:00.000Z'},{publishedAt:'2026-07-30T00:00:00.000Z'}], {start:'2026-08-01T00:00:00.000Z',end:'2026-08-08T00:00:00.000Z'}).length, "
+            "next: module.discoverNextUpdatePageUrl('<a href=\"?page=2\" rel=\"next\">Next</a><a href=\"/help\">Help</a>', 'https://example.com/releases') "
+            "})"
         )
-        self.assertEqual(result, 30)
+        self.assertEqual(result, {"kept": 1, "next": "https://example.com/releases?page=2"})
+
+    def test_update_section_capture_uses_only_explicit_same_origin_next_pagination(self):
+        result = self.run_module(
+            "(module) => ["
+            "module.discoverNextUpdatePageUrl('<a href=\"?page=2\" rel=\"next\">Next</a>', 'https://example.com/releases'), "
+            "module.discoverNextUpdatePageUrl('<a href=\"https://outside.test/page=2\" rel=\"next\">Next</a>', 'https://example.com/releases')"
+            "]"
+        )
+        self.assertEqual(result, ["https://example.com/releases?page=2", None])
 
     def test_worker_batches_snapshot_and_image_writes_to_stay_within_subrequest_budget(self):
         source = WORKER.read_text(encoding="utf-8")

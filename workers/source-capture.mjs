@@ -10,7 +10,8 @@ const SUPABASE_HEADERS = (serviceRoleKey) => ({
 const MAX_RESPONSE_BYTES = 1_500_000;
 const MAX_EXTRACTED_TEXT_LENGTH = 12_000;
 const REQUEST_TIMEOUT_MS = 20_000;
-const MAX_SUBPAGES_PER_CAPTURE = 30;
+const MAX_UPDATE_LIST_PAGES = 12;
+const MAX_UPDATE_SECTIONS_PER_CAPTURE = 30;
 
 export default {
   async scheduled(_event, env, ctx) {
@@ -25,7 +26,8 @@ export default {
       if (url.pathname === "/manual-capture" && request.method === "POST") {
         const body = await request.json();
         const source = await getAuthorizedSource(env, body?.sourceId, user.id);
-        const result = await captureSource(source, env, "manual");
+        const observationWindow = validatePublicationWindow(body?.observationWindow);
+        const result = await captureSource(source, env, "manual", observationWindow);
         return Response.json({ ok: true, result });
       }
       const attachmentRoute = url.pathname.match(new RegExp(`^/candidate-attachments/(${UUID_PATTERN})(?:/(${UUID_PATTERN}))?$`, "i"));
@@ -70,6 +72,12 @@ async function queryDueSources(env) {
   return records.filter(isDueForCapture);
 }
 
+function validatePublicationWindow(value) {
+  const start = Date.parse(value?.start); const end = Date.parse(value?.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end > Date.now()) throw new Error("网页发布日期范围无效。");
+  return { start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+}
+
 function isDueForCapture(source, now = Date.now()) {
   if (!source.last_fetched_at) return true;
   const lastFetchedAt = Date.parse(source.last_fetched_at);
@@ -78,7 +86,7 @@ function isDueForCapture(source, now = Date.now()) {
   return now - lastFetchedAt >= intervalHours * 60 * 60 * 1000;
 }
 
-async function captureSource(source, env, triggerType = "scheduled") {
+async function captureSource(source, env, triggerType = "scheduled", publicationWindow = null) {
   const run = await insertRecord(env, "source_capture_runs", {
     id: crypto.randomUUID(),
     workspace_id: source.workspace_id,
@@ -86,21 +94,19 @@ async function captureSource(source, env, triggerType = "scheduled") {
     source_id: source.id,
     trigger_type: triggerType,
     status: "running",
+    ...(publicationWindow ? {
+      detection_window_start: publicationWindow.start,
+      detection_window_end: publicationWindow.end,
+      detection_window_basis: "explicit",
+    } : {}),
   });
 
   try {
-    const entryPage = await fetchPublicSource(source.url);
-    const childResults = await Promise.allSettled(
-      entryPage.subpageUrls.map((url) => fetchPublicSource(url)),
-    );
-    // Candidate 必须由浏览器本地 AI 总结成功后创建；入口页仅用于发现一层子页面，只保存正文明确描述功能更新的子页面，避免帮助/导航页进入审核队列。
-    const successfulPages = childResults
-      .filter((result) => result.status === "fulfilled")
-      .map((result) => result.value)
-      .filter(isExplicitFeatureUpdatePage);
-    // 快照与图片元数据均按本批次写入，避免每页/每张图片各占一个 Worker 子请求。
-    const savedSnapshots = successfulPages.length
-      ? await saveRawSnapshots(env, source, run, successfulPages, triggerType)
+    // Candidate 必须由浏览器本地 AI 总结成功后创建；Worker 仅保存网页更新板块的原始快照、网页日期和关联产品图。
+    // 日期范围过滤基于网页更新发布日期；入口页与明确 next 分页只提供板块，不再抓取普通子页面。
+    const result = await collectDatedUpdateSections(source.url, publicationWindow);
+    const savedSnapshots = result.sections.length
+      ? await saveRawSnapshots(env, source, run, result.sections, triggerType)
       : [];
 
     await updateRecord(env, "competitor_sources", source.id, {
@@ -108,14 +114,14 @@ async function captureSource(source, env, triggerType = "scheduled") {
     });
     await updateRecord(env, "source_capture_runs", run.id, {
       status: "succeeded",
-      http_status: entryPage.httpStatus,
+      http_status: result.httpStatus,
       finished_at: new Date().toISOString(),
     });
     return {
       snapshotId: savedSnapshots[0]?.id || null,
       pendingSummary: savedSnapshots.length > 0,
       capturedPages: savedSnapshots.length,
-      subpageFailures: childResults.filter((result) => result.status === "rejected").length,
+      paginationFailures: result.failures,
       candidateQueued: false,
     };
   } catch (error) {
@@ -128,20 +134,21 @@ async function captureSource(source, env, triggerType = "scheduled") {
   }
 }
 
-// 同一 run 的页面快照先批量 upsert，再读取本批次 ID 后一次性写入图片元数据，控制 Worker 子请求预算。
-async function saveRawSnapshots(env, source, run, pages, triggerType) {
-  const prepared = await Promise.all(pages.map(async (page) => ({ page, snapshot: await createSnapshot(page.extractedText) })));
-  const snapshotRows = prepared.map(({ page, snapshot }) => ({
+// 同一 run 的更新板块快照先批量 upsert，再读取本批次 ID 后一次性写入关联图片元数据，控制 Worker 子请求预算。
+async function saveRawSnapshots(env, source, run, sections, triggerType) {
+  const prepared = await Promise.all(sections.map(async (section) => ({ section, snapshot: await createSnapshot(section.text) })));
+  const snapshotRows = prepared.map(({ section, snapshot }) => ({
     id: crypto.randomUUID(),
     workspace_id: source.workspace_id,
     tab_id: source.tab_id,
     source_id: source.id,
     run_id: run.id,
-    canonical_url: page.canonicalUrl,
+    canonical_url: section.canonicalUrl,
     extracted_text: snapshot.extractedText,
     content_hash: snapshot.contentHash,
-    http_status: page.httpStatus,
-    page_title: page.title,
+    http_status: section.httpStatus,
+    page_title: section.title,
+    published_at: section.publishedAt,
     capture_mode: triggerType,
     summary_status: "pending",
   }));
@@ -151,12 +158,12 @@ async function saveRawSnapshots(env, source, run, pages, triggerType) {
     body: JSON.stringify(snapshotRows),
   });
   const savedSnapshots = await supabaseRequest(env,
-    `/rest/v1/source_capture_snapshots?run_id=eq.${encodeURIComponent(run.id)}&select=id,canonical_url`,
+    `/rest/v1/source_capture_snapshots?run_id=eq.${encodeURIComponent(run.id)}&select=id,canonical_url,content_hash`,
   );
-  const snapshotIdByUrl = new Map(savedSnapshots.map((item) => [item.canonical_url, item.id]));
-  const imageRows = prepared.flatMap(({ page }) => page.imageUrls.map((image, sortOrder) => ({
+  const snapshotIdBySection = new Map(savedSnapshots.map((item) => [`${item.canonical_url}|${item.content_hash}`, item.id]));
+  const imageRows = prepared.flatMap(({ section, snapshot }) => section.images.map((image, sortOrder) => ({
     id: crypto.randomUUID(), workspace_id: source.workspace_id, tab_id: source.tab_id,
-    snapshot_id: snapshotIdByUrl.get(page.canonicalUrl), source_id: source.id,
+    snapshot_id: snapshotIdBySection.get(`${section.canonicalUrl}|${snapshot.contentHash}`), source_id: source.id,
     image_url: image.url, alt_text: image.alt, sort_order: sortOrder,
   })).filter((item) => item.snapshot_id));
   if (imageRows.length) {
@@ -169,6 +176,54 @@ async function saveRawSnapshots(env, source, run, pages, triggerType) {
   return savedSnapshots;
 }
 
+
+export function filterUpdateSectionsByPublicationWindow(sections, window) {
+  if (!window) return sections;
+  const start = Date.parse(window.start); const end = Date.parse(window.end);
+  return sections.filter((section) => { const date = Date.parse(section.publishedAt); return Number.isFinite(date) && date >= start && date <= end; });
+}
+
+export function discoverNextUpdatePageUrl(html, pageUrl) {
+  const match = html.match(/<a\b(?=[^>]*\brel\s*=\s*(?:"next"|'next'|next))[^>]*\bhref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))[^>]*>/i)
+    || html.match(/<a\b[^>]*\bhref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))[^>]*>\s*(?:next|下一页)\s*<\/a>/i);
+  if (!match) return null;
+  try { const target = new URL(decodeHtmlEntities(match[1] || match[2] || match[3]), pageUrl); return target.origin === new URL(pageUrl).origin && isSafePublicSourceUrl(target.href) ? canonicalizeSourceUrl(target.href) : null; } catch { return null; }
+}
+
+export function extractDatedUpdateSections(html, sourceUrl) {
+  const sections = [];
+  const pattern = /<(article|section)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let match;
+  while ((match = pattern.exec(html)) && sections.length < MAX_UPDATE_SECTIONS_PER_CAPTURE) {
+    const block = match[2];
+    const heading = block.match(/<h[1-4]\b[^>]*>([\s\S]*?)<\/h[1-4]>/i);
+    const time = block.match(/<time\b[^>]*(?:datetime\s*=\s*(?:"([^"]+)"|'([^']+)')|)\s*[^>]*>([\s\S]*?)<\/time>/i);
+    const parsed = Date.parse(decodeHtmlEntities(time?.[1] || time?.[2] || time?.[3] || ""));
+    const title = heading ? extractReadableText(heading[1]) : "";
+    const text = extractReadableText(block.replace(/<h[1-4]\b[^>]*>[\s\S]*?<\/h[1-4]>/gi, "").replace(/<time\b[^>]*>[\s\S]*?<\/time>/gi, ""));
+    if (!title || !text || Number.isNaN(parsed)) continue;
+    sections.push({ title, publishedAt: new Date(parsed).toISOString(), text, images: extractPublicImageUrls(block, sourceUrl), canonicalUrl: canonicalizeSourceUrl(sourceUrl) });
+  }
+  return sections;
+}
+
+async function collectDatedUpdateSections(sourceUrl, publicationWindow) {
+  let url = sourceUrl; const seen = new Set(); const sections = []; let failures = 0; let httpStatus = 200;
+  while (url && !seen.has(url) && seen.size < MAX_UPDATE_LIST_PAGES && sections.length < MAX_UPDATE_SECTIONS_PER_CAPTURE) {
+    seen.add(url);
+    try {
+      const page = await fetchPublicSource(url);
+      httpStatus = page.httpStatus;
+      const allSections = extractDatedUpdateSections(page.html, url);
+      const pageSections = filterUpdateSectionsByPublicationWindow(allSections, publicationWindow).map(section => ({ ...section, httpStatus: page.httpStatus }));
+      sections.push(...pageSections.slice(0, MAX_UPDATE_SECTIONS_PER_CAPTURE - sections.length));
+      const earliest = Math.min(...allSections.map((section) => Date.parse(section.publishedAt)));
+      url = publicationWindow && Number.isFinite(earliest) && earliest < Date.parse(publicationWindow.start)
+        ? null : discoverNextUpdatePageUrl(page.html, url);
+    } catch { failures += 1; break; }
+  }
+  return { sections, failures, httpStatus };
+}
 
 export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
   if (!isSafePublicSourceUrl(sourceUrl)) {
@@ -202,12 +257,12 @@ export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
       throw new Error("来源页面超过抓取大小限制。");
     }
     return {
+      html,
       canonicalUrl: canonicalizeSourceUrl(sourceUrl),
       extractedText: extractReadableText(html),
       httpStatus: response.status,
       title: extractTitle(html),
       imageUrls: extractPublicImageUrls(html, sourceUrl),
-      subpageUrls: discoverFirstLevelSameOriginHtmlLinks(html, sourceUrl),
     };
   } finally {
     clearTimeout(timeout);
@@ -220,30 +275,7 @@ export function isExplicitFeatureUpdatePage(page) {
   return /(release\s*notes?|changelog|what'?s\s*new|new\s+(feature|capabilit|integration|update)|feature\s*(release|update)|improvements?|bug\s*fix(?:es)?|功能更新|新功能|新增(功能|能力|支持|集成)|版本更新|发布说明|更新日志|功能改进|问题修复|修复[了]?)/i.test(haystack);
 }
 
-// 入口页仅发现一层同源公开 HTML 链接：不递归、不跨域、按文档顺序最多 30 条。
-export function discoverFirstLevelSameOriginHtmlLinks(html, entryUrl) {
-  const links = [];
-  const seen = new Set();
-  let entry;
-  try { entry = new URL(entryUrl); } catch { return links; }
-  const entryCanonical = canonicalizeSourceUrl(entry.href);
-  const pattern = /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
-  let match;
-  while ((match = pattern.exec(html)) && links.length < MAX_SUBPAGES_PER_CAPTURE) {
-    try {
-      const rawHref = decodeHtmlEntities(match[1] || match[2] || match[3] || '').trim();
-      if (!rawHref || rawHref.startsWith('#')) continue;
-      const target = new URL(rawHref, entry);
-      const canonical = canonicalizeSourceUrl(target.href);
-      if (target.origin !== entry.origin || canonical === entryCanonical || !isSafePublicSourceUrl(canonical) || seen.has(canonical)) continue;
-      seen.add(canonical);
-      links.push(canonical);
-    } catch { /* 忽略不安全、无效或无法解析的子页面地址。 */ }
-  }
-  return links;
-}
-
-// HTML 图片仅解析 src；相对地址按公开页面解析，拒绝凭据、私网和非 HTTPS URL。
+// 图片仅由所属更新板块提取：相对地址按公开页面解析，拒绝凭据、私网和非 HTTPS URL。
 export function extractPublicImageUrls(html, sourceUrl) {
   const results = [];
   const seen = new Set();

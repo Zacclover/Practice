@@ -17,11 +17,12 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("capture_mode: triggerType", WORKER)
         self.assertIn('summary_status: "pending"', WORKER)
         self.assertIn("Candidate 必须由浏览器本地 AI 总结成功后创建", WORKER)
+        self.assertIn("collectDatedUpdateSections", WORKER)
         self.assertNotIn('insertRecord(env, "source_capture_candidates"', WORKER)
 
     def test_public_html_images_are_normalized_as_snapshot_metadata(self):
         self.assertIn("export function extractPublicImageUrls", WORKER)
-        self.assertIn("page.imageUrls", WORKER)
+        self.assertIn("section.images", WORKER)
         self.assertIn("source_capture_snapshot_images", WORKER)
         self.assertIn("isSafePublicSourceUrl", WORKER)
 
