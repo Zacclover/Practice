@@ -253,12 +253,23 @@ export function extractPublicImageUrls(html, sourceUrl) {
     try {
       const url = new URL(decodeHtmlEntities(match[1] || match[2] || match[3] || ""), sourceUrl).toString();
       if (!isSafePublicSourceUrl(url) || seen.has(url)) continue;
-      seen.add(url);
       const altMatch = match[0].match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
-      results.push({ url: canonicalizeSourceUrl(url), alt: decodeHtmlEntities(altMatch?.[1] || altMatch?.[2] || "").slice(0, 240) });
+      const titleMatch = match[0].match(/\btitle\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+      const alt = decodeHtmlEntities(altMatch?.[1] || altMatch?.[2] || "").slice(0, 240);
+      const title = decodeHtmlEntities(titleMatch?.[1] || titleMatch?.[2] || "").slice(0, 240);
+      if (!isProductFeatureVisual({ url, alt, title, markup: match[0] })) continue;
+      seen.add(url);
+      results.push({ url: canonicalizeSourceUrl(url), alt });
     } catch { /* 忽略无法安全解析的图片地址。 */ }
   }
   return results;
+}
+
+// 图片必须有明确的产品界面/功能展示语义；拒绝品牌、人物、装饰、追踪像素及用途不明的素材。
+export function isProductFeatureVisual({ url = "", alt = "", title = "", markup = "" }) {
+  const haystack = `${url} ${alt} ${title} ${markup}`.toLowerCase();
+  if (/(logo|avatar|profile|icon|favicon|pixel|tracking|beacon|spinner|loading|decorative|illustration|portrait|team|people|person|author|social|banner|hero|background|pattern|纹理|装饰|插画|头像|人物|团队|标志|图标|加载|追踪)/i.test(haystack)) return false;
+  return /(screenshot|screen[-_ ]?shot|ui[-_ ]?preview|dashboard|interface|product[-_ ]?shot|feature[-_ ]?preview|app[-_ ]?preview|workflow|analytics|settings|console|界面|截图|仪表盘|功能演示|产品页面|操作界面)/i.test(haystack);
 }
 
 export function isSafePublicSourceUrl(value) {

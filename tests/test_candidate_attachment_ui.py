@@ -62,6 +62,12 @@ class CandidateAttachmentUiContractTests(unittest.TestCase):
         for forbidden in ("evidenceItems", "comparisonData", "insights", "source_capture_runs", "source_capture_snapshots"):
             self.assertNotIn(forbidden, deletion)
 
+    def test_candidate_cards_do_not_repeat_capture_batch_deletion(self):
+        candidate_renderer = self.function_body("renderReviewQueue")
+        candidate_section = candidate_renderer[candidate_renderer.index("const candidateHtml = pending.map"):candidate_renderer.index("reviewQueueList.innerHTML")]
+        self.assertNotIn('data-delete-capture-run-id', candidate_section)
+        self.assertIn('data-delete-capture-run-id', candidate_renderer[:candidate_renderer.index("const candidateHtml = pending.map")])
+
     def test_local_candidates_have_no_attachment_ui(self):
         strip = self.function_body("renderCandidateAttachmentStrip")
         self.assertIn("!sourceCaptureState.cloudSynced", strip)

@@ -126,13 +126,21 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertNotIn("/rest/v1/matrix_cells", source)
         self.assertNotIn("/rest/v1/insights", source)
 
+    def test_only_product_feature_visuals_are_kept_not_decorative_images(self):
+        result = self.run_module(
+            "(module) => module.extractPublicImageUrls("
+            "'<img src=\"/assets/logo.svg\" alt=\"Acme logo\"><img src=\"/blog/hero.jpg\" alt=\"Team working\"><img src=\"/releases/dashboard.png\" alt=\"New analytics dashboard screenshot\"><img src=\"/pixel.gif\" width=\"1\" height=\"1\">', "
+            "'https://example.com/releases')"
+        )
+        self.assertEqual(result, [{"url": "https://example.com/releases/dashboard.png", "alt": "New analytics dashboard screenshot"}])
+
     def test_public_image_urls_are_resolved_deduplicated_and_filtered(self):
         result = self.run_module(
             "(module) => module.extractPublicImageUrls("
-            "'<img src=\"/shot.png\" alt=\"界面\"><img src=\"/shot.png\"><img src=\"http://bad.test/a.png\"><img src=\"https://127.0.0.1/a.png\">', "
+            "'<img src=\"/shot.png\" alt=\"产品界面截图\"><img src=\"/shot.png\"><img src=\"http://bad.test/a.png\"><img src=\"https://127.0.0.1/a.png\">', "
             "'https://example.com/releases')"
         )
-        self.assertEqual(result, [{"url": "https://example.com/shot.png", "alt": "界面"}])
+        self.assertEqual(result, [{"url": "https://example.com/shot.png", "alt": "产品界面截图"}])
 
 
 if __name__ == "__main__":
