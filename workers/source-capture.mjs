@@ -90,16 +90,18 @@ async function captureSource(source, env, triggerType = "scheduled") {
 
   try {
     const entryPage = await fetchPublicSource(source.url);
-    // Candidate 必须由浏览器本地 AI 总结成功后创建；抓取器仅保存入口页及子页面原始快照。
     const childResults = await Promise.allSettled(
       entryPage.subpageUrls.map((url) => fetchPublicSource(url)),
     );
-    const successfulPages = [entryPage, ...childResults
+    // Candidate 必须由浏览器本地 AI 总结成功后创建；入口页仅用于发现一层子页面，只保存正文明确描述功能更新的子页面，避免帮助/导航页进入审核队列。
+    const successfulPages = childResults
       .filter((result) => result.status === "fulfilled")
-      .map((result) => result.value)];
+      .map((result) => result.value)
+      .filter(isExplicitFeatureUpdatePage);
     // 快照与图片元数据均按本批次写入，避免每页/每张图片各占一个 Worker 子请求。
-    const savedSnapshots = await saveRawSnapshots(env, source, run, successfulPages, triggerType);
-    if (!savedSnapshots.length) throw new Error("本次抓取未能保存任何公开页面快照。");
+    const savedSnapshots = successfulPages.length
+      ? await saveRawSnapshots(env, source, run, successfulPages, triggerType)
+      : [];
 
     await updateRecord(env, "competitor_sources", source.id, {
       last_fetched_at: new Date().toISOString(),
@@ -210,6 +212,12 @@ export async function fetchPublicSource(sourceUrl, fetchImpl = fetch) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// 子页面只有标题或正文明确表达产品发布、功能新增、改进或修复时才进入本地 AI 审核队列。
+export function isExplicitFeatureUpdatePage(page) {
+  const haystack = `${page?.title || ""} ${page?.extractedText || ""}`.toLowerCase();
+  return /(release\s*notes?|changelog|what'?s\s*new|new\s+(feature|capabilit|integration|update)|feature\s*(release|update)|improvements?|bug\s*fix(?:es)?|功能更新|新功能|新增(功能|能力|支持|集成)|版本更新|发布说明|更新日志|功能改进|问题修复|修复[了]?)/i.test(haystack);
 }
 
 // 入口页仅发现一层同源公开 HTML 链接：不递归、不跨域、按文档顺序最多 30 条。

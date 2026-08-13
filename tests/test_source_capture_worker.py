@@ -66,6 +66,17 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         self.assertTrue(result["changedCandidate"])
         self.assertEqual(result["text"], "Update shipped today.")
 
+    def test_only_explicit_product_update_pages_are_kept_as_summary_evidence(self):
+        result = self.run_module(
+            "(module) => ["
+            "module.isExplicitFeatureUpdatePage({title: 'Release notes: New AI dashboard', extractedText: 'We added a new dashboard.'}), "
+            "module.isExplicitFeatureUpdatePage({title: 'Help center', extractedText: 'Learn how to manage your account.'}), "
+            "module.isExplicitFeatureUpdatePage({title: '功能更新：新增批量导出', extractedText: '本次发布支持批量导出。'}), "
+            "module.isExplicitFeatureUpdatePage({title: '产品帮助', extractedText: '常见问题与操作说明。'})"
+            "]"
+        )
+        self.assertEqual(result, [True, False, True, False])
+
     def test_same_origin_first_level_subpages_are_safely_discovered_and_capped(self):
         result = self.run_module(
             "(module) => module.discoverFirstLevelSameOriginHtmlLinks("
