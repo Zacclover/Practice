@@ -6,6 +6,7 @@ const JSON_HEADERS = {
 const UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const ROUTES = [
   { pattern: new RegExp(`^/manual-capture$`), methods: new Set(["POST", "OPTIONS"]) },
+  { pattern: new RegExp(`^/capture-runs/${UUID_PATTERN}$`, "i"), methods: new Set(["DELETE", "OPTIONS"]) },
   { pattern: new RegExp(`^/candidate-attachments/${UUID_PATTERN}$`, "i"), methods: new Set(["GET", "OPTIONS", "DELETE"]) },
   { pattern: new RegExp(`^/candidate-attachments/${UUID_PATTERN}/${UUID_PATTERN}$`, "i"), methods: new Set(["GET", "OPTIONS"]) },
 ];

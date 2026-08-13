@@ -17,6 +17,8 @@ class SourceCapturePagesProxyContractTests(unittest.TestCase):
         self.assertIn("forwardSourceCaptureRequest", exact_route)
         self.assertIn("manual-capture", source)
         self.assertIn("candidate-attachments", source)
+        self.assertIn("capture-runs", source)
+        self.assertIn('new Set(["DELETE", "OPTIONS"])', source)
         self.assertNotIn("request.url", source)
 
 
