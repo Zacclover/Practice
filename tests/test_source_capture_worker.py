@@ -77,7 +77,20 @@ class SourceCaptureWorkerTests(unittest.TestCase):
         )
         self.assertEqual(result, [True, False, True, False])
 
-    def test_update_sections_keep_their_own_title_date_text_and_product_images(self):
+    def test_real_notion_release_fixture_parses_dated_items_with_product_images(self):
+        fixture = (ROOT / "tests" / "fixtures" / "notion-releases-20260814.html").resolve()
+        expression = (
+            "(module) => import('node:fs/promises').then(async fs => { const html=await fs.readFile("
+            + json.dumps(str(fixture))
+            + ", 'utf8'); const items=module.extractDatedUpdateSections(html, 'https://www.notion.com/zh-tw/releases'); return {count:items.length, first:items[0] && {title:items[0].title, publishedAt:items[0].publishedAt, images:items[0].images.length}}; })"
+        )
+        result = self.run_module(expression)
+        self.assertGreaterEqual(result["count"], 8)
+        self.assertEqual(result["first"]["title"], "Share context with Custom Agents from the Share menu")
+        self.assertEqual(result["first"]["publishedAt"], "2026-08-07T00:00:00.000Z")
+        self.assertGreaterEqual(result["first"]["images"], 1)
+
+
         result = self.run_module(
             "(module) => module.extractDatedUpdateSections("
             "'<article><time datetime=\"2026-08-07\">Aug 7, 2026</time><h2>Share context</h2><p>Share an agent from the menu.</p><img src=\"/images/share-dashboard.png\" alt=\"Share menu product interface screenshot\"></article><article><h2>Undated item</h2><p>No date here.</p></article><article><time>August 2, 2026</time><h2>Workflow improvements</h2><p>Faster review workflow.</p><img src=\"/images/workflow.png\" alt=\"Workflow dashboard screenshot\"></article>', "

@@ -192,19 +192,36 @@ export function discoverNextUpdatePageUrl(html, pageUrl) {
 
 export function extractDatedUpdateSections(html, sourceUrl) {
   const sections = [];
-  const pattern = /<(article|section)\b[^>]*>([\s\S]*?)<\/\1>/gi;
-  let match;
-  while ((match = pattern.exec(html)) && sections.length < MAX_UPDATE_SECTIONS_PER_CAPTURE) {
-    const block = match[2];
+  for (const block of extractOuterBlocks(html, "article")) {
+    if (sections.length >= MAX_UPDATE_SECTIONS_PER_CAPTURE) break;
     const heading = block.match(/<h[1-4]\b[^>]*>([\s\S]*?)<\/h[1-4]>/i);
-    const time = block.match(/<time\b[^>]*(?:datetime\s*=\s*(?:"([^"]+)"|'([^']+)')|)\s*[^>]*>([\s\S]*?)<\/time>/i);
-    const parsed = Date.parse(decodeHtmlEntities(time?.[1] || time?.[2] || time?.[3] || ""));
+    const time = block.match(/<time\b[^>]*(?:datetime\s*=\s*(?:"([^"]+)"|'([^']+)')|)[^>]*>([\s\S]*?)<\/time>/i);
+    const parsed = parsePublicationDate(decodeHtmlEntities(time?.[1] || time?.[2] || time?.[3] || ""));
     const title = heading ? extractReadableText(heading[1]) : "";
     const text = extractReadableText(block.replace(/<h[1-4]\b[^>]*>[\s\S]*?<\/h[1-4]>/gi, "").replace(/<time\b[^>]*>[\s\S]*?<\/time>/gi, ""));
-    if (!title || !text || Number.isNaN(parsed)) continue;
-    sections.push({ title, publishedAt: new Date(parsed).toISOString(), text, images: extractPublicImageUrls(block, sourceUrl), canonicalUrl: canonicalizeSourceUrl(sourceUrl) });
+    if (!title || !text || !Number.isFinite(parsed)) continue;
+    sections.push({ title, publishedAt: new Date(parsed).toISOString(), text, images: extractPublicImageUrls(block, sourceUrl, { withinVerifiedUpdate: true }), canonicalUrl: canonicalizeSourceUrl(sourceUrl) });
   }
   return sections;
+}
+
+// 保留最外层 article：富文本 article 嵌套时按标签深度配对，避免正则遇到第一个内层闭合标签就截断更新条目。
+function extractOuterBlocks(html, tagName) {
+  const blocks = []; const token = new RegExp(`<\\/?${tagName}\\b[^>]*>`, "gi"); let depth = 0; let start = 0; let match;
+  while ((match = token.exec(html))) {
+    const closing = /^<\//.test(match[0]);
+    if (!closing && depth++ === 0) start = match.index;
+    if (closing && --depth === 0) blocks.push(html.slice(start, token.lastIndex));
+  }
+  return blocks;
+}
+
+export function parsePublicationDate(value) {
+  const text = String(value || "").trim();
+  const chinese = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
+  if (chinese) return Date.UTC(Number(chinese[1]), Number(chinese[2]) - 1, Number(chinese[3]));
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : NaN;
 }
 
 async function collectDatedUpdateSections(sourceUrl, publicationWindow) {
@@ -276,7 +293,7 @@ export function isExplicitFeatureUpdatePage(page) {
 }
 
 // 图片仅由所属更新板块提取：相对地址按公开页面解析，拒绝凭据、私网和非 HTTPS URL。
-export function extractPublicImageUrls(html, sourceUrl) {
+export function extractPublicImageUrls(html, sourceUrl, { withinVerifiedUpdate = false } = {}) {
   const results = [];
   const seen = new Set();
   const pattern = /<img\b[^>]*?\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
@@ -289,7 +306,7 @@ export function extractPublicImageUrls(html, sourceUrl) {
       const titleMatch = match[0].match(/\btitle\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
       const alt = decodeHtmlEntities(altMatch?.[1] || altMatch?.[2] || "").slice(0, 240);
       const title = decodeHtmlEntities(titleMatch?.[1] || titleMatch?.[2] || "").slice(0, 240);
-      if (!isProductFeatureVisual({ url, alt, title, markup: match[0] })) continue;
+      if (!isProductFeatureVisual({ url, alt, title, markup: match[0], withinVerifiedUpdate })) continue;
       seen.add(url);
       results.push({ url: canonicalizeSourceUrl(url), alt });
     } catch { /* 忽略无法安全解析的图片地址。 */ }
@@ -298,10 +315,11 @@ export function extractPublicImageUrls(html, sourceUrl) {
 }
 
 // 图片必须有明确的产品界面/功能展示语义；拒绝品牌、人物、装饰、追踪像素及用途不明的素材。
-export function isProductFeatureVisual({ url = "", alt = "", title = "", markup = "" }) {
-  const haystack = `${url} ${alt} ${title} ${markup}`.toLowerCase();
-  if (/(logo|avatar|profile|icon|favicon|pixel|tracking|beacon|spinner|loading|decorative|illustration|portrait|team|people|person|author|social|banner|hero|background|pattern|纹理|装饰|插画|头像|人物|团队|标志|图标|加载|追踪)/i.test(haystack)) return false;
-  return /(screenshot|screen[-_ ]?shot|ui[-_ ]?preview|dashboard|interface|product[-_ ]?shot|feature[-_ ]?preview|app[-_ ]?preview|workflow|analytics|settings|console|界面|截图|仪表盘|功能演示|产品页面|操作界面)/i.test(haystack);
+export function isProductFeatureVisual({ url = "", alt = "", title = "", markup = "", withinVerifiedUpdate = false }) {
+  const identity = `${url} ${alt} ${title}`.toLowerCase();
+  const haystack = `${identity} ${markup}`.toLowerCase();
+  if (/(logo|avatar|profile|icon|favicon|pixel|tracking|beacon|spinner|decorative|illustration|portrait|team|people|person|author|social|banner|hero|background|pattern|纹理|装饰|插画|头像|人物|团队|标志|图标|追踪)/i.test(identity)) return false;
+  return withinVerifiedUpdate || /(screenshot|screen[-_ ]?shot|ui[-_ ]?preview|dashboard|interface|product[-_ ]?shot|feature[-_ ]?preview|app[-_ ]?preview|workflow|analytics|settings|console|界面|截图|仪表盘|功能演示|产品页面|操作界面)/i.test(haystack);
 }
 
 export function isSafePublicSourceUrl(value) {
