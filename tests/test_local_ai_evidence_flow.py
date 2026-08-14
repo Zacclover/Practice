@@ -122,6 +122,11 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("snapshot_already_summarized", MIGRATIONS)
         self.assertIn("summary_status = 'generated'", MIGRATIONS)
 
+    def test_placeholder_summary_values_are_rejected(self):
+        self.assertNotIn('输出示例：{"featureTitle":"中文功能主题"', INDEX)
+        self.assertNotIn('严格输出：{"featureTitle":"中文功能主题"', INDEX)
+        self.assertIn("isPlaceholderLocalChineseSummary", INDEX)
+
     def test_unavailable_model_guidance_does_not_create_candidate(self):
         self.assertIn("请重新加载后重试", INDEX)
         self.assertIn("支持 WebGPU 的设备和浏览器", INDEX)

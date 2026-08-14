@@ -7306,8 +7306,8 @@
           window.localEvidenceModel = {
             async generate({ sourceTitle, publishedAt, text, repair = false }) {
               const prompt = repair
-                ? `将以下内容翻译并压缩为简体中文。只输出 JSON，不要 Markdown，不要解释。字段值不得含英文。输出示例：{"featureTitle":"中文功能主题","featureSummary":"中文功能总结，说明事实和影响。"}\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`
-                : `将以下公开网页更新提炼成简体中文竞品功能证据。只输出 JSON，不要 Markdown，不要解释。featureTitle 和 featureSummary 必须都是简体中文，不能复制英文标题。严格输出：{"featureTitle":"中文功能主题","featureSummary":"中文功能总结，说明事实和影响。"}\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`;
+                ? `将以下内容翻译并压缩为简体中文。只返回 JSON 对象，不要 Markdown，不要解释。必须填写 featureTitle 与 featureSummary；两个字段都要基于这条更新的实际内容，且不得使用通用占位词。字段值不得含英文。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`
+                : `将以下公开网页更新提炼成简体中文竞品功能证据。只返回 JSON 对象，不要 Markdown，不要解释。featureTitle 与 featureSummary 必须均为简体中文，必须描述本条原始标题和正文中的具体功能，不能复制输入英文标题，也不得使用通用占位词。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`;
               const response = await chat.send([{ role: 'user', content: prompt }], {
                 format: { json: { schema: {
                   type: 'object', additionalProperties: false,
@@ -7379,8 +7379,18 @@
     }
 
     function isValidLocalChineseSummary(title, summary) {
-      return /[\u3400-\u9fff]/.test(title) && /[\u3400-\u9fff]/.test(summary)
+      return !isPlaceholderLocalChineseSummary(title, summary)
+        && /[\u3400-\u9fff]/.test(title) && /[\u3400-\u9fff]/.test(summary)
         && title.length <= 40 && summary.length >= 10 && summary.length <= 400;
+    }
+
+    /* 拒绝模型复读提示词中的泛化占位输出，避免把无事实价值内容创建为 Candidate。 */
+    function isPlaceholderLocalChineseSummary(title, summary) {
+      const normalizedTitle = String(title || '').replace(/\s+/g, '');
+      const normalizedSummary = String(summary || '').replace(/\s+/g, '');
+      return normalizedTitle === '中文功能主题'
+        || normalizedSummary === '中文功能总结，说明事实和影响。'
+        || /^(功能主题|功能总结|待补充|暂无内容)$/.test(normalizedTitle);
     }
 
     function getLocalModelButtonLabel(message) {
