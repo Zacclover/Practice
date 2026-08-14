@@ -7318,8 +7318,8 @@
                   type: 'object', additionalProperties: false,
                   required: ['featureTitle', 'featureSummary'],
                   properties: {
-                    featureTitle: { type: 'string', minLength: 2, maxLength: 40, pattern: '^[^A-Za-z]*[㐀-鿿][^A-Za-z]*$' },
-                    featureSummary: { type: 'string', minLength: 10, maxLength: 400, pattern: '^[^A-Za-z]*[㐀-鿿][^A-Za-z]*$' }
+                    featureTitle: { type: 'string', minLength: 2, maxLength: 40 },
+                    featureSummary: { type: 'string', minLength: 10, maxLength: 400 }
                   }
                 } } },
                 maxTokens: 512, thinkBudget: 0
