@@ -7363,6 +7363,7 @@
     async function generateLocalEvidenceSummary(rawItem, model) {
       const text = truncateLocalEvidenceText(`${rawItem.title || ''}\n${rawItem.rawText || ''}`, 900);
       const request = { sourceTitle: rawItem.title || '未命名更新', publishedAt: rawItem.publishedAt || '未知日期', text };
+      const localOutputs = [];
       let result;
       try {
         result = await model.generate(request);
@@ -7374,6 +7375,7 @@
       }
       let title = String(result?.featureTitle || '').trim();
       let summary = String(result?.featureSummary || '').trim();
+      localOutputs.push({ round: '第 1 轮', title, summary });
       const firstFailure = getLocalChineseSummaryValidationError(title, summary);
       if (firstFailure) {
         result = await model.generate({
@@ -7384,9 +7386,14 @@
         });
         title = String(result?.featureTitle || '').trim();
         summary = String(result?.featureSummary || '').trim();
+        localOutputs.push({ round: '第 2 轮修复', title, summary });
       }
       const finalFailure = getLocalChineseSummaryValidationError(title, summary);
-      if (finalFailure) throw new Error(`本地模型总结未通过质量检查：${finalFailure}。请重试。`);
+      if (finalFailure) {
+        const error = new Error(`本地模型总结未通过质量检查：${finalFailure}。`);
+        error.localOutputs = localOutputs;
+        throw error;
+      }
       return { title, summary };
     }
 
@@ -7426,6 +7433,13 @@
       return normalizedTitle === '中文功能主题'
         || normalizedSummary === '中文功能总结，说明事实和影响。'
         || /^(功能主题|功能总结|待补充|暂无内容)$/.test(normalizedTitle);
+    }
+
+    /* 失败模型输出仅保留于当前页面并安全地呈现在审核状态；不上传、写库或跨刷新持久化。 */
+    function formatLocalOutputDiagnostic(localOutputs) {
+      if (!Array.isArray(localOutputs) || !localOutputs.length) return '';
+      const compact = value => String(value || '（空）').replace(/\s+/g, ' ').trim().slice(0, 360);
+      return ` 本机输出诊断：${localOutputs.map(output => `${output.round}主题「${compact(output.title)}」；总结「${compact(output.summary)}」`).join(' / ')}。`;
     }
 
     function getLocalModelButtonLabel(message) {
@@ -7500,7 +7514,8 @@
         const currentStatus = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
         const currentButton = reviewQueueList.querySelector(`[data-generate-summary-source-id="${sourceId}"][data-generate-summary-run-id="${runId}"]`);
         const retryMessage = error.message || '本次批量生成失败。';
-        if (currentStatus) { currentStatus.textContent = `${retryMessage} 请点击“重试本地总结”。`; currentStatus.classList.remove('is-processing'); }
+        const localOutputDiagnostic = formatLocalOutputDiagnostic(error.localOutputs);
+        if (currentStatus) { currentStatus.textContent = `${retryMessage}${localOutputDiagnostic} 请点击“重试本地总结”。`; currentStatus.classList.remove('is-processing'); }
         if (currentButton) { currentButton.disabled = false; currentButton.classList.remove('is-loading'); currentButton.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重试本地总结</span>'; }
         if (button?.isConnected) { button.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重试本地总结</span>'; }
       } finally {

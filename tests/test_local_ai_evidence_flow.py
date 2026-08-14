@@ -131,6 +131,8 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("repairField", INDEX)
         self.assertNotIn("pattern: '^[^A-Za-z]*", INDEX)
         self.assertIn("/[A-Za-z]/.test(summary)", INDEX)
+        self.assertIn("localOutputs", INDEX)
+        self.assertIn("本机输出诊断", INDEX)
 
     def test_unavailable_model_guidance_does_not_create_candidate(self):
         self.assertIn("请重新加载后重试", INDEX)
