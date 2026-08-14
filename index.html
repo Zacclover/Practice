@@ -7208,6 +7208,8 @@
       localEvidenceModelConfig.tokenizerConfigUrl
     ];
 
+    /* 模型缓存状态：区分真实网络下载与从 Cache Storage 读取，避免把 WebGPU 解码进度误标成重复下载。 */
+    const localModelCacheState = { hits: 0, misses: 0, weightCacheHit: false, unavailableReason: '' };
     async function fetchWithPersistentCache(url, onBytesProgress) {
       if ('caches' in window) {
         try {
@@ -7215,10 +7217,16 @@
           const cachedResponse = await cache.match(url);
           if (cachedResponse) {
             const blob = await cachedResponse.blob();
-            onBytesProgress?.(blob.size, blob.size);
+            localModelCacheState.hits += 1;
+            onBytesProgress?.(blob.size, blob.size, { cacheHit: true });
             return new Response(blob, { status: 200, headers: cachedResponse.headers });
           }
-        } catch (error) { /* 忽略 Cache Storage 异常并降级到网络下载 */ }
+          localModelCacheState.misses += 1;
+        } catch (error) {
+          localModelCacheState.unavailableReason = error?.message || '浏览器拒绝访问 Cache Storage';
+        }
+      } else {
+        localModelCacheState.unavailableReason = '当前浏览器未提供 Cache Storage';
       }
       const response = await fetch(url);
       if (!response.ok) throw new Error(`模型权重下载失败 (${response.status})`);
@@ -7253,6 +7261,7 @@
       if (window.localEvidenceModel?.generate) return window.localEvidenceModel;
       if (!localEvidenceModelPromise) {
         localEvidenceModelPromise = (async () => {
+          if (navigator.storage?.persist) await navigator.storage.persist().catch(() => false);
           const [{ createEngine }, { createChat }] = await Promise.all([
             import(localEvidenceModelConfig.runtimeUrl), import(localEvidenceModelConfig.chatUrl)
           ]);
@@ -7264,9 +7273,11 @@
             kvCache: 'q8', maxSeqLen: 2048,
             fetchJson: async url => (await fetchWithPersistentCache(url)).json(),
             fetchArrayBuffer: async url => {
-              const response = await fetchWithPersistentCache(url, (loaded, total) => {
+              const response = await fetchWithPersistentCache(url, (loaded, total, { cacheHit = false } = {}) => {
                 const percent = Math.min(99, Math.floor((loaded / (total || 248302272)) * 100));
-                onProgress?.(`正在下载本地模型 ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total || 248302272)}）…`, { downloadProgress: true });
+                const prefix = cacheHit ? '正在从本机模型缓存加载' : '正在下载本地模型';
+                if (cacheHit) localModelCacheState.weightCacheHit = true;
+                onProgress?.(`${prefix} ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total || 248302272)}）…`, { downloadProgress: !cacheHit, cacheHit });
               });
               return response.arrayBuffer();
             },
@@ -7277,7 +7288,9 @@
                 const percent = Math.min(99, Math.floor((loaded / total) * 100));
                 const progressed = loaded > lastDownloadedBytes;
                 lastDownloadedBytes = Math.max(lastDownloadedBytes, loaded);
-                onProgress?.(`正在下载本地模型 ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total)}）…`, { downloadProgress: progressed });
+                const fromCache = localModelCacheState.weightCacheHit;
+                const prefix = fromCache ? '正在从本机模型缓存加载' : '正在下载本地模型';
+                onProgress?.(`${prefix} ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total)}）…`, { downloadProgress: progressed && !fromCache, cacheHit: fromCache });
               } else if (progress.phase === 'manifest') {
                 onProgress?.('正在读取本地模型配置…');
               } else {
