@@ -128,6 +128,9 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("isPlaceholderLocalChineseSummary", INDEX)
         self.assertIn("getLocalChineseSummaryValidationError", INDEX)
         self.assertIn("repairReason", INDEX)
+        self.assertIn("repairField", INDEX)
+        self.assertIn("pattern: '^[^A-Za-z]*", INDEX)
+        self.assertIn("拉丁字母", INDEX)
 
     def test_unavailable_model_guidance_does_not_create_candidate(self):
         self.assertIn("请重新加载后重试", INDEX)

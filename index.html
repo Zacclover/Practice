@@ -7304,17 +7304,22 @@
             tokenizerConfigUrl: localEvidenceModelConfig.tokenizerConfigUrl
           });
           window.localEvidenceModel = {
-            async generate({ sourceTitle, publishedAt, text, repair = false, repairReason = '' }) {
+            async generate({ sourceTitle, publishedAt, text, repair = false, repairReason = '', repairField = '' }) {
+              const repairInstruction = repairField === 'featureSummary'
+                ? '只修正 featureSummary：必须将它改写为简体中文事实总结；featureTitle 仍须原样返回为合格的简体中文。'
+                : repairField === 'featureTitle'
+                  ? '只修正 featureTitle：必须将它改写为简体中文功能主题；featureSummary 仍须原样返回为合格的简体中文。'
+                  : '两个字段都必须改写为合格的简体中文。';
               const prompt = repair
-                ? `上一轮本地输出未通过检查，原因：${repairReason}。请只修正该问题。将以下内容翻译并压缩为简体中文。只返回 JSON 对象，不要 Markdown，不要解释。必须填写 featureTitle 与 featureSummary；两个字段都要基于这条更新的实际内容，且不得使用通用占位词。字段值不得含英文。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`
-                : `将以下公开网页更新提炼成简体中文竞品功能证据。只返回 JSON 对象，不要 Markdown，不要解释。featureTitle 与 featureSummary 必须均为简体中文，必须描述本条原始标题和正文中的具体功能，不能复制输入英文标题，也不得使用通用占位词。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`;
+                ? `上一轮本地输出未通过检查，原因：${repairReason}。${repairInstruction} 只返回 JSON 对象，不要 Markdown，不要解释。两个字段都必须基于这条更新的实际内容，且不得使用通用占位词或拉丁字母。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`
+                : `将以下公开网页更新提炼成简体中文竞品功能证据。只返回 JSON 对象，不要 Markdown，不要解释。featureTitle 与 featureSummary 必须均为简体中文，必须描述本条原始标题和正文中的具体功能，不能复制输入英文标题，不得使用通用占位词或拉丁字母。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`;
               const response = await chat.send([{ role: 'user', content: prompt }], {
                 format: { json: { schema: {
                   type: 'object', additionalProperties: false,
                   required: ['featureTitle', 'featureSummary'],
                   properties: {
-                    featureTitle: { type: 'string', minLength: 2, maxLength: 40 },
-                    featureSummary: { type: 'string', minLength: 10, maxLength: 400 }
+                    featureTitle: { type: 'string', minLength: 2, maxLength: 40, pattern: '^[^A-Za-z]*[㐀-鿿][^A-Za-z]*$' },
+                    featureSummary: { type: 'string', minLength: 10, maxLength: 400, pattern: '^[^A-Za-z]*[㐀-鿿][^A-Za-z]*$' }
                   }
                 } } },
                 maxTokens: 512, thinkBudget: 0
@@ -7371,7 +7376,12 @@
       let summary = String(result?.featureSummary || '').trim();
       const firstFailure = getLocalChineseSummaryValidationError(title, summary);
       if (firstFailure) {
-        result = await model.generate({ ...request, repair: true, repairReason: firstFailure });
+        result = await model.generate({
+          ...request,
+          repair: true,
+          repairReason: firstFailure,
+          repairField: getLocalChineseSummaryRepairField(title, summary)
+        });
         title = String(result?.featureTitle || '').trim();
         summary = String(result?.featureSummary || '').trim();
       }
@@ -7389,9 +7399,23 @@
       if (isPlaceholderLocalChineseSummary(title, summary)) return '输出了通用占位主题或总结';
       if (!/[\u3400-\u9fff]/.test(title)) return '功能主题缺少简体中文';
       if (!/[\u3400-\u9fff]/.test(summary)) return '功能总结缺少简体中文';
+      if (/[A-Za-z]/.test(title)) return '功能主题含有拉丁字母';
+      if (/[A-Za-z]/.test(summary)) return '功能总结含有拉丁字母';
       if (title.length > 40) return '功能主题超过 40 个字符';
       if (summary.length < 10) return '功能总结少于 10 个字符';
       if (summary.length > 400) return '功能总结超过 400 个字符';
+      return '';
+    }
+
+    /* 只在一个字段不合格时让本地模型聚焦修复该字段；两个字段均异常则整体重写。 */
+    function getLocalChineseSummaryRepairField(title, summary) {
+      const titleInvalid = isPlaceholderLocalChineseSummary(title, '')
+        || !/[\u3400-\u9fff]/.test(title) || /[A-Za-z]/.test(title) || title.length > 40;
+      const summaryInvalid = isPlaceholderLocalChineseSummary('', summary)
+        || !/[\u3400-\u9fff]/.test(summary) || /[A-Za-z]/.test(summary)
+        || summary.length < 10 || summary.length > 400;
+      if (titleInvalid && !summaryInvalid) return 'featureTitle';
+      if (summaryInvalid && !titleInvalid) return 'featureSummary';
       return '';
     }
 
