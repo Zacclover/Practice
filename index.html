@@ -7304,8 +7304,10 @@
             tokenizerConfigUrl: localEvidenceModelConfig.tokenizerConfigUrl
           });
           window.localEvidenceModel = {
-            async generate({ text }) {
-              const prompt = `将以下公开网页内容提炼成简体中文竞品功能证据。不要编造事实。只输出 JSON。\n\n网页内容：\n${text}`;
+            async generate({ sourceTitle, publishedAt, text, repair = false }) {
+              const prompt = repair
+                ? `将以下内容翻译并压缩为简体中文。只输出 JSON，不要 Markdown，不要解释。字段值不得含英文。输出示例：{"featureTitle":"中文功能主题","featureSummary":"中文功能总结，说明事实和影响。"}\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`
+                : `将以下公开网页更新提炼成简体中文竞品功能证据。只输出 JSON，不要 Markdown，不要解释。featureTitle 和 featureSummary 必须都是简体中文，不能复制英文标题。严格输出：{"featureTitle":"中文功能主题","featureSummary":"中文功能总结，说明事实和影响。"}\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`;
               const response = await chat.send([{ role: 'user', content: prompt }], {
                 format: { json: { schema: {
                   type: 'object', additionalProperties: false,
@@ -7340,8 +7342,7 @@
     }
 
     /* 在 2K 上下文中为输出 JSON 留出余量；CJK 字符按单 token 保守计费，拉丁字符按 0.35 token 估算。 */
-    function truncateLocalEvidenceText(text) {
-      const maxBudget = 1400;
+    function truncateLocalEvidenceText(text, maxBudget = 1400) {
       let budget = 0;
       let output = '';
       for (const character of String(text || '')) {
@@ -7355,19 +7356,31 @@
 
     /* BitGPU 的 JSON 约束解码在本浏览器设备完成结构化中文总结，不请求云端推理接口。 */
     async function generateLocalEvidenceSummary(rawItem, model) {
+      const text = truncateLocalEvidenceText(`${rawItem.title || ''}\n${rawItem.rawText || ''}`, 900);
+      const request = { sourceTitle: rawItem.title || '未命名更新', publishedAt: rawItem.publishedAt || '未知日期', text };
       let result;
       try {
-        result = await model.generate({ language: 'zh-CN', text: truncateLocalEvidenceText(rawItem.rawText) });
+        result = await model.generate(request);
       } catch (error) {
         if (String(error?.message || error).includes('generate: prompt length')) {
           throw new Error('原始页面内容过长，已按本地模型上下文上限截取后仍无法总结。请缩短来源内容后重试。');
         }
         throw error;
       }
-      const title = String(result?.featureTitle || '').trim();
-      const summary = String(result?.featureSummary || '').trim();
-      if (!/[\u3400-\u9fff]/.test(title) || !/[\u3400-\u9fff]/.test(summary) || title.length > 40 || summary.length < 10 || summary.length > 1200) throw new Error('本地模型未返回有效的结构化中文总结，请重试。');
+      let title = String(result?.featureTitle || '').trim();
+      let summary = String(result?.featureSummary || '').trim();
+      if (!isValidLocalChineseSummary(title, summary)) {
+        result = await model.generate({ ...request, repair: true });
+        title = String(result?.featureTitle || '').trim();
+        summary = String(result?.featureSummary || '').trim();
+      }
+      if (!isValidLocalChineseSummary(title, summary)) throw new Error('本地模型未返回有效的结构化中文总结，请重试。');
       return { title, summary };
+    }
+
+    function isValidLocalChineseSummary(title, summary) {
+      return /[\u3400-\u9fff]/.test(title) && /[\u3400-\u9fff]/.test(summary)
+        && title.length <= 40 && summary.length >= 10 && summary.length <= 400;
     }
 
     function getLocalModelButtonLabel(message) {
@@ -7438,9 +7451,12 @@
       } catch (error) {
         if (timerId) { window.clearInterval(timerId); timerId = null; }
         localSummaryBatchState.delete(batchId);
-        const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
+        renderReviewQueue();
+        const currentStatus = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
+        const currentButton = reviewQueueList.querySelector(`[data-generate-summary-source-id="${sourceId}"][data-generate-summary-run-id="${runId}"]`);
         const retryMessage = error.message || '本次批量生成失败。';
-        if (status) { status.textContent = `${retryMessage} 请点击“重试本地总结”。`; status.classList.remove('is-processing'); }
+        if (currentStatus) { currentStatus.textContent = `${retryMessage} 请点击“重试本地总结”。`; currentStatus.classList.remove('is-processing'); }
+        if (currentButton) { currentButton.disabled = false; currentButton.classList.remove('is-loading'); currentButton.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重试本地总结</span>'; }
         if (button?.isConnected) { button.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重试本地总结</span>'; }
       } finally {
         if (timerId) { window.clearInterval(timerId); }

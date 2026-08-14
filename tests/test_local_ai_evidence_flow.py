@@ -61,6 +61,9 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
     def test_local_model_input_is_token_budgeted_and_errors_are_localized(self):
         self.assertIn("truncateLocalEvidenceText", INDEX)
         self.assertIn("maxBudget = 1400", INDEX)
+        self.assertIn("repair: true", INDEX)
+        self.assertIn("isValidLocalChineseSummary", INDEX)
+        self.assertIn("renderReviewQueue();", INDEX)
         self.assertIn("generate: prompt length", INDEX)
         self.assertIn("原始页面内容过长", INDEX)
         self.assertIn("LOCAL_MODEL_CACHE_NAME", INDEX)
