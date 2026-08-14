@@ -126,6 +126,8 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertNotIn('输出示例：{"featureTitle":"中文功能主题"', INDEX)
         self.assertNotIn('严格输出：{"featureTitle":"中文功能主题"', INDEX)
         self.assertIn("isPlaceholderLocalChineseSummary", INDEX)
+        self.assertIn("getLocalChineseSummaryValidationError", INDEX)
+        self.assertIn("repairReason", INDEX)
 
     def test_unavailable_model_guidance_does_not_create_candidate(self):
         self.assertIn("请重新加载后重试", INDEX)

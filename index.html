@@ -7304,9 +7304,9 @@
             tokenizerConfigUrl: localEvidenceModelConfig.tokenizerConfigUrl
           });
           window.localEvidenceModel = {
-            async generate({ sourceTitle, publishedAt, text, repair = false }) {
+            async generate({ sourceTitle, publishedAt, text, repair = false, repairReason = '' }) {
               const prompt = repair
-                ? `将以下内容翻译并压缩为简体中文。只返回 JSON 对象，不要 Markdown，不要解释。必须填写 featureTitle 与 featureSummary；两个字段都要基于这条更新的实际内容，且不得使用通用占位词。字段值不得含英文。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`
+                ? `上一轮本地输出未通过检查，原因：${repairReason}。请只修正该问题。将以下内容翻译并压缩为简体中文。只返回 JSON 对象，不要 Markdown，不要解释。必须填写 featureTitle 与 featureSummary；两个字段都要基于这条更新的实际内容，且不得使用通用占位词。字段值不得含英文。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`
                 : `将以下公开网页更新提炼成简体中文竞品功能证据。只返回 JSON 对象，不要 Markdown，不要解释。featureTitle 与 featureSummary 必须均为简体中文，必须描述本条原始标题和正文中的具体功能，不能复制输入英文标题，也不得使用通用占位词。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`;
               const response = await chat.send([{ role: 'user', content: prompt }], {
                 format: { json: { schema: {
@@ -7369,19 +7369,30 @@
       }
       let title = String(result?.featureTitle || '').trim();
       let summary = String(result?.featureSummary || '').trim();
-      if (!isValidLocalChineseSummary(title, summary)) {
-        result = await model.generate({ ...request, repair: true });
+      const firstFailure = getLocalChineseSummaryValidationError(title, summary);
+      if (firstFailure) {
+        result = await model.generate({ ...request, repair: true, repairReason: firstFailure });
         title = String(result?.featureTitle || '').trim();
         summary = String(result?.featureSummary || '').trim();
       }
-      if (!isValidLocalChineseSummary(title, summary)) throw new Error('本地模型未返回有效的结构化中文总结，请重试。');
+      const finalFailure = getLocalChineseSummaryValidationError(title, summary);
+      if (finalFailure) throw new Error(`本地模型总结未通过质量检查：${finalFailure}。请重试。`);
       return { title, summary };
     }
 
     function isValidLocalChineseSummary(title, summary) {
-      return !isPlaceholderLocalChineseSummary(title, summary)
-        && /[\u3400-\u9fff]/.test(title) && /[\u3400-\u9fff]/.test(summary)
-        && title.length <= 40 && summary.length >= 10 && summary.length <= 400;
+      return !getLocalChineseSummaryValidationError(title, summary);
+    }
+
+    /* 对本地模型输出给出可操作的质量原因，帮助第二次本地修复与用户诊断。 */
+    function getLocalChineseSummaryValidationError(title, summary) {
+      if (isPlaceholderLocalChineseSummary(title, summary)) return '输出了通用占位主题或总结';
+      if (!/[\u3400-\u9fff]/.test(title)) return '功能主题缺少简体中文';
+      if (!/[\u3400-\u9fff]/.test(summary)) return '功能总结缺少简体中文';
+      if (title.length > 40) return '功能主题超过 40 个字符';
+      if (summary.length < 10) return '功能总结少于 10 个字符';
+      if (summary.length > 400) return '功能总结超过 400 个字符';
+      return '';
     }
 
     /* 拒绝模型复读提示词中的泛化占位输出，避免把无事实价值内容创建为 Candidate。 */
