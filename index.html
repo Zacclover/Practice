@@ -7304,16 +7304,17 @@
             tokenizerConfigUrl: localEvidenceModelConfig.tokenizerConfigUrl
           });
           window.localEvidenceModel = {
-            async generate({ sourceTitle, publishedAt, text, repair = false, repairReason = '', repairField = '' }) {
-              const repairInstruction = repairField === 'featureSummary'
-                ? '只修正 featureSummary：必须将它改写为简体中文事实总结；featureTitle 仍须原样返回为合格的简体中文。'
-                : repairField === 'featureTitle'
-                  ? '只修正 featureTitle：必须将它改写为简体中文功能主题；featureSummary 仍须原样返回为合格的简体中文。'
-                  : '两个字段都必须改写为合格的简体中文。';
-              const prompt = repair
-                ? `上一轮本地输出未通过检查，原因：${repairReason}。${repairInstruction} 只返回 JSON 对象，不要 Markdown，不要解释。两个字段都必须基于这条更新的实际内容，且不得使用通用占位词或拉丁字母。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`
-                : `将以下公开网页更新提炼成简体中文竞品功能证据。只返回 JSON 对象，不要 Markdown，不要解释。featureTitle 与 featureSummary 必须均为简体中文，必须描述本条原始标题和正文中的具体功能，不能复制输入英文标题，不得使用通用占位词或拉丁字母。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n正文：${text}`;
-              const response = await chat.send([{ role: 'user', content: prompt }], {
+            async generate({ sourceTitle, publishedAt, text, repair = false, repairReason = '', repairField = '', previousTitle = '', previousSummary = '' }) {
+                          const systemPrompt = '你是简体中文竞品研究助手。即使输入是英文，也只能输出简体中文。不得输出英文字母、英文单词或英文句子；必须将功能名称、操作和影响翻译为自然的简体中文。只返回符合 JSON Schema 的对象。';
+                          const repairInstruction = repairField === 'featureSummary'
+                            ? `只修复 featureSummary。上一轮英文主题：${previousTitle}\n上一轮英文总结：${previousSummary}\n将上一轮英文总结改写成简体中文，不得复制任何英文。`
+                            : repairField === 'featureTitle'
+                              ? `只修复 featureTitle。上一轮英文主题：${previousTitle}\n上一轮英文总结：${previousSummary}\n将上一轮英文主题改写成简体中文，不得复制任何英文。`
+                              : `将上一轮英文主题和英文总结均改写为简体中文。上一轮主题：${previousTitle}\n上一轮总结：${previousSummary}\n不得复制任何英文。`;
+                          const prompt = repair
+                            ? `硬性要求：${repairInstruction}\n上一轮本地输出未通过检查，原因：${repairReason}。只返回 JSON 对象，不要 Markdown，不要解释。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n原始正文：${text}`
+                            : `硬性要求：仅使用简体中文回答。先将英文原文理解为中文含义，再生成中文功能主题和中文功能总结；不得复制原文中的英文句子。只返回 JSON 对象，不要 Markdown，不要解释。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n原始正文：${text}`;
+                          const response = await chat.send([{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }], {
                 format: { json: { schema: {
                   type: 'object', additionalProperties: false,
                   required: ['featureTitle', 'featureSummary'],
@@ -7382,7 +7383,9 @@
           ...request,
           repair: true,
           repairReason: firstFailure,
-          repairField: getLocalChineseSummaryRepairField(title, summary)
+          repairField: getLocalChineseSummaryRepairField(title, summary),
+          previousTitle: title,
+          previousSummary: summary
         });
         title = String(result?.featureTitle || '').trim();
         summary = String(result?.featureSummary || '').trim();

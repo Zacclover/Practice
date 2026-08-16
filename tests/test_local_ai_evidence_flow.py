@@ -133,6 +133,9 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("/[A-Za-z]/.test(summary)", INDEX)
         self.assertIn("localOutputs", INDEX)
         self.assertIn("本机输出诊断", INDEX)
+        self.assertIn("role: 'system'", INDEX)
+        self.assertIn("即使输入是英文，也只能输出简体中文", INDEX)
+        self.assertIn("previousTitle", INDEX)
 
     def test_unavailable_model_guidance_does_not_create_candidate(self):
         self.assertIn("请重新加载后重试", INDEX)
