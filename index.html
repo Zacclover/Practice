@@ -7323,7 +7323,11 @@
                     featureSummary: { type: 'string', minLength: 10, maxLength: 400 }
                   }
                 } } },
-                maxTokens: 512, thinkBudget: 0
+                maxTokens: 512,
+                thinkBudget: 128,
+                temperature: 0.5,
+                topK: 20,
+                topP: 0.9
               });
               if (response.finishReason !== 'stop') throw new Error('本地模型输出未完成，请点击“重试本地总结”。');
               try { return JSON.parse(response.text); }
