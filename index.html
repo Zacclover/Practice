@@ -7197,7 +7197,88 @@
       tokenizerConfigUrl: 'https://huggingface.co/onnx-community/Bonsai-1.7B-ONNX/resolve/main/tokenizer_config.json'
     };
     let localEvidenceModelPromise = null;
+    let localEvidenceTranslatorPromise = null;
     const localSummaryBatchState = new Map();
+
+    /* ==============================
+       离线英译简体中文（Bergamot WASM）
+       运行时随站点发布；Firefox Translations enzh 模型首用下载后由 Cache Storage 复用。
+       Mozilla Firefox Translations en→zh-Hans，模型元数据 byteSize：42992955。
+       仅下载已钉住的模型资产，文本绝不发送到翻译服务或云端 AI。
+       ============================== */
+    const LOCAL_TRANSLATION_CACHE_NAME = 'local-evidence-translation-enzh-v1';
+    const localTranslationConfig = {
+      runtimeUrl: '/assets/bergamot-translator/translator.js',
+      registryUrl: '/assets/bergamot-translator/enzh-registry.json',
+      workerUrl: '/assets/bergamot-translator/worker/translator-worker.js',
+      targetLanguage: 'zh-Hans',
+      modelByteSize: 42992955
+    };
+
+    async function sha256Hex(arrayBuffer) {
+      const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function fetchTranslationAssetWithCache(url, expectedSha256Hash, onProgress) {
+      const cacheKey = new Request(url, { credentials: 'omit' });
+      let cache;
+      if ('caches' in window) {
+        try {
+          cache = await caches.open(LOCAL_TRANSLATION_CACHE_NAME);
+          const cached = await cache.match(cacheKey);
+          if (cached) {
+            const buffer = await cached.arrayBuffer();
+            if (await sha256Hex(buffer) === expectedSha256Hash) {
+              onProgress?.('正在从本机离线翻译缓存加载…', { cacheHit: true });
+              return buffer;
+            }
+            await cache.delete(cacheKey);
+          }
+        } catch (error) { /* Cache Storage 不可用时仍可用浏览器普通 HTTP 缓存继续。 */ }
+      }
+      onProgress?.('正在下载离线翻译模型（首次约 43 MB）…', { downloadProgress: true });
+      const response = await fetch(url, { credentials: 'omit', cache: 'force-cache' });
+      if (!response.ok) throw new Error(`离线翻译模型下载失败（${response.status}）`);
+      const buffer = await response.arrayBuffer();
+      if (await sha256Hex(buffer) !== expectedSha256Hash) throw new Error('离线翻译模型校验失败，已拒绝使用该文件。');
+      if (cache) await cache.put(cacheKey, new Response(buffer)).catch(() => {});
+      return buffer;
+    }
+
+    async function loadLocalEvidenceTranslator(onProgress) {
+      if (window.localEvidenceTranslator) return window.localEvidenceTranslator;
+      if (!localEvidenceTranslatorPromise) {
+        localEvidenceTranslatorPromise = (async () => {
+          if (navigator.storage?.persist) await navigator.storage.persist().catch(() => false);
+          const { TranslatorBacking, BatchTranslator } = await import(localTranslationConfig.runtimeUrl);
+          class CachedBergamotTranslatorBacking extends TranslatorBacking {
+            async fetch(url, checksum, options) {
+              return fetchTranslationAssetWithCache(url, checksum, onProgress, options);
+            }
+          }
+          const backing = new CachedBergamotTranslatorBacking({
+            registryUrl: localTranslationConfig.registryUrl,
+            workerUrl: localTranslationConfig.workerUrl,
+            downloadTimeout: 300000
+          });
+          window.localEvidenceTranslator = new BatchTranslator({ workers: 1, batchSize: 1 }, backing);
+          return window.localEvidenceTranslator;
+        })().catch(error => { localEvidenceTranslatorPromise = null; throw error; });
+      }
+      return localEvidenceTranslatorPromise;
+    }
+
+    async function translateLocalEvidenceSummary(englishSummary, onProgress) {
+      const translator = await loadLocalEvidenceTranslator(onProgress);
+      onProgress?.('正在进行本机英译简体中文…');
+      const translate = text => translator.translate({ from: 'en', to: localTranslationConfig.targetLanguage, text: String(text || ''), html: false })
+        .then(result => String(result?.target?.text || '').trim());
+      const [title, summary] = await Promise.all([translate(englishSummary.title), translate(englishSummary.summary)]);
+      const failure = getLocalChineseSummaryValidationError(title, summary);
+      if (failure) throw new Error(`离线翻译失败：译文未通过质量检查（${failure}）。`);
+      return { title, summary };
+    }
 
     const LOCAL_MODEL_CACHE_NAME = 'local-evidence-model-v1';
     const LOCAL_MODEL_WEIGHT_URLS = [
@@ -7305,15 +7386,13 @@
           });
           window.localEvidenceModel = {
             async generate({ sourceTitle, publishedAt, text, repair = false, repairReason = '', repairField = '', previousTitle = '', previousSummary = '' }) {
-                          const systemPrompt = '你是简体中文竞品研究助手。即使输入是英文，也只能输出简体中文。不得输出英文字母、英文单词或英文句子；必须将功能名称、操作和影响翻译为自然的简体中文。只返回符合 JSON Schema 的对象。';
+                          const systemPrompt = 'You are a competitor-research assistant. Return concise factual English only as the requested JSON object. Do not translate: a separate local offline translator translates the completed JSON to Simplified Chinese.';
                           const repairInstruction = repairField === 'featureSummary'
                             ? `只修复 featureSummary。上一轮英文主题：${previousTitle}\n上一轮英文总结：${previousSummary}\n将上一轮英文总结改写成简体中文，不得复制任何英文。`
                             : repairField === 'featureTitle'
                               ? `只修复 featureTitle。上一轮英文主题：${previousTitle}\n上一轮英文总结：${previousSummary}\n将上一轮英文主题改写成简体中文，不得复制任何英文。`
                               : `将上一轮英文主题和英文总结均改写为简体中文。上一轮主题：${previousTitle}\n上一轮总结：${previousSummary}\n不得复制任何英文。`;
-                          const prompt = repair
-                            ? `硬性要求：${repairInstruction}\n上一轮本地输出未通过检查，原因：${repairReason}。只返回 JSON 对象，不要 Markdown，不要解释。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n原始正文：${text}`
-                            : `硬性要求：仅使用简体中文回答。先将英文原文理解为中文含义，再生成中文功能主题和中文功能总结；不得复制原文中的英文句子。只返回 JSON 对象，不要 Markdown，不要解释。\n原始标题：${sourceTitle}\n网页日期：${publishedAt}\n原始正文：${text}`;
+                          const prompt = `Return English JSON only; do not use Markdown or an explanation. Identify the concrete feature change and its user impact from the source.\nSource title: ${sourceTitle}\nPublication date: ${publishedAt}\nSource text: ${text}`;
                           const response = await chat.send([{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }], {
                 format: { json: { schema: {
                   type: 'object', additionalProperties: false,
@@ -7368,7 +7447,6 @@
     async function generateLocalEvidenceSummary(rawItem, model) {
       const text = truncateLocalEvidenceText(`${rawItem.title || ''}\n${rawItem.rawText || ''}`, 900);
       const request = { sourceTitle: rawItem.title || '未命名更新', publishedAt: rawItem.publishedAt || '未知日期', text };
-      const localOutputs = [];
       let result;
       try {
         result = await model.generate(request);
@@ -7378,28 +7456,10 @@
         }
         throw error;
       }
-      let title = String(result?.featureTitle || '').trim();
-      let summary = String(result?.featureSummary || '').trim();
-      localOutputs.push({ round: '第 1 轮', title, summary });
-      const firstFailure = getLocalChineseSummaryValidationError(title, summary);
-      if (firstFailure) {
-        result = await model.generate({
-          ...request,
-          repair: true,
-          repairReason: firstFailure,
-          repairField: getLocalChineseSummaryRepairField(title, summary),
-          previousTitle: title,
-          previousSummary: summary
-        });
-        title = String(result?.featureTitle || '').trim();
-        summary = String(result?.featureSummary || '').trim();
-        localOutputs.push({ round: '第 2 轮修复', title, summary });
-      }
-      const finalFailure = getLocalChineseSummaryValidationError(title, summary);
-      if (finalFailure) {
-        const error = new Error(`本地模型总结未通过质量检查：${finalFailure}。`);
-        error.localOutputs = localOutputs;
-        throw error;
+      const title = String(result?.featureTitle || '').trim();
+      const summary = String(result?.featureSummary || '').trim();
+      if (title.length < 2 || title.length > 160 || summary.length < 10 || summary.length > 800) {
+        throw new Error('本地模型英文 JSON 未通过长度检查，未开始翻译或创建 Candidate。');
       }
       return { title, summary };
     }
@@ -7500,10 +7560,16 @@
         const readiness = await checkLocalEvidenceModelReadiness(setProgress);
         if (timedOut) return;
         if (!readiness.ready) throw new Error(readiness.message);
+        const englishSummaries = [];
+        for (let index = 0; index < rawItems.length; index += 1) {
+          setProgress(`正在生成英文 JSON（${index + 1}/${rawItems.length}）`);
+          englishSummaries.push(await generateLocalEvidenceSummary(rawItems[index], readiness.model));
+        }
         const summaries = [];
         for (let index = 0; index < rawItems.length; index += 1) {
-          setProgress(`正在生成中文总结（${index + 1}/${rawItems.length}）`);
-          summaries.push(await generateLocalEvidenceSummary(rawItems[index], readiness.model));
+          setProgress(`正在进行本机英译简体中文（${index + 1}/${rawItems.length}）`);
+          /* 翻译失败会直接跳到 catch；因此在任何 Candidate RPC 前保持写入闸门关闭。 */
+          summaries.push(await translateLocalEvidenceSummary(englishSummaries[index], setProgress));
         }
         for (let index = 0; index < rawItems.length; index += 1) {
           setProgress(`正在保存待审核证据（${index + 1}/${rawItems.length}）`);

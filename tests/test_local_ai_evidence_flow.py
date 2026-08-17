@@ -36,7 +36,7 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
     def test_batch_generation_has_visible_processing_states_and_preserves_local_only_boundary(self):
         self.assertIn("检查本机 WebGPU…", INDEX)
         self.assertIn("正在加载本地模型…", INDEX)
-        self.assertIn("正在生成中文总结（${index + 1}/${rawItems.length}）", INDEX)
+        self.assertIn("正在生成英文 JSON（${index + 1}/${rawItems.length}）", INDEX)
         self.assertIn("正在保存待审核证据（${index + 1}/${rawItems.length}）", INDEX)
         self.assertIn("const prefix = cacheHit ? '正在从本机模型缓存加载' : '正在下载本地模型';", INDEX)
         self.assertIn("getLocalModelButtonLabel", INDEX)
@@ -61,7 +61,8 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
     def test_local_model_input_is_token_budgeted_and_errors_are_localized(self):
         self.assertIn("truncateLocalEvidenceText", INDEX)
         self.assertIn("maxBudget = 1400", INDEX)
-        self.assertIn("repair: true", INDEX)
+        self.assertIn("Return English JSON only", INDEX)
+        self.assertIn("本地模型英文 JSON 未通过长度检查", INDEX)
         self.assertIn("isValidLocalChineseSummary", INDEX)
         self.assertIn("renderReviewQueue();", INDEX)
         self.assertIn("generate: prompt length", INDEX)
@@ -108,6 +109,39 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertNotIn("fetch(", inference.group("body"))
         self.assertNotIn("cloudRestRequest", inference.group("body"))
 
+    def test_bonsai_english_json_is_translated_by_vendored_local_bergamot_before_candidate_write(self):
+        self.assertIn("@mkljczk/bergamot-translator", (ROOT / "assets" / "bergamot-translator" / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8"))
+        self.assertTrue((ROOT / "assets" / "bergamot-translator" / "translator.js").is_file())
+        self.assertTrue((ROOT / "assets" / "bergamot-translator" / "worker" / "translator-worker.js").is_file())
+        self.assertTrue((ROOT / "assets" / "bergamot-translator" / "worker" / "bergamot-translator-worker.wasm").is_file())
+        self.assertIn("Mozilla Firefox Translations en→zh-Hans", INDEX)
+        self.assertIn("42992955", INDEX)
+        self.assertIn("CachedBergamotTranslatorBacking", INDEX)
+        self.assertIn("loadLocalEvidenceTranslator", INDEX)
+        self.assertIn("translateLocalEvidenceSummary", INDEX)
+        self.assertIn("正在下载离线翻译模型", INDEX)
+        self.assertIn("正在进行本机英译简体中文", INDEX)
+        self.assertIn("离线翻译失败", INDEX)
+        self.assertIn("LOCAL_TRANSLATION_CACHE_NAME", INDEX)
+        self.assertIn("crypto.subtle.digest('SHA-256'", INDEX)
+        handler = re.search(
+            r"async function createCandidatesFromLocalSummary\([^)]*\) \{(?P<body>.*?)\n    \}",
+            INDEX,
+            re.S,
+        )
+        self.assertIsNotNone(handler)
+        body = handler.group("body")
+        self.assertLess(body.index("translateLocalEvidenceSummary"), body.index("create_local_summary_candidate"))
+        self.assertNotIn("translator.create", body[body.index("translateLocalEvidenceSummary"):body.index("create_local_summary_candidate")])
+
+    def test_translation_uses_pinned_firefox_model_and_no_browser_or_cloud_translation_api(self):
+        registry = (ROOT / "assets" / "bergamot-translator" / "enzh-registry.json").read_text(encoding="utf-8")
+        self.assertIn("TiberiuCristianLeon/Bergamot/resolve/004d535a7a754590888eceec5ac3a9a43ae7d384/base/enzh", registry)
+        self.assertIn("targetLanguage: 'zh-Hans'", INDEX)
+        self.assertNotIn("chrome.translator", INDEX.lower())
+        self.assertNotIn("translation.googleapis.com", INDEX)
+        self.assertNotIn("translate.googleapis.com", INDEX)
+
     def test_schema_removes_cloud_ai_budget_and_links_candidate_images(self):
         self.assertIn("drop function if exists public.reserve_source_capture_ai_budget", MIGRATIONS)
         self.assertIn("drop table if exists public.source_capture_ai_daily_usage", MIGRATIONS)
@@ -122,20 +156,17 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("snapshot_already_summarized", MIGRATIONS)
         self.assertIn("summary_status = 'generated'", MIGRATIONS)
 
-    def test_placeholder_summary_values_are_rejected(self):
+    def test_placeholder_summary_values_are_rejected_after_local_translation(self):
         self.assertNotIn('输出示例：{"featureTitle":"中文功能主题"', INDEX)
         self.assertNotIn('严格输出：{"featureTitle":"中文功能主题"', INDEX)
         self.assertIn("isPlaceholderLocalChineseSummary", INDEX)
         self.assertIn("getLocalChineseSummaryValidationError", INDEX)
-        self.assertIn("repairReason", INDEX)
-        self.assertIn("repairField", INDEX)
+        self.assertIn("translateLocalEvidenceSummary", INDEX)
         self.assertNotIn("pattern: '^[^A-Za-z]*", INDEX)
         self.assertIn("/[A-Za-z]/.test(summary)", INDEX)
-        self.assertIn("localOutputs", INDEX)
-        self.assertIn("本机输出诊断", INDEX)
+        self.assertIn("离线翻译失败：译文未通过质量检查", INDEX)
         self.assertIn("role: 'system'", INDEX)
-        self.assertIn("即使输入是英文，也只能输出简体中文", INDEX)
-        self.assertIn("previousTitle", INDEX)
+        self.assertIn("Return concise factual English only", INDEX)
         self.assertIn("thinkBudget: 128", INDEX)
         self.assertIn("temperature: 0.5", INDEX)
 
