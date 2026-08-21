@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -141,6 +142,21 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertNotIn("chrome.translator", INDEX.lower())
         self.assertNotIn("translation.googleapis.com", INDEX)
         self.assertNotIn("translate.googleapis.com", INDEX)
+
+    def test_bergamot_runtime_request_matches_the_enzh_registry_key(self):
+        registry = json.loads((ROOT / "assets" / "bergamot-translator" / "enzh-registry.json").read_text(encoding="utf-8"))
+        self.assertIn("enzh", registry)
+        runtime_pair = ("enzh"[:2], "enzh"[2:4])
+        self.assertEqual(runtime_pair, ("en", "zh"))
+        self.assertIn("runtimeTargetLanguage: 'zh'", INDEX)
+        self.assertIn("to: localTranslationConfig.runtimeTargetLanguage", INDEX)
+
+    def test_bergamot_gzip_assets_are_verified_then_decompressed_locally_before_wasm(self):
+        self.assertIn("decompressLocalTranslationGzip", INDEX)
+        self.assertIn("new DecompressionStream('gzip')", INDEX)
+        self.assertIn("浏览器不支持本机 gzip 解压", INDEX)
+        self.assertIn("decompressLocalTranslationGzip(buffer, url)", INDEX)
+        self.assertIn("await sha256Hex(buffer) !== expectedSha256Hash", INDEX)
 
     def test_schema_removes_cloud_ai_budget_and_links_candidate_images(self):
         self.assertIn("drop function if exists public.reserve_source_capture_ai_budget", MIGRATIONS)

@@ -7211,13 +7211,29 @@
       runtimeUrl: '/assets/bergamot-translator/translator.js',
       registryUrl: '/assets/bergamot-translator/enzh-registry.json',
       workerUrl: '/assets/bergamot-translator/worker/translator-worker.js',
+      /* 展示层使用 zh-Hans；Bergamot registry 以四字符键 enzh 解析运行时目标为 zh。 */
       targetLanguage: 'zh-Hans',
+      runtimeTargetLanguage: 'zh',
       modelByteSize: 42992955
     };
 
     async function sha256Hex(arrayBuffer) {
       const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
       return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    /* 本地 Bergamot 模型解压：只在浏览器内存解压发布方已校验的 gzip 资产，绝不上传模型或文本。 */
+    async function decompressLocalTranslationGzip(buffer, url) {
+      if (!String(url).split('?')[0].endsWith('.gz')) return buffer;
+      if (typeof DecompressionStream !== 'function') {
+        throw new Error('当前浏览器不支持本机 gzip 解压；请使用 Chrome、Edge、Firefox 或 Safari 的较新版本后重试。');
+      }
+      try {
+        const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
+        return await new Response(stream).arrayBuffer();
+      } catch (error) {
+        throw new Error(`离线翻译模型本机解压失败：${error?.message || 'gzip 数据不可用'}。`);
+      }
     }
 
     async function fetchTranslationAssetWithCache(url, expectedSha256Hash, onProgress) {
@@ -7231,7 +7247,7 @@
             const buffer = await cached.arrayBuffer();
             if (await sha256Hex(buffer) === expectedSha256Hash) {
               onProgress?.('正在从本机离线翻译缓存加载…', { cacheHit: true });
-              return buffer;
+              return decompressLocalTranslationGzip(buffer, url);
             }
             await cache.delete(cacheKey);
           }
@@ -7243,7 +7259,7 @@
       const buffer = await response.arrayBuffer();
       if (await sha256Hex(buffer) !== expectedSha256Hash) throw new Error('离线翻译模型校验失败，已拒绝使用该文件。');
       if (cache) await cache.put(cacheKey, new Response(buffer)).catch(() => {});
-      return buffer;
+      return decompressLocalTranslationGzip(buffer, url);
     }
 
     async function loadLocalEvidenceTranslator(onProgress) {
@@ -7272,7 +7288,7 @@
     async function translateLocalEvidenceSummary(englishSummary, onProgress) {
       const translator = await loadLocalEvidenceTranslator(onProgress);
       onProgress?.('正在进行本机英译简体中文…');
-      const translate = text => translator.translate({ from: 'en', to: localTranslationConfig.targetLanguage, text: String(text || ''), html: false })
+      const translate = text => translator.translate({ from: 'en', to: localTranslationConfig.runtimeTargetLanguage, text: String(text || ''), html: false })
         .then(result => String(result?.target?.text || '').trim());
       const [title, summary] = await Promise.all([translate(englishSummary.title), translate(englishSummary.summary)]);
       const failure = getLocalChineseSummaryValidationError(title, summary);
