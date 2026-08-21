@@ -1,5 +1,6 @@
 import json
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -158,6 +159,55 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("decompressLocalTranslationGzip(buffer, url)", INDEX)
         self.assertIn("await sha256Hex(buffer) !== expectedSha256Hash", INDEX)
 
+    def test_local_chinese_validation_allows_one_brand_name_but_rejects_untranslated_english(self):
+        source_path = json.dumps(str(ROOT / "index.html"))
+        script = f"""
+import fs from 'node:fs';
+const source = fs.readFileSync({source_path}, 'utf8');
+function extract(name) {{
+  const start = source.indexOf(`function ${{name}}`);
+  if (start < 0) throw new Error(`missing function: ${{name}}`);
+  const open = source.indexOf('{{', start);
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {{
+    if (source[i] === '{{') depth += 1;
+    if (source[i] === '}}') {{
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1);
+    }}
+  }}
+  throw new Error(`unterminated function: ${{name}}`);
+}}
+const localValidation = new Function([
+  extract('isPlaceholderLocalChineseSummary'),
+  extract('hasUnsupportedLatinInLocalChineseField'),
+  extract('getLocalChineseSummaryValidationError'),
+  'return {{ getLocalChineseSummaryValidationError }};',
+].join(String.fromCharCode(10)))();
+const valid = localValidation.getLocalChineseSummaryValidationError(
+  'Notion 新增项目更新整理功能',
+  'Notion 允许团队更快地整理项目更新与相关上下文。'
+);
+if (valid) throw new Error(`brand name should be accepted: ${{valid}}`);
+const residual = localValidation.getLocalChineseSummaryValidationError(
+  'Notion 新增 sharing 功能',
+  '该功能已完成本机翻译并通过质量检查。'
+);
+if (residual !== '功能主题含有未翻译英文内容') throw new Error(`residual English should be rejected: ${{residual}}`);
+const english = localValidation.getLocalChineseSummaryValidationError(
+  'Share context with Custom Agents',
+  'This update helps teams share context with agents.'
+);
+if (english !== '功能主题缺少简体中文') throw new Error(`English title should be rejected: ${{english}}`);
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module", "--eval", script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_schema_removes_cloud_ai_budget_and_links_candidate_images(self):
         self.assertIn("drop function if exists public.reserve_source_capture_ai_budget", MIGRATIONS)
         self.assertIn("drop table if exists public.source_capture_ai_daily_usage", MIGRATIONS)
@@ -179,7 +229,7 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("getLocalChineseSummaryValidationError", INDEX)
         self.assertIn("translateLocalEvidenceSummary", INDEX)
         self.assertNotIn("pattern: '^[^A-Za-z]*", INDEX)
-        self.assertIn("/[A-Za-z]/.test(summary)", INDEX)
+        self.assertIn("hasUnsupportedLatinInLocalChineseField(summary)", INDEX)
         self.assertIn("离线翻译失败：译文未通过质量检查", INDEX)
         self.assertIn("role: 'system'", INDEX)
         self.assertIn("Return concise factual English only", INDEX)
