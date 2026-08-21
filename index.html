@@ -7484,31 +7484,11 @@
       return !getLocalChineseSummaryValidationError(title, summary);
     }
 
-    /* 本地译文可保留一个品牌/产品专名及常见缩写；英文句子或多个英文词仍须在写入前失败闭环。 */
-    function hasUnsupportedLatinInLocalChineseField(value) {
-      const text = String(value || '').trim();
-      if (!/[A-Za-z]/.test(text)) return false;
-      if (!/[\u3400-\u9fff]/.test(text)) return true;
-      const tokens = text.match(/\b[A-Za-z][A-Za-z0-9+.#-]*\b/g) || [];
-      let brandedTokenCount = 0;
-      for (const token of tokens) {
-        if (/^[A-Z]{2,8}$/.test(token)) continue;
-        if (/^[A-Z][A-Za-z0-9]{1,31}$/.test(token)) {
-          brandedTokenCount += 1;
-          continue;
-        }
-        return true;
-      }
-      return brandedTokenCount > 1;
-    }
-
     /* 对本地模型输出给出可操作的质量原因，帮助第二次本地修复与用户诊断。 */
     function getLocalChineseSummaryValidationError(title, summary) {
       if (isPlaceholderLocalChineseSummary(title, summary)) return '输出了通用占位主题或总结';
       if (!/[\u3400-\u9fff]/.test(title)) return '功能主题缺少简体中文';
       if (!/[\u3400-\u9fff]/.test(summary)) return '功能总结缺少简体中文';
-      if (hasUnsupportedLatinInLocalChineseField(title)) return '功能主题含有未翻译英文内容';
-      if (hasUnsupportedLatinInLocalChineseField(summary)) return '功能总结含有未翻译英文内容';
       if (title.length > 40) return '功能主题超过 40 个字符';
       if (summary.length < 10) return '功能总结少于 10 个字符';
       if (summary.length > 400) return '功能总结超过 400 个字符';
@@ -7518,9 +7498,9 @@
     /* 只在一个字段不合格时让本地模型聚焦修复该字段；两个字段均异常则整体重写。 */
     function getLocalChineseSummaryRepairField(title, summary) {
       const titleInvalid = isPlaceholderLocalChineseSummary(title, '')
-        || !/[\u3400-\u9fff]/.test(title) || hasUnsupportedLatinInLocalChineseField(title) || title.length > 40;
+        || !/[\u3400-\u9fff]/.test(title) || title.length > 40;
       const summaryInvalid = isPlaceholderLocalChineseSummary('', summary)
-        || !/[\u3400-\u9fff]/.test(summary) || hasUnsupportedLatinInLocalChineseField(summary)
+        || !/[\u3400-\u9fff]/.test(summary)
         || summary.length < 10 || summary.length > 400;
       if (titleInvalid && !summaryInvalid) return 'featureTitle';
       if (summaryInvalid && !titleInvalid) return 'featureSummary';

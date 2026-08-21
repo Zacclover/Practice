@@ -159,7 +159,7 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("decompressLocalTranslationGzip(buffer, url)", INDEX)
         self.assertIn("await sha256Hex(buffer) !== expectedSha256Hash", INDEX)
 
-    def test_local_chinese_validation_allows_one_brand_name_but_rejects_untranslated_english(self):
+    def test_local_chinese_validation_requires_chinese_but_allows_mixed_terms(self):
         source_path = json.dumps(str(ROOT / "index.html"))
         script = f"""
 import fs from 'node:fs';
@@ -180,20 +180,14 @@ function extract(name) {{
 }}
 const localValidation = new Function([
   extract('isPlaceholderLocalChineseSummary'),
-  extract('hasUnsupportedLatinInLocalChineseField'),
   extract('getLocalChineseSummaryValidationError'),
   'return {{ getLocalChineseSummaryValidationError }};',
 ].join(String.fromCharCode(10)))();
 const valid = localValidation.getLocalChineseSummaryValidationError(
-  'Notion 新增项目更新整理功能',
-  'Notion 允许团队更快地整理项目更新与相关上下文。'
+  'Notion AI 新增 sharing 功能',
+  'Notion AI 支持团队更快地整理 project updates 与相关上下文。'
 );
-if (valid) throw new Error(`brand name should be accepted: ${{valid}}`);
-const residual = localValidation.getLocalChineseSummaryValidationError(
-  'Notion 新增 sharing 功能',
-  '该功能已完成本机翻译并通过质量检查。'
-);
-if (residual !== '功能主题含有未翻译英文内容') throw new Error(`residual English should be rejected: ${{residual}}`);
+if (valid) throw new Error(`mixed Chinese content should be accepted: ${{valid}}`);
 const english = localValidation.getLocalChineseSummaryValidationError(
   'Share context with Custom Agents',
   'This update helps teams share context with agents.'
@@ -229,7 +223,7 @@ if (english !== '功能主题缺少简体中文') throw new Error(`English title
         self.assertIn("getLocalChineseSummaryValidationError", INDEX)
         self.assertIn("translateLocalEvidenceSummary", INDEX)
         self.assertNotIn("pattern: '^[^A-Za-z]*", INDEX)
-        self.assertIn("hasUnsupportedLatinInLocalChineseField(summary)", INDEX)
+        self.assertNotIn("hasUnsupportedLatinInLocalChineseField", INDEX)
         self.assertIn("离线翻译失败：译文未通过质量检查", INDEX)
         self.assertIn("role: 'system'", INDEX)
         self.assertIn("Return concise factual English only", INDEX)
