@@ -7474,7 +7474,7 @@
       }
       const title = String(result?.featureTitle || '').trim();
       const summary = String(result?.featureSummary || '').trim();
-      if (title.length < 2 || title.length > 160 || summary.length < 10 || summary.length > 800) {
+      if (title.length < 2 || title.length > 160 || summary.length < 2 || summary.length > 800) {
         throw new Error('本地模型英文 JSON 未通过长度检查，未开始翻译或创建 Candidate。');
       }
       return { title, summary };

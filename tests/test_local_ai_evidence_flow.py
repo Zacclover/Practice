@@ -65,6 +65,8 @@ class LocalAiEvidenceFlowTests(unittest.TestCase):
         self.assertIn("maxBudget = 1400", INDEX)
         self.assertIn("Return English JSON only", INDEX)
         self.assertIn("本地模型英文 JSON 未通过长度检查", INDEX)
+        self.assertIn("summary.length < 2", INDEX)
+        self.assertNotIn("summary.length < 10", INDEX)
         self.assertIn("isValidLocalChineseSummary", INDEX)
         self.assertIn("renderReviewQueue();", INDEX)
         self.assertIn("generate: prompt length", INDEX)
