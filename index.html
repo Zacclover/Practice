@@ -6887,11 +6887,27 @@
       finally { cloudSyncState.pulling = false; }
     }
 
+    /* 手动抓取前确保本机可见来源已落到云端：处理旧本机来源和异步出站队列尚未完成时的竞态。 */
+    async function ensureSourceAvailableForManualCapture(sourceId) {
+      const localSource = sourceCaptureState.sources.find(item => item.id === sourceId);
+      if (!localSource) throw new Error('当前浏览器中找不到此来源，请关闭后重新打开来源管理。');
+      await flushCloudOutbox();
+      const persisted = await cloudRestRequest(`competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id&limit=1`);
+      if (persisted.length) return;
+      await cloudRestRequest('competitor_sources', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: mapLocalSourceToCloud(localSource, sourceCaptureState.cloudWorkspaceId)
+      });
+      writeCloudQueue(cloudOutboxStorageKey, readCloudQueue(cloudOutboxStorageKey).filter(item => !(item.table === 'competitor_sources' && item.id === sourceId)));
+    }
+
     /* 立即抓取只调用受控 Worker：浏览器不直接读取任意第三方 URL。 */
     async function requestManualSourceCapture(sourceId, observationWindow) {
       const config = getCloudRuntimeConfig();
       if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken) throw new Error('请先登录并完成来源云端同步。');
       if (!config.sourceCaptureWorkerUrl) throw new Error('手动抓取服务暂未配置。');
+      await ensureSourceAvailableForManualCapture(sourceId);
       const accessToken = await ensureFreshCloudAccessToken();
       const response = await fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`, {
         method: 'POST',

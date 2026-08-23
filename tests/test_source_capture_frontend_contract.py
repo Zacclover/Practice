@@ -61,6 +61,19 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIsNotNone(submit)
         self.assertIn("!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken", submit.group("body"))
 
+    def test_capture_repairs_a_locally_saved_source_missing_from_cloud_before_worker_request(self):
+        request = self.function_body("requestManualSourceCapture")
+        self.assertIn("await ensureSourceAvailableForManualCapture(sourceId)", request)
+        self.assertLess(
+            request.find("await ensureSourceAvailableForManualCapture(sourceId)"),
+            request.find("fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`"),
+        )
+        self.assertIn("async function ensureSourceAvailableForManualCapture(sourceId)", SOURCE)
+        self.assertIn("await flushCloudOutbox()", SOURCE)
+        self.assertIn("cloudRestRequest(`competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id&limit=1`)", SOURCE)
+        self.assertIn("await cloudRestRequest('competitor_sources', {", SOURCE)
+        self.assertIn("method: 'POST'", SOURCE)
+
     def test_candidate_card_only_renders_feature_summary_and_chinese_title(self):
         title = self.function_body("getCandidateFeatureTitle", "renderCandidateAnalysis")
         self.assertIn("'feature_title'", title)
