@@ -7490,7 +7490,7 @@
       if (!/[\u3400-\u9fff]/.test(title)) return '功能主题缺少简体中文';
       if (!/[\u3400-\u9fff]/.test(summary)) return '功能总结缺少简体中文';
       if (title.length > 40) return '功能主题超过 40 个字符';
-      if (summary.length < 10) return '功能总结少于 10 个字符';
+      if (summary.length < 2) return '功能总结少于 2 个字符';
       if (summary.length > 400) return '功能总结超过 400 个字符';
       return '';
     }
@@ -7501,7 +7501,7 @@
         || !/[\u3400-\u9fff]/.test(title) || title.length > 40;
       const summaryInvalid = isPlaceholderLocalChineseSummary('', summary)
         || !/[\u3400-\u9fff]/.test(summary)
-        || summary.length < 10 || summary.length > 400;
+        || summary.length < 2 || summary.length > 400;
       if (titleInvalid && !summaryInvalid) return 'featureTitle';
       if (summaryInvalid && !titleInvalid) return 'featureSummary';
       return '';

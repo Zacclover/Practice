@@ -188,6 +188,11 @@ const valid = localValidation.getLocalChineseSummaryValidationError(
   'Notion AI 支持团队更快地整理 project updates 与相关上下文。'
 );
 if (valid) throw new Error(`mixed Chinese content should be accepted: ${{valid}}`);
+const shortSummary = localValidation.getLocalChineseSummaryValidationError(
+  'Notion 分享更新',
+  '支持共享'
+);
+if (shortSummary) throw new Error(`short Chinese summary should be accepted: ${{shortSummary}}`);
 const english = localValidation.getLocalChineseSummaryValidationError(
   'Share context with Custom Agents',
   'This update helps teams share context with agents.'
