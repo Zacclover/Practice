@@ -68,11 +68,15 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
             request.find("await ensureSourceAvailableForManualCapture(sourceId)"),
             request.find("fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`"),
         )
+        self.assertIn("const sourceCaptureRepairPromises = new Map();", SOURCE)
         self.assertIn("async function ensureSourceAvailableForManualCapture(sourceId)", SOURCE)
         self.assertIn("await flushCloudOutbox()", SOURCE)
-        self.assertIn("cloudRestRequest(`competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id&limit=1`)", SOURCE)
-        self.assertIn("await cloudRestRequest('competitor_sources', {", SOURCE)
-        self.assertIn("method: 'POST'", SOURCE)
+        self.assertIn("workspace_id=eq.${encodeURIComponent(workspaceId)}", SOURCE)
+        self.assertIn("on_conflict=id", SOURCE)
+        self.assertIn("resolution=merge-duplicates,return=representation", SOURCE)
+        self.assertIn("existingMutation?.operation === 'create'", SOURCE)
+        self.assertIn("filter(item => item !== existingMutation)", SOURCE)
+        self.assertIn("sourceCaptureRepairPromises.delete(sourceId)", SOURCE)
 
     def test_candidate_card_only_renders_feature_summary_and_chinese_title(self):
         title = self.function_body("getCandidateFeatureTitle", "renderCandidateAnalysis")

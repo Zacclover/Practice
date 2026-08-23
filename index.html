@@ -5962,6 +5962,8 @@
 
     /* 来源和候选使用独立的本机 v1 数据，不改变工作区 v3 导入导出格式 */
     let sourceCaptureState = loadSourceCaptureState();
+    /* 同一来源的补建只允许一个在途请求，避免并发抓取同时创建而触发唯一冲突。 */
+    const sourceCaptureRepairPromises = new Map();
     let selectedSourceCompetitorId = null;
     let pendingCandidateDraft = null;
     let candidateBeingApprovedId = null;
@@ -6887,19 +6889,33 @@
       finally { cloudSyncState.pulling = false; }
     }
 
-    /* 手动抓取前确保本机可见来源已落到云端：处理旧本机来源和异步出站队列尚未完成时的竞态。 */
+    /* 手动抓取前确保本机可见来源已落到当前云端工作区：队列先出站，旧本机来源按主键幂等补建。 */
     async function ensureSourceAvailableForManualCapture(sourceId) {
-      const localSource = sourceCaptureState.sources.find(item => item.id === sourceId);
-      if (!localSource) throw new Error('当前浏览器中找不到此来源，请关闭后重新打开来源管理。');
-      await flushCloudOutbox();
-      const persisted = await cloudRestRequest(`competitor_sources?id=eq.${encodeURIComponent(sourceId)}&select=id&limit=1`);
-      if (persisted.length) return;
-      await cloudRestRequest('competitor_sources', {
-        method: 'POST',
-        headers: { Prefer: 'return=representation' },
-        body: mapLocalSourceToCloud(localSource, sourceCaptureState.cloudWorkspaceId)
-      });
-      writeCloudQueue(cloudOutboxStorageKey, readCloudQueue(cloudOutboxStorageKey).filter(item => !(item.table === 'competitor_sources' && item.id === sourceId)));
+      const inFlight = sourceCaptureRepairPromises.get(sourceId);
+      if (inFlight) return inFlight;
+      const repair = (async () => {
+        const localSource = sourceCaptureState.sources.find(item => item.id === sourceId);
+        const workspaceId = cloudSyncState.workspaceId;
+        if (!localSource) throw new Error('当前浏览器中找不到此来源，请关闭后重新打开来源管理。');
+        if (!workspaceId || sourceCaptureState.cloudWorkspaceId !== workspaceId) throw new Error('来源云端工作区尚未就绪，请稍后重试。');
+        await flushCloudOutbox();
+        const resource = `competitor_sources?id=eq.${encodeURIComponent(sourceId)}&workspace_id=eq.${encodeURIComponent(workspaceId)}&select=id&limit=1`;
+        if ((await cloudRestRequest(resource)).length) return;
+        await cloudRestRequest('competitor_sources?on_conflict=id', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+          body: mapLocalSourceToCloud(localSource, workspaceId)
+        });
+        if (!(await cloudRestRequest(resource)).length) throw new Error('来源未能同步到当前云端工作区，请稍后重试。');
+        const outbox = readCloudQueue(cloudOutboxStorageKey);
+        const existingMutation = outbox.find(item => item.table === 'competitor_sources' && item.id === sourceId);
+        if (existingMutation?.operation === 'create') {
+          writeCloudQueue(cloudOutboxStorageKey, outbox.filter(item => item !== existingMutation));
+        }
+      })();
+      sourceCaptureRepairPromises.set(sourceId, repair);
+      try { return await repair; }
+      finally { sourceCaptureRepairPromises.delete(sourceId); }
     }
 
     /* 立即抓取只调用受控 Worker：浏览器不直接读取任意第三方 URL。 */
