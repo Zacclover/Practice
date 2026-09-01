@@ -26,10 +26,10 @@ class SourceCaptureGraphSyncContractTests(unittest.TestCase):
         self.assertNotIn("ensureSourceAvailableForManualCapture", request)
 
     def test_every_source_create_and_update_uses_the_shared_graph_sync_path(self):
-        self.assertIn("async function ensureCaptureSourceGraph(sourceId)", SOURCE)
+        self.assertIn("async function ensureCaptureSourceGraph(sourceId, sourceRecord = null", SOURCE)
         self.assertIn("rpc/upsert_capture_source_graph", SOURCE)
         self.assertIn("serializeCaptureSourceGraph(localSource, workspaceId)", SOURCE)
-        self.assertIn("await ensureCaptureSourceGraph(record.id)", SOURCE)
+        self.assertIn("await ensureCaptureSourceGraph(record.id, record)", SOURCE)
         self.assertNotIn("competitor_sources?on_conflict=id", SOURCE)
 
 

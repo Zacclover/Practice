@@ -69,7 +69,7 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
             request.find("fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`"),
         )
         self.assertIn("const sourceCaptureGraphPromises = new Map();", SOURCE)
-        self.assertIn("async function ensureCaptureSourceGraph(sourceId)", SOURCE)
+        self.assertIn("async function ensureCaptureSourceGraph(sourceId, sourceRecord = null", SOURCE)
         self.assertIn("serializeCaptureSourceGraph(localSource, workspaceId)", SOURCE)
         self.assertIn("rpc/upsert_capture_source_graph", SOURCE)
         self.assertIn("workspace_id=eq.${encodeURIComponent(workspaceId)}", SOURCE)

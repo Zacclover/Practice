@@ -10,7 +10,7 @@ create or replace function public.upsert_capture_source_graph(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   tab_payload jsonb := graph -> 'tab';
@@ -22,6 +22,28 @@ declare
 begin
   if auth.uid() is null or not public.is_workspace_member(target_workspace_id) then
     raise exception '无权同步此研究空间。';
+  end if;
+
+  if jsonb_typeof(graph) <> 'object'
+    or jsonb_typeof(tab_payload) <> 'object'
+    or jsonb_typeof(competitor_payload) <> 'object'
+    or jsonb_typeof(source_payload) <> 'object' then
+    raise exception '研究图谱格式无效。';
+  end if;
+
+  if coalesce(tab_payload ->> 'id', '') = ''
+    or coalesce(tab_payload ->> 'name', '') = ''
+    or coalesce(competitor_payload ->> 'id', '') = ''
+    or coalesce(competitor_payload ->> 'name', '') = ''
+    or coalesce(source_payload ->> 'id', '') = ''
+    or coalesce(source_payload ->> 'label', '') = ''
+    or (source_payload ->> 'source_type') not in ('product_page', 'changelog', 'help_center', 'pricing', 'blog', 'release_notes')
+    or coalesce(source_payload ->> 'url', '') !~* '^https://[^/@?#][^/]*' then
+    raise exception '来源图谱字段无效。';
+  end if;
+
+  if (source_payload ->> 'url') ~* '^https://(localhost|[^/]*@|127\\.|10\\.|0\\.|169\\.254\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.|\\[::1\\]|\\[fc|\\[fd|\\[fe80:)' then
+    raise exception '来源地址必须是公开 HTTPS 地址。';
   end if;
 
   if tab_payload is null or competitor_payload is null or source_payload is null then
@@ -45,10 +67,7 @@ begin
     left(coalesce(nullif(btrim(tab_payload ->> 'name'), ''), '未命名空间'), 80),
     greatest(coalesce((tab_payload ->> 'sort_order')::integer, 0), 0)
   )
-  on conflict (id) do update set
-    name = excluded.name,
-    sort_order = excluded.sort_order
-  where public.workspace_tabs.workspace_id = target_workspace_id;
+  on conflict (id) do nothing;
 
   if not exists (
     select 1 from public.workspace_tabs
@@ -67,13 +86,7 @@ begin
     coalesce(competitor_payload ->> 'positioning', ''),
     coalesce((competitor_payload ->> 'is_sample')::boolean, false)
   )
-  on conflict (id) do update set
-    name = excluded.name,
-    website = excluded.website,
-    positioning = excluded.positioning,
-    is_sample = excluded.is_sample
-  where public.competitors.workspace_id = target_workspace_id
-    and public.competitors.tab_id = graph_tab_id;
+  on conflict (id) do nothing;
 
   if not exists (
     select 1 from public.competitors

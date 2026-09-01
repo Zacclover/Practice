@@ -6857,7 +6857,9 @@
           tabMutations.forEach(item => remaining.splice(remaining.findIndex(entry => entry.table === item.table && entry.id === item.id), 1));
         } catch (error) { tabMutations.forEach(item => addCloudConflict(item)); }
       }
+      const sourceMutations = outbox.filter(item => item.table === 'competitor_sources' && item.operation !== 'delete');
       for (const mutation of [...remaining]) {
+        if (mutation.table === 'competitor_sources' && mutation.operation !== 'delete') continue;
         try {
           const condition = mutation.baselineUpdatedAt ? `&updated_at=eq.${encodeURIComponent(mutation.baselineUpdatedAt)}` : '';
           let result;
@@ -6868,6 +6870,18 @@
           remaining.splice(remaining.findIndex(entry => entry.table === mutation.table && entry.id === mutation.id), 1);
         } catch (error) {
           if (/baseline|conflict|409|duplicate/i.test(error.message)) addCloudConflict(mutation);
+          break;
+        }
+      }
+      for (const mutation of sourceMutations) {
+        try {
+          const localSource = sourceCaptureState.sources.find(item => item.id === mutation.id);
+          if (!localSource) throw new Error('本机来源已不存在，无法同步离线更改。');
+          await ensureCaptureSourceGraph(mutation.id, localSource, { skipOutbox: true });
+          const index = remaining.findIndex(entry => entry.table === mutation.table && entry.id === mutation.id && entry.queuedAt === mutation.queuedAt);
+          if (index >= 0) remaining.splice(index, 1);
+        } catch (error) {
+          if (/conflict|409|duplicate/i.test(error.message)) addCloudConflict(mutation);
           break;
         }
       }
@@ -6909,31 +6923,32 @@
       };
     }
 
-    async function ensureCaptureSourceGraph(sourceId) {
+    async function ensureCaptureSourceGraph(sourceId, sourceRecord = null, { skipOutbox = false } = {}) {
+      if (hasPendingSourceDeletion(sourceId)) throw new Error('此来源正在删除，不能继续抓取或同步。');
       const inFlight = sourceCaptureGraphPromises.get(sourceId);
       if (inFlight) return inFlight;
       const sync = (async () => {
-        const localSource = sourceCaptureState.sources.find(item => item.id === sourceId);
+        const localSource = sourceRecord || sourceCaptureState.sources.find(item => item.id === sourceId);
         const workspaceId = cloudSyncState.workspaceId;
         if (!localSource) throw new Error('当前浏览器中找不到此来源，请关闭后重新打开来源管理。');
         if (!workspaceId || sourceCaptureState.cloudWorkspaceId !== workspaceId) throw new Error('来源云端工作区尚未就绪，请稍后重试。');
-        await flushCloudOutbox();
-        const beforeSync = readCloudQueue(cloudOutboxStorageKey)
-          .find(item => item.table === 'competitor_sources' && item.id === sourceId);
+        if (!skipOutbox) await flushCloudOutbox();
         await cloudRestRequest('rpc/upsert_capture_source_graph', {
           method: 'POST',
           body: { target_workspace_id: workspaceId, graph: serializeCaptureSourceGraph(localSource, workspaceId) }
         });
         const resource = `competitor_sources?id=eq.${encodeURIComponent(sourceId)}&workspace_id=eq.${encodeURIComponent(workspaceId)}&tab_id=eq.${encodeURIComponent(localSource.tabId)}&competitor_id=eq.${encodeURIComponent(localSource.competitorId)}&select=id&limit=1`;
         if (!(await cloudRestRequest(resource)).length) throw new Error('来源图谱未能同步，请稍后重试。');
-        if (beforeSync && beforeSync.operation !== 'delete') {
-          const outbox = readCloudQueue(cloudOutboxStorageKey);
-          writeCloudQueue(cloudOutboxStorageKey, outbox.filter(item => item !== beforeSync));
-        }
       })();
       sourceCaptureGraphPromises.set(sourceId, sync);
       try { return await sync; }
       finally { sourceCaptureGraphPromises.delete(sourceId); }
+    }
+
+    /* 删除是来源的终态 mutation：任何抓取或补建都会先停止，避免把已删除来源重新写回。 */
+    function hasPendingSourceDeletion(sourceId) {
+      return readCloudQueue(cloudOutboxStorageKey)
+        .some(item => item.table === 'competitor_sources' && item.id === sourceId && item.operation === 'delete');
     }
 
     /* 立即抓取只调用受控 Worker：浏览器不直接读取任意第三方 URL。 */
@@ -6989,16 +7004,16 @@
 
     /* 新增或编辑的每个抓取链接统一走原子图谱同步；离线时保留既有本机队列，联网后再补齐。 */
     async function createCloudCompetitorSource(record) {
-      if (sourceCaptureState.cloudSynced && cloudSyncState.accessToken && cloudSyncState.workspaceId) {
-        await ensureCaptureSourceGraph(record.id);
+      if (sourceCaptureState.cloudSynced && cloudSyncState.accessToken && cloudSyncState.workspaceId && navigator.onLine) {
+        await ensureCaptureSourceGraph(record.id, record);
         return;
       }
       enqueueCloudMutation('competitor_sources', record.id, 'create', mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId));
     }
 
     async function updateCloudCompetitorSource(record) {
-      if (sourceCaptureState.cloudSynced && cloudSyncState.accessToken && cloudSyncState.workspaceId) {
-        await ensureCaptureSourceGraph(record.id);
+      if (sourceCaptureState.cloudSynced && cloudSyncState.accessToken && cloudSyncState.workspaceId && navigator.onLine) {
+        await ensureCaptureSourceGraph(record.id, record);
         return;
       }
       const baseline = cloudSyncState.baseline.get(snapshotEntityKey('competitor_sources', record.id));
