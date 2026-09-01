@@ -61,22 +61,20 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIsNotNone(submit)
         self.assertIn("!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken", submit.group("body"))
 
-    def test_capture_repairs_a_locally_saved_source_missing_from_cloud_before_worker_request(self):
+    def test_capture_syncs_the_complete_local_graph_before_worker_request(self):
         request = self.function_body("requestManualSourceCapture")
-        self.assertIn("await ensureSourceAvailableForManualCapture(sourceId)", request)
+        self.assertIn("await ensureCaptureSourceGraph(sourceId)", request)
         self.assertLess(
-            request.find("await ensureSourceAvailableForManualCapture(sourceId)"),
+            request.find("await ensureCaptureSourceGraph(sourceId)"),
             request.find("fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`"),
         )
-        self.assertIn("const sourceCaptureRepairPromises = new Map();", SOURCE)
-        self.assertIn("async function ensureSourceAvailableForManualCapture(sourceId)", SOURCE)
-        self.assertIn("await flushCloudOutbox()", SOURCE)
+        self.assertIn("const sourceCaptureGraphPromises = new Map();", SOURCE)
+        self.assertIn("async function ensureCaptureSourceGraph(sourceId)", SOURCE)
+        self.assertIn("serializeCaptureSourceGraph(localSource, workspaceId)", SOURCE)
+        self.assertIn("rpc/upsert_capture_source_graph", SOURCE)
         self.assertIn("workspace_id=eq.${encodeURIComponent(workspaceId)}", SOURCE)
-        self.assertIn("on_conflict=id", SOURCE)
-        self.assertIn("resolution=merge-duplicates,return=representation", SOURCE)
-        self.assertIn("existingMutation?.operation === 'create'", SOURCE)
-        self.assertIn("filter(item => item !== existingMutation)", SOURCE)
-        self.assertIn("sourceCaptureRepairPromises.delete(sourceId)", SOURCE)
+        self.assertNotIn("ensureSourceAvailableForManualCapture", SOURCE)
+        self.assertNotIn("competitor_sources?on_conflict=id", SOURCE)
 
     def test_candidate_card_only_renders_feature_summary_and_chinese_title(self):
         title = self.function_body("getCandidateFeatureTitle", "renderCandidateAnalysis")

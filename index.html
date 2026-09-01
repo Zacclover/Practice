@@ -5962,8 +5962,8 @@
 
     /* 来源和候选使用独立的本机 v1 数据，不改变工作区 v3 导入导出格式 */
     let sourceCaptureState = loadSourceCaptureState();
-    /* 同一来源的补建只允许一个在途请求，避免并发抓取同时创建而触发唯一冲突。 */
-    const sourceCaptureRepairPromises = new Map();
+    /* 同一来源图谱同步只允许一个在途请求，避免新增链接与抓取并发写入。 */
+    const sourceCaptureGraphPromises = new Map();
     let selectedSourceCompetitorId = null;
     let pendingCandidateDraft = null;
     let candidateBeingApprovedId = null;
@@ -6889,33 +6889,51 @@
       finally { cloudSyncState.pulling = false; }
     }
 
-    /* 手动抓取前确保本机可见来源已落到当前云端工作区：队列先出站，旧本机来源按主键幂等补建。 */
-    async function ensureSourceAvailableForManualCapture(sourceId) {
-      const inFlight = sourceCaptureRepairPromises.get(sourceId);
+    /* 所有新增与既有来源都经同一原子图谱同步：Tab → 竞品 → 来源完整落库后才允许抓取。 */
+    function serializeCaptureSourceGraph(localSource, workspaceId) {
+      const tabIndex = workspaceState.tabs.findIndex(item => item.id === localSource.tabId);
+      const tab = workspaceState.tabs[tabIndex];
+      const competitor = tab?.competitors.find(item => item.id === localSource.competitorId);
+      if (!tab || !competitor) throw new Error('来源所属的研究空间或竞品已被移除，请关闭后重新打开来源管理。');
+      return {
+        tab: { id: tab.id, name: tab.name, sort_order: Math.max(tabIndex, 0) },
+        competitor: {
+          id: competitor.id,
+          tab_id: tab.id,
+          name: competitor.name,
+          website: competitor.website || '',
+          positioning: competitor.positioning || '',
+          is_sample: competitor.isSample === true
+        },
+        source: mapLocalSourceToCloud(localSource, workspaceId)
+      };
+    }
+
+    async function ensureCaptureSourceGraph(sourceId) {
+      const inFlight = sourceCaptureGraphPromises.get(sourceId);
       if (inFlight) return inFlight;
-      const repair = (async () => {
+      const sync = (async () => {
         const localSource = sourceCaptureState.sources.find(item => item.id === sourceId);
         const workspaceId = cloudSyncState.workspaceId;
         if (!localSource) throw new Error('当前浏览器中找不到此来源，请关闭后重新打开来源管理。');
         if (!workspaceId || sourceCaptureState.cloudWorkspaceId !== workspaceId) throw new Error('来源云端工作区尚未就绪，请稍后重试。');
         await flushCloudOutbox();
-        const resource = `competitor_sources?id=eq.${encodeURIComponent(sourceId)}&workspace_id=eq.${encodeURIComponent(workspaceId)}&select=id&limit=1`;
-        if ((await cloudRestRequest(resource)).length) return;
-        await cloudRestRequest('competitor_sources?on_conflict=id', {
+        const beforeSync = readCloudQueue(cloudOutboxStorageKey)
+          .find(item => item.table === 'competitor_sources' && item.id === sourceId);
+        await cloudRestRequest('rpc/upsert_capture_source_graph', {
           method: 'POST',
-          headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-          body: mapLocalSourceToCloud(localSource, workspaceId)
+          body: { target_workspace_id: workspaceId, graph: serializeCaptureSourceGraph(localSource, workspaceId) }
         });
-        if (!(await cloudRestRequest(resource)).length) throw new Error('来源未能同步到当前云端工作区，请稍后重试。');
-        const outbox = readCloudQueue(cloudOutboxStorageKey);
-        const existingMutation = outbox.find(item => item.table === 'competitor_sources' && item.id === sourceId);
-        if (existingMutation?.operation === 'create') {
-          writeCloudQueue(cloudOutboxStorageKey, outbox.filter(item => item !== existingMutation));
+        const resource = `competitor_sources?id=eq.${encodeURIComponent(sourceId)}&workspace_id=eq.${encodeURIComponent(workspaceId)}&tab_id=eq.${encodeURIComponent(localSource.tabId)}&competitor_id=eq.${encodeURIComponent(localSource.competitorId)}&select=id&limit=1`;
+        if (!(await cloudRestRequest(resource)).length) throw new Error('来源图谱未能同步，请稍后重试。');
+        if (beforeSync && beforeSync.operation !== 'delete') {
+          const outbox = readCloudQueue(cloudOutboxStorageKey);
+          writeCloudQueue(cloudOutboxStorageKey, outbox.filter(item => item !== beforeSync));
         }
       })();
-      sourceCaptureRepairPromises.set(sourceId, repair);
-      try { return await repair; }
-      finally { sourceCaptureRepairPromises.delete(sourceId); }
+      sourceCaptureGraphPromises.set(sourceId, sync);
+      try { return await sync; }
+      finally { sourceCaptureGraphPromises.delete(sourceId); }
     }
 
     /* 立即抓取只调用受控 Worker：浏览器不直接读取任意第三方 URL。 */
@@ -6923,7 +6941,7 @@
       const config = getCloudRuntimeConfig();
       if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken) throw new Error('请先登录并完成来源云端同步。');
       if (!config.sourceCaptureWorkerUrl) throw new Error('手动抓取服务暂未配置。');
-      await ensureSourceAvailableForManualCapture(sourceId);
+      await ensureCaptureSourceGraph(sourceId);
       const accessToken = await ensureFreshCloudAccessToken();
       const response = await fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`, {
         method: 'POST',
@@ -6969,11 +6987,20 @@
       }
     }
 
+    /* 新增或编辑的每个抓取链接统一走原子图谱同步；离线时保留既有本机队列，联网后再补齐。 */
     async function createCloudCompetitorSource(record) {
+      if (sourceCaptureState.cloudSynced && cloudSyncState.accessToken && cloudSyncState.workspaceId) {
+        await ensureCaptureSourceGraph(record.id);
+        return;
+      }
       enqueueCloudMutation('competitor_sources', record.id, 'create', mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId));
     }
 
     async function updateCloudCompetitorSource(record) {
+      if (sourceCaptureState.cloudSynced && cloudSyncState.accessToken && cloudSyncState.workspaceId) {
+        await ensureCaptureSourceGraph(record.id);
+        return;
+      }
       const baseline = cloudSyncState.baseline.get(snapshotEntityKey('competitor_sources', record.id));
       enqueueCloudMutation('competitor_sources', record.id, 'update', mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId), baseline?.updated_at);
     }
