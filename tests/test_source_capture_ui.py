@@ -85,7 +85,7 @@ class SourceCaptureUiContractTests(unittest.TestCase):
         for label in ["候选标题", "来源竞品", "发现时间", "公开来源"]:
             self.assertIn(label, SOURCE)
         self.assertIn('采纳为证据', SOURCE)
-        self.assertIn('仅准备证据草稿，不会自动写入证据或横向对比。', SOURCE)
+        self.assertIn('成功后仍只生成待审核候选，不会自动写入证据或横向对比。', SOURCE)
 
     def test_preparation_never_writes_evidence_or_matrix(self):
         function = re.search(

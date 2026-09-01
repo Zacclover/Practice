@@ -4281,6 +4281,19 @@
     .source-sync-notice { margin: 0; padding: 12px; color: var(--ink); background: var(--gray-100); border-left: 3px solid var(--orange); }
     .source-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .source-list, .review-queue-list { display: grid; gap: 10px; }
+    /* 待总结来源分组：沿用白色内容面、工业边线与 Mono 状态标签。 */
+    .review-source-group { display: grid; gap: 10px; padding: 12px; background: var(--white); border: 1px solid var(--line-medium); }
+    .review-source-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 2px solid var(--line-strong); }
+    .review-source-group > header h3 { margin: 0 0 8px; font-size: 16px; }
+    /* 批量本地总结：每次抓取只显示一条记录，处理中用 SVG 弧形转子避免边框旋转的绘制残影。 */
+    .review-source-group.local-summary-processing { border-color: var(--orange); }
+    .local-summary-action { min-width: 188px; }
+    .local-summary-action[disabled] { cursor: wait; opacity: 1; }
+    .local-summary-loader { display: block; width: 16px; height: 16px; margin: 0; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; transform-box: fill-box; transform-origin: center; will-change: transform; animation: source-capture-spin 780ms linear infinite; }
+    .local-model-guidance.is-processing { color: var(--ink); font-weight: 700; }
+    .review-raw-item { padding: 12px; background: var(--gray-100); border: 1px solid var(--line-subtle); }
+    .review-raw-item .actions { margin-top: 12px; }
+    .local-model-guidance { margin: 8px 0 0; color: var(--line-medium); font-size: 12px; text-align: right; }
     .source-list-item, .review-candidate { padding: 14px; background: var(--white); border: 1px solid var(--line-subtle); }
     .source-list-heading, .review-candidate-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
     .source-list-item h3, .review-candidate h3 { margin: 0; font-size: 16px; }
@@ -4846,10 +4859,10 @@
     </div>
     <form id="captureWindowForm" class="capture-window-form">
       <input id="captureWindowSourceId" type="hidden">
-      <p class="review-candidate-summary">仅检查此时间范围内的公开来源变化；结束时间不能晚于当前时间。</p>
+      <p class="review-candidate-summary">仅采集网页原始发布日期落在此范围内的更新板块；无发布日期的板块会跳过，结束时间不能晚于当前时间。</p>
       <div class="capture-window-fields">
-        <label>开始时间<input id="captureWindowStart" type="datetime-local" required></label>
-        <label>结束时间<input id="captureWindowEnd" type="datetime-local" required></label>
+        <label>开始日期<input id="captureWindowStart" type="datetime-local" required></label>
+        <label>结束日期<input id="captureWindowEnd" type="datetime-local" required></label>
       </div>
       <p id="captureWindowError" class="capture-window-error" role="alert" hidden></p>
       <div class="actions">
@@ -4866,7 +4879,7 @@
   <dialog id="reviewQueueDialog" class="source-dialog" aria-labelledby="reviewQueueTitle">
     <div class="source-dialog-header"><p class="source-dialog-kicker">HUMAN REVIEW / PENDING</p><h2 id="reviewQueueTitle">来源审核队列</h2></div>
     <div class="source-dialog-body">
-      <p class="source-sync-notice">仅准备证据草稿，不会自动写入证据或横向对比。</p>
+      <p class="source-sync-notice">原始抓取先在浏览器本地总结；成功后仍只生成待审核候选，不会自动写入证据或横向对比。</p>
       <div id="reviewQueueList" class="review-queue-list"></div>
       <div class="actions"><button id="closeReviewQueueButton" class="secondary" type="button"><svg class="button-icon" aria-hidden="true"><use href="#icon-close"></use></svg>关闭</button></div>
     </div>
@@ -5456,8 +5469,8 @@
        GitHub OAuth 回调与账户会话
        访问令牌仅保留在当前标签页，并只发送到配置的 Supabase 项目
        ============================== */
-    const cloudAuthSessionKey =
-      'competitor-insights-cloud-access-token-v1';
+    const cloudAuthSessionKey = 'competitor-insights-cloud-access-token-v1';
+    const cloudAuthRefreshTokenKey = 'competitor-insights-cloud-refresh-token-v1';
 
     function clearCloudAuthHash() {
       const callbackHash = new URLSearchParams(
@@ -5473,30 +5486,62 @@
       );
     }
 
+    function storeCloudSession(accessToken, refreshToken = '') {
+      try {
+        if (accessToken) sessionStorage.setItem(cloudAuthSessionKey, accessToken);
+        if (refreshToken) sessionStorage.setItem(cloudAuthRefreshTokenKey, refreshToken);
+      } catch (error) {
+        /* 浏览器禁用会话存储时仅保留当前回调生命周期。 */
+      }
+    }
+
     function readCloudAccessToken() {
-      const callbackHash = new URLSearchParams(
-        window.location.hash.replace(/^#/, '')
-      );
+      const callbackHash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
       const callbackToken = callbackHash.get('access_token');
       if (callbackToken) {
-        try {
-          sessionStorage.setItem(cloudAuthSessionKey, callbackToken);
-        } catch (error) {
-          /* 浏览器禁用会话存储时仍允许本次回调完成。 */
-        }
+        storeCloudSession(callbackToken, callbackHash.get('refresh_token') || '');
         clearCloudAuthHash();
         return callbackToken;
       }
-      try {
-        return sessionStorage.getItem(cloudAuthSessionKey) || '';
-      } catch (error) {
-        return '';
+      try { return sessionStorage.getItem(cloudAuthSessionKey) || ''; }
+      catch (error) { return ''; }
+    }
+
+    async function refreshCloudAccessToken() {
+      const config = getCloudRuntimeConfig();
+      let refreshToken = '';
+      try { refreshToken = sessionStorage.getItem(cloudAuthRefreshTokenKey) || ''; }
+      catch (error) { /* 会话存储不可用时不能静默刷新。 */ }
+      if (!config.enabled || !refreshToken) throw new Error('登录会话已过期，请重新通过 GitHub 登录。');
+      const response = await fetch(`${config.url.replace(/\/$/, '')}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: { apikey: config.publishableKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken })
+      });
+      if (!response.ok) {
+        clearCloudAuthSession();
+        throw new Error('登录会话已过期，请重新通过 GitHub 登录。');
       }
+      const session = await response.json();
+      if (!session?.access_token) throw new Error('登录会话刷新失败，请重新通过 GitHub 登录。');
+      storeCloudSession(session.access_token, session.refresh_token || '');
+      if (typeof cloudSyncState !== 'undefined') cloudSyncState.accessToken = session.access_token;
+      return session.access_token;
+    }
+
+    async function ensureFreshCloudAccessToken() {
+      const accessToken = readCloudAccessToken();
+      try {
+        const payload = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (Number(payload.exp) * 1000 > Date.now() + 60000) return accessToken;
+      } catch (error) { /* 令牌不可解析时让受控刷新端点进行验证。 */ }
+      return refreshCloudAccessToken();
     }
 
     function clearCloudAuthSession() {
       try {
         sessionStorage.removeItem(cloudAuthSessionKey);
+        sessionStorage.removeItem(cloudAuthRefreshTokenKey);
       } catch (error) {
         /* 会话存储不可用时无需处理其他应用数据。 */
       }
@@ -5607,7 +5652,9 @@
       cloudLoginButton.hidden = false;
       const accessToken = readCloudAccessToken();
       if (accessToken) {
-        void loadCloudAccount(config, accessToken);
+        void ensureFreshCloudAccessToken()
+          .then(token => loadCloudAccount(config, token))
+          .catch(() => { clearCloudAuthSession(); renderCloudLogin(); });
       }
     }
 
@@ -5730,6 +5777,8 @@
     const captureWindowEnd = document.querySelector('#captureWindowEnd');
     const captureWindowError = document.querySelector('#captureWindowError');
     let pendingCaptureButton = null;
+    // 来源抓取加载态按来源 ID 保存；列表重绘后仍能持续显示，避免旧 DOM 节点失效。
+    const capturingSourceIds = new Set();
 
     /* ==============================
        获取横向对比矩阵相关页面元素
@@ -5913,6 +5962,8 @@
 
     /* 来源和候选使用独立的本机 v1 数据，不改变工作区 v3 导入导出格式 */
     let sourceCaptureState = loadSourceCaptureState();
+    /* 同一来源图谱同步只允许一个在途请求，避免新增链接与抓取并发写入。 */
+    const sourceCaptureGraphPromises = new Map();
     let selectedSourceCompetitorId = null;
     let pendingCandidateDraft = null;
     let candidateBeingApprovedId = null;
@@ -6499,6 +6550,7 @@
         version: 1,
         sources: Array.isArray(stored?.sources) ? stored.sources : [],
         candidates: Array.isArray(stored?.candidates) ? stored.candidates : [],
+        rawItems: Array.isArray(stored?.rawItems) ? stored.rawItems : [],
         cloudSynced: false,
         cloudWorkspaceId: null
       };
@@ -6508,7 +6560,8 @@
       const localSnapshot = {
         version: 1,
         sources: sourceCaptureState.sources,
-        candidates: sourceCaptureState.candidates
+        candidates: sourceCaptureState.candidates,
+        rawItems: sourceCaptureState.rawItems
       };
       localStorage.setItem(sourceCaptureStorageKey, JSON.stringify(localSnapshot));
     }
@@ -6545,20 +6598,28 @@
 
     async function cloudRestRequest(resource, options = {}) {
       const config = getCloudRuntimeConfig();
-      const accessToken = options.accessToken || readCloudAccessToken();
+      let accessToken = options.accessToken || readCloudAccessToken();
       if (!config.enabled || !accessToken) throw new Error('云端会话不可用。');
       if (options.method === 'POST' && Array.isArray(options.body) && options.body.length === 0) return [];
-      const headers = {
-        apikey: config.publishableKey,
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-        ...(options.headers || {})
-      };
-      if (options.body !== undefined) headers['Content-Type'] = 'application/json';
-      const response = await fetch(
+      const request = token => fetch(
         `${config.url.replace(/\/$/, '')}/rest/v1/${resource}`,
-        { method: options.method || 'GET', headers, body: options.body === undefined ? undefined : JSON.stringify(options.body) }
+        {
+          method: options.method || 'GET',
+          headers: {
+            apikey: config.publishableKey,
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            ...(options.headers || {}),
+            ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {})
+          },
+          body: options.body === undefined ? undefined : JSON.stringify(options.body)
+        }
       );
+      let response = await request(accessToken);
+      if (response.status === 401 || response.status === 403) {
+        accessToken = await refreshCloudAccessToken();
+        response = await request(accessToken);
+      }
       if (!response.ok) {
         let message = `云端请求失败（${response.status}）。`;
         try { message = (await response.json()).message || message; } catch (error) { /* 非 JSON 错误使用安全状态说明。 */ }
@@ -6616,7 +6677,7 @@
 
     /* 一次读取所有 v3 实体及来源审核数据；查询只在当前成员 RLS 范围内执行。 */
     async function fetchCloudSnapshot(workspaceId, accessToken) {
-      const readOnlyTables = [...cloudSnapshotTables, 'candidate_attachments'];
+      const readOnlyTables = [...cloudSnapshotTables, 'source_capture_snapshots', 'source_capture_snapshot_images', 'candidate_attachments'];
       const pairs = await Promise.all(readOnlyTables.map(async table => {
         const pending = table === 'source_capture_candidates' ? '&status=eq.pending' : '';
         const rows = await cloudRestRequest(`${table}?workspace_id=eq.${encodeURIComponent(workspaceId)}${pending}&select=*`, { accessToken });
@@ -6639,6 +6700,8 @@
       const matrix_cells = snapshot.matrix_cells || [];
       const competitor_sources = snapshot.competitor_sources || [];
       const source_capture_candidates = snapshot.source_capture_candidates || [];
+      const source_capture_snapshots = snapshot.source_capture_snapshots || [];
+      const source_capture_snapshot_images = snapshot.source_capture_snapshot_images || [];
       const candidate_attachments = snapshot.candidate_attachments || [];
       const refs = (rows, owner, ownerId, target) => rows.filter(row => row[owner] === ownerId).map(row => row[target]);
       const tabs = [...workspace_tabs].sort((a, b) => a.sort_order - b.sort_order).map(tab => {
@@ -6653,11 +6716,18 @@
       return {
         workspace: { version: 3, activeTabId: tabs[0]?.id || null, tabs },
         sources: competitor_sources.map(mapCloudSourceToLocal),
+        rawItems: source_capture_snapshots.filter(item => item.summary_status === 'pending').map(item => ({
+          id: item.id, tabId: item.tab_id, sourceId: item.source_id, runId: item.run_id,
+          title: item.page_title, sourceUrl: item.canonical_url, rawText: item.extracted_text,
+          capturedAt: item.fetched_at, publishedAt: item.published_at, summaryStatus: item.summary_status,
+          images: source_capture_snapshot_images.filter(image => image.snapshot_id === item.id)
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map(image => ({ id: image.id, url: image.image_url, alt: image.alt_text }))
+        })),
         candidates: source_capture_candidates.map(item => ({
           id: item.id, tabId: item.tab_id, competitorId: item.competitor_id,
           sourceUrl: item.source_url, title: item.title, summary: item.summary,
-          quotedText: item.quoted_text, status: item.status, analysisStatus: item.analysis_status,
-          analysis: item.analysis, publishedAt: item.published_at,
+          quotedText: item.quoted_text, status: item.status, publishedAt: item.published_at,
           publicationTimeStatus: item.publication_time_status,
           detectionWindowStart: item.detection_window_start,
           detectionWindowEnd: item.detection_window_end,
@@ -6687,6 +6757,7 @@
       competitors = activeWorkspaceTab.competitors; evidenceItems = activeWorkspaceTab.evidenceItems;
       comparisonData = activeWorkspaceTab.comparisonData; insights = activeWorkspaceTab.insights;
       sourceCaptureState.sources = mapped.sources; sourceCaptureState.candidates = mapped.candidates;
+      sourceCaptureState.rawItems = mapped.rawItems;
       sourceCaptureState.cloudSynced = true; sourceCaptureState.cloudWorkspaceId = cloudSyncState.workspaceId;
       persistWorkspaceState(); persistSourceCaptureState(); setCloudBaseline(snapshot);
       cloudSyncState.hydrating = false;
@@ -6818,14 +6889,63 @@
       finally { cloudSyncState.pulling = false; }
     }
 
+    /* 所有新增与既有来源都经同一原子图谱同步：Tab → 竞品 → 来源完整落库后才允许抓取。 */
+    function serializeCaptureSourceGraph(localSource, workspaceId) {
+      const tabIndex = workspaceState.tabs.findIndex(item => item.id === localSource.tabId);
+      const tab = workspaceState.tabs[tabIndex];
+      const competitor = tab?.competitors.find(item => item.id === localSource.competitorId);
+      if (!tab || !competitor) throw new Error('来源所属的研究空间或竞品已被移除，请关闭后重新打开来源管理。');
+      return {
+        tab: { id: tab.id, name: tab.name, sort_order: Math.max(tabIndex, 0) },
+        competitor: {
+          id: competitor.id,
+          tab_id: tab.id,
+          name: competitor.name,
+          website: competitor.website || '',
+          positioning: competitor.positioning || '',
+          is_sample: competitor.isSample === true
+        },
+        source: mapLocalSourceToCloud(localSource, workspaceId)
+      };
+    }
+
+    async function ensureCaptureSourceGraph(sourceId) {
+      const inFlight = sourceCaptureGraphPromises.get(sourceId);
+      if (inFlight) return inFlight;
+      const sync = (async () => {
+        const localSource = sourceCaptureState.sources.find(item => item.id === sourceId);
+        const workspaceId = cloudSyncState.workspaceId;
+        if (!localSource) throw new Error('当前浏览器中找不到此来源，请关闭后重新打开来源管理。');
+        if (!workspaceId || sourceCaptureState.cloudWorkspaceId !== workspaceId) throw new Error('来源云端工作区尚未就绪，请稍后重试。');
+        await flushCloudOutbox();
+        const beforeSync = readCloudQueue(cloudOutboxStorageKey)
+          .find(item => item.table === 'competitor_sources' && item.id === sourceId);
+        await cloudRestRequest('rpc/upsert_capture_source_graph', {
+          method: 'POST',
+          body: { target_workspace_id: workspaceId, graph: serializeCaptureSourceGraph(localSource, workspaceId) }
+        });
+        const resource = `competitor_sources?id=eq.${encodeURIComponent(sourceId)}&workspace_id=eq.${encodeURIComponent(workspaceId)}&tab_id=eq.${encodeURIComponent(localSource.tabId)}&competitor_id=eq.${encodeURIComponent(localSource.competitorId)}&select=id&limit=1`;
+        if (!(await cloudRestRequest(resource)).length) throw new Error('来源图谱未能同步，请稍后重试。');
+        if (beforeSync && beforeSync.operation !== 'delete') {
+          const outbox = readCloudQueue(cloudOutboxStorageKey);
+          writeCloudQueue(cloudOutboxStorageKey, outbox.filter(item => item !== beforeSync));
+        }
+      })();
+      sourceCaptureGraphPromises.set(sourceId, sync);
+      try { return await sync; }
+      finally { sourceCaptureGraphPromises.delete(sourceId); }
+    }
+
     /* 立即抓取只调用受控 Worker：浏览器不直接读取任意第三方 URL。 */
     async function requestManualSourceCapture(sourceId, observationWindow) {
       const config = getCloudRuntimeConfig();
       if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken) throw new Error('请先登录并完成来源云端同步。');
       if (!config.sourceCaptureWorkerUrl) throw new Error('手动抓取服务暂未配置。');
+      await ensureCaptureSourceGraph(sourceId);
+      const accessToken = await ensureFreshCloudAccessToken();
       const response = await fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cloudSyncState.accessToken}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
         body: JSON.stringify({ sourceId, observationWindow })
       });
       const payload = await response.json().catch(() => ({}));
@@ -6843,18 +6963,44 @@
     async function hardDeleteCloudCandidate(candidateId) {
       const config = getCloudRuntimeConfig();
       if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken || !config.sourceCaptureWorkerUrl) throw new Error('附件删除服务暂不可用，请稍后重试。');
+      const accessToken = await ensureFreshCloudAccessToken();
       const response = await fetch(`${config.sourceCaptureWorkerUrl}/candidate-attachments/${encodeURIComponent(candidateId)}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${cloudSyncState.accessToken}` }
+        headers: { 'Authorization': `Bearer ${accessToken}` }
       });
-      if (!response.ok) throw new Error('Candidate 未删除，请稍后重试。');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || 'Candidate 未删除，请稍后重试。');
     }
 
+    async function hardDeleteCloudCaptureRun(runId) {
+      const config = getCloudRuntimeConfig();
+      if (!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken || !config.sourceCaptureWorkerUrl) throw new Error('批次删除服务暂不可用，请稍后重试。');
+      const accessToken = await ensureFreshCloudAccessToken();
+      const response = await fetch(`${config.sourceCaptureWorkerUrl}/capture-runs/${encodeURIComponent(runId)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 404) throw new Error('抓取批次删除后端尚未发布。当前 Preview 仅展示按钮，待服务端升级后即可使用。');
+        throw new Error(payload?.error?.message || '抓取批次未删除，请稍后重试。');
+      }
+    }
+
+    /* 新增或编辑的每个抓取链接统一走原子图谱同步；离线时保留既有本机队列，联网后再补齐。 */
     async function createCloudCompetitorSource(record) {
+      if (sourceCaptureState.cloudSynced && cloudSyncState.accessToken && cloudSyncState.workspaceId) {
+        await ensureCaptureSourceGraph(record.id);
+        return;
+      }
       enqueueCloudMutation('competitor_sources', record.id, 'create', mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId));
     }
 
     async function updateCloudCompetitorSource(record) {
+      if (sourceCaptureState.cloudSynced && cloudSyncState.accessToken && cloudSyncState.workspaceId) {
+        await ensureCaptureSourceGraph(record.id);
+        return;
+      }
       const baseline = cloudSyncState.baseline.get(snapshotEntityKey('competitor_sources', record.id));
       enqueueCloudMutation('competitor_sources', record.id, 'update', mapLocalSourceToCloud(record, sourceCaptureState.cloudWorkspaceId), baseline?.updated_at);
     }
@@ -6938,12 +7084,15 @@
       const typeLabels = { product: '产品', changelog: '更新日志', help: '帮助中心', pricing: '定价', blog: '博客', 'release-notes': '发布说明' };
       const frequencyLabels = { 24: '每天', 72: '每 3 天', 168: '每周', 336: '每 2 周', 720: '每月' };
       const sources = getCompetitorSources(selectedSourceCompetitorId);
-      sourceList.innerHTML = sources.length ? sources.map(item => `
+      sourceList.innerHTML = sources.length ? sources.map(item => {
+        const isCapturing = capturingSourceIds.has(item.id);
+        return `
         <article class="source-list-item">
           <div class="source-list-heading"><div><h3>${escapeHtml(item.label)}</h3><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a></div>
-          <div class="source-item-actions"><button class="secondary source-capture-button" type="button" data-capture-source-id="${escapeHtml(item.id)}" aria-label="立即抓取此来源" aria-describedby="source-capture-tooltip-${escapeHtml(item.id)}"><svg aria-hidden="true"><use href="#icon-source-capture-hand"></use></svg><span class="source-action-tooltip" id="source-capture-tooltip-${escapeHtml(item.id)}" role="tooltip">立即抓取此来源</span></button><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
+          <div class="source-item-actions"><button class="secondary source-capture-button${isCapturing ? ' is-loading' : ''}" type="button" data-capture-source-id="${escapeHtml(item.id)}" aria-label="${isCapturing ? '正在抓取此来源' : '立即抓取此来源'}" aria-describedby="source-capture-tooltip-${escapeHtml(item.id)}"${isCapturing ? ' disabled' : ''}><svg aria-hidden="true"><use href="#${isCapturing ? 'icon-capture-loader' : 'icon-source-capture-hand'}"></use></svg><span class="source-action-tooltip" id="source-capture-tooltip-${escapeHtml(item.id)}" role="tooltip">${isCapturing ? '正在抓取此来源…' : '立即抓取此来源'}</span></button><button class="secondary" type="button" data-edit-source-id="${escapeHtml(item.id)}" aria-label="编辑来源"><svg aria-hidden="true"><use href="#icon-edit"></use></svg></button><button class="delete-button" type="button" data-delete-source-id="${escapeHtml(item.id)}" aria-label="删除来源"><svg aria-hidden="true"><use href="#icon-trash"></use></svg></button></div></div>
           <p class="source-item-meta"><span>${typeLabels[item.type] || item.type}</span><span>${frequencyLabels[item.frequencyHours] || `${item.frequencyHours} 小时`}</span><span>${sourceCaptureState.cloudSynced ? '来源已连接' : '本机保存'}</span></p>
-        </article>`).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
+        </article>`;
+      }).join('') : '<p class="review-queue-empty">还没有来源。添加后可在此编辑或删除。</p>';
     }
 
     /* datetime-local 与 ISO 转换及窗口校验：比较绝对时间，避免把本地时区误当 UTC。 */
@@ -6983,6 +7132,13 @@
       captureWindowStart.focus();
     }
 
+    function setSourceCaptureLoading(sourceId, isLoading) {
+      if (!sourceId) return;
+      if (isLoading) capturingSourceIds.add(sourceId);
+      else capturingSourceIds.delete(sourceId);
+      renderSourceList();
+    }
+
     function setCaptureButtonLoading(button, isLoading) {
       if (!button) return;
       button.disabled = isLoading;
@@ -6992,7 +7148,7 @@
     }
 
     function getCandidateAnalysis(candidate) {
-      return candidate.analysisStatus === 'available' && candidate.analysis && typeof candidate.analysis === 'object' ? candidate.analysis : null;
+      return candidate?.title && candidate?.summary ? { feature_title: candidate.title, feature_summary: candidate.summary } : null;
     }
 
     function analysisText(analysis, ...keys) {
@@ -7009,15 +7165,6 @@
 
     /* Candidate 审核卡按异步分析状态展示安全中文文案，未完成分析时不回退原始内容。 */
     function renderCandidateAnalysis(candidate) {
-      if (candidate.analysisStatus === 'pending') {
-        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>等待 AI 分析</p></section>';
-      }
-      if (candidate.analysisStatus === 'rate_limited') {
-        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>等待限流恢复</p></section>';
-      }
-      if (candidate.analysisStatus === 'unavailable') {
-        return '<section class="review-candidate-summary"><h4>AI 分析状态</h4><p>AI 分析暂不可用</p></section>';
-      }
       const analysis = getCandidateAnalysis(candidate);
       const summary = analysisText(analysis, 'feature_summary', 'featureSummary', 'feature_summary_zh', 'featureSummaryZh');
       return `<section class="review-candidate-summary"><h4>功能总结</h4><p>${escapeHtml(summary || 'AI 分析暂不可用，暂无功能总结。')}</p></section>`;
@@ -7066,16 +7213,461 @@
       const pending = sourceCaptureState.candidates.filter(item =>
         item.tabId === activeWorkspaceTab.id && item.status === 'pending'
       );
-      reviewQueueCount.textContent = String(pending.length);
-      reviewQueueList.innerHTML = pending.length ? pending.map(item => {
+      const rawPending = sourceCaptureState.rawItems.filter(item => item.tabId === activeWorkspaceTab.id && item.summaryStatus === 'pending');
+      reviewQueueCount.textContent = String(pending.length + rawPending.length);
+      const groupedRaw = new Map();
+      rawPending.forEach(item => {
+        const captureKey = `${item.sourceId}:${item.runId || item.id}`;
+        const batchRawItems = groupedRaw.get(captureKey) || [];
+        batchRawItems.push(item);
+        groupedRaw.set(captureKey, batchRawItems);
+      });
+      const rawHtml = [...groupedRaw].map(([captureKey, batchRawItems]) => {
+        const representative = batchRawItems[0];
+        const source = sourceCaptureState.sources.find(item => item.id === representative.sourceId);
+        const competitor = competitors.find(item => item.id === source?.competitorId);
+        const batchState = localSummaryBatchState.get(captureKey);
+        const processing = batchState?.processing === true;
+        const buttonLabel = processing ? (batchState.buttonMessage || batchState.message) : 'AI 总结生成证据';
+        const publicationDates = batchRawItems.map(raw => raw.publishedAt).filter(Boolean).sort();
+        const publicationRange = publicationDates.length ? `${formatDate(publicationDates[0])}${publicationDates.length > 1 ? ` — ${formatDate(publicationDates[publicationDates.length - 1])}` : ''}` : '未识别';
+        return `<section class="review-source-group${processing ? ' local-summary-processing' : ''}"><header><h3>${escapeHtml(competitor?.name || '已移除竞品')}</h3><span class="insight-status">待总结证据（${batchRawItems.length}）</span></header><p class="review-candidate-meta"><span>来源：${escapeHtml(source?.label || '已移除来源')}</span><span>网页更新日期：${escapeHtml(publicationRange)}</span><span>抓取时间：${escapeHtml(formatDate(representative.capturedAt))}</span><span>${batchRawItems.reduce((count, raw) => count + raw.images.length, 0)} 张采集图片</span></p><div class="actions"><button class="local-summary-action" type="button" data-generate-summary-source-id="${escapeHtml(representative.sourceId)}" data-generate-summary-run-id="${escapeHtml(representative.runId || representative.id)}" data-local-summary-batch-id="${escapeHtml(captureKey)}"${processing ? ' disabled' : ''}>${processing ? '<svg class="local-summary-loader" aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" stroke-dasharray="25 10"></circle></svg>' : '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>'}<span class="button-label">${escapeHtml(buttonLabel)}</span></button><button class="delete-button" type="button" data-delete-capture-run-id="${escapeHtml(representative.runId || '')}"${processing || !representative.runId ? ' disabled' : ''}><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>删除此批次</button></div><p class="local-model-guidance${processing ? ' is-processing' : ''}" data-local-model-status="${escapeHtml(captureKey)}">${escapeHtml(processing ? `${batchState.message} 仅在此浏览器设备运行本地模型。` : '仅在本浏览器设备上运行本地模型。')}</p></section>`;
+      }).join('');
+      const candidateHtml = pending.map(item => {
         const competitor = competitors.find(entry => entry.id === item.competitorId);
         const safeUrl = normalizePublicHttpsSourceUrl(item.sourceUrl);
         const publicationLabels = { verified: '已核验', not_found: '未找到', unverified: '未核验' };
         const detectionWindow = item.detectionWindowStart && item.detectionWindowEnd ? `${formatDate(item.detectionWindowStart)} — ${formatDate(item.detectionWindowEnd)}` : '未记录';
         const publicationTime = item.publishedAt ? formatDate(item.publishedAt) : '未提供';
-        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>${escapeHtml(getCandidateFeatureTitle(item))}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p>${renderCandidateAttachmentStrip(item)}<div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>弃用</button></div></article>`;
-      }).join('') : '<p class="review-queue-empty">当前没有待审核候选。云端同步未启用时，本机不会虚构采集结果。</p>';
+        return `<article class="review-candidate"><div class="review-candidate-heading"><h3>${escapeHtml(getCandidateFeatureTitle(item))}</h3><span class="insight-status">PENDING</span></div>${renderCandidateAnalysis(item)}<p class="review-candidate-meta"><span>来源竞品：${escapeHtml(competitor?.name || '已移除')}</span><span>发现时间：${escapeHtml(formatDate(item.discoveredAt || item.createdAt))}</span><span>检测窗口：${escapeHtml(detectionWindow)}</span><span>发布时间：${escapeHtml(publicationTime)}</span><span>发布状态：${escapeHtml(publicationLabels[item.publicationTimeStatus] || '未核验')}</span><span>公开来源：${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原页</a>` : '地址无效'}</span></p>${renderCandidateAttachmentStrip(item)}<div class="actions"><button type="button" data-prepare-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg>采纳为证据</button><button class="delete-button" type="button" data-delete-candidate-id="${escapeHtml(item.id)}"><svg class="button-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>删除 Candidate</button></div></article>`;
+      }).join('');
+      reviewQueueList.innerHTML = rawHtml + candidateHtml || '<p class="review-queue-empty">当前没有待总结内容或待审核候选。</p>';
       if (pending.length && sourceCaptureState.cloudSynced) hydrateCandidateAttachmentThumbnails(candidateAttachmentRenderVersion);
+    }
+
+    /* 浏览器本地模型：固定 BitGPU 版本与 Bonsai 1.7B 权重，下载后推理只在当前设备的 WebGPU 执行。 */
+    const localEvidenceModelConfig = {
+      runtimeUrl: 'https://cdn.jsdelivr.net/npm/bitgpu@0.19.1/+esm',
+      chatUrl: 'https://cdn.jsdelivr.net/npm/bitgpu@0.19.1/chat/+esm',
+      manifestUrl: 'https://cdn.jsdelivr.net/gh/stfurkan/bitgpu@v0.19.1/models/bonsai-1.7b-gguf/manifest.json',
+      auxUrl: 'https://cdn.jsdelivr.net/gh/stfurkan/bitgpu@v0.19.1/models/bonsai-1.7b-gguf/Bonsai-1.7B-Q1_0.aux.bin',
+      dataUrl: 'https://huggingface.co/prism-ml/Bonsai-1.7B-gguf/resolve/main/Bonsai-1.7B-Q1_0.gguf',
+      tokenizerJsonUrl: 'https://huggingface.co/onnx-community/Bonsai-1.7B-ONNX/resolve/main/tokenizer.json',
+      tokenizerConfigUrl: 'https://huggingface.co/onnx-community/Bonsai-1.7B-ONNX/resolve/main/tokenizer_config.json'
+    };
+    let localEvidenceModelPromise = null;
+    let localEvidenceTranslatorPromise = null;
+    const localSummaryBatchState = new Map();
+
+    /* ==============================
+       离线英译简体中文（Bergamot WASM）
+       运行时随站点发布；Firefox Translations enzh 模型首用下载后由 Cache Storage 复用。
+       Mozilla Firefox Translations en→zh-Hans，模型元数据 byteSize：42992955。
+       仅下载已钉住的模型资产，文本绝不发送到翻译服务或云端 AI。
+       ============================== */
+    const LOCAL_TRANSLATION_CACHE_NAME = 'local-evidence-translation-enzh-v1';
+    const localTranslationConfig = {
+      runtimeUrl: '/assets/bergamot-translator/translator.js',
+      registryUrl: '/assets/bergamot-translator/enzh-registry.json',
+      workerUrl: '/assets/bergamot-translator/worker/translator-worker.js',
+      /* 展示层使用 zh-Hans；Bergamot registry 以四字符键 enzh 解析运行时目标为 zh。 */
+      targetLanguage: 'zh-Hans',
+      runtimeTargetLanguage: 'zh',
+      modelByteSize: 42992955
+    };
+
+    async function sha256Hex(arrayBuffer) {
+      const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    /* 本地 Bergamot 模型解压：只在浏览器内存解压发布方已校验的 gzip 资产，绝不上传模型或文本。 */
+    async function decompressLocalTranslationGzip(buffer, url) {
+      if (!String(url).split('?')[0].endsWith('.gz')) return buffer;
+      if (typeof DecompressionStream !== 'function') {
+        throw new Error('当前浏览器不支持本机 gzip 解压；请使用 Chrome、Edge、Firefox 或 Safari 的较新版本后重试。');
+      }
+      try {
+        const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
+        return await new Response(stream).arrayBuffer();
+      } catch (error) {
+        throw new Error(`离线翻译模型本机解压失败：${error?.message || 'gzip 数据不可用'}。`);
+      }
+    }
+
+    async function fetchTranslationAssetWithCache(url, expectedSha256Hash, onProgress) {
+      const cacheKey = new Request(url, { credentials: 'omit' });
+      let cache;
+      if ('caches' in window) {
+        try {
+          cache = await caches.open(LOCAL_TRANSLATION_CACHE_NAME);
+          const cached = await cache.match(cacheKey);
+          if (cached) {
+            const buffer = await cached.arrayBuffer();
+            if (await sha256Hex(buffer) === expectedSha256Hash) {
+              onProgress?.('正在从本机离线翻译缓存加载…', { cacheHit: true });
+              return decompressLocalTranslationGzip(buffer, url);
+            }
+            await cache.delete(cacheKey);
+          }
+        } catch (error) { /* Cache Storage 不可用时仍可用浏览器普通 HTTP 缓存继续。 */ }
+      }
+      onProgress?.('正在下载离线翻译模型（首次约 43 MB）…', { downloadProgress: true });
+      const response = await fetch(url, { credentials: 'omit', cache: 'force-cache' });
+      if (!response.ok) throw new Error(`离线翻译模型下载失败（${response.status}）`);
+      const buffer = await response.arrayBuffer();
+      if (await sha256Hex(buffer) !== expectedSha256Hash) throw new Error('离线翻译模型校验失败，已拒绝使用该文件。');
+      if (cache) await cache.put(cacheKey, new Response(buffer)).catch(() => {});
+      return decompressLocalTranslationGzip(buffer, url);
+    }
+
+    async function loadLocalEvidenceTranslator(onProgress) {
+      if (window.localEvidenceTranslator) return window.localEvidenceTranslator;
+      if (!localEvidenceTranslatorPromise) {
+        localEvidenceTranslatorPromise = (async () => {
+          if (navigator.storage?.persist) await navigator.storage.persist().catch(() => false);
+          const { TranslatorBacking, BatchTranslator } = await import(localTranslationConfig.runtimeUrl);
+          class CachedBergamotTranslatorBacking extends TranslatorBacking {
+            async fetch(url, checksum, options) {
+              return fetchTranslationAssetWithCache(url, checksum, onProgress, options);
+            }
+          }
+          const backing = new CachedBergamotTranslatorBacking({
+            registryUrl: localTranslationConfig.registryUrl,
+            workerUrl: localTranslationConfig.workerUrl,
+            downloadTimeout: 300000
+          });
+          window.localEvidenceTranslator = new BatchTranslator({ workers: 1, batchSize: 1 }, backing);
+          return window.localEvidenceTranslator;
+        })().catch(error => { localEvidenceTranslatorPromise = null; throw error; });
+      }
+      return localEvidenceTranslatorPromise;
+    }
+
+    async function translateLocalEvidenceSummary(englishSummary, onProgress) {
+      const translator = await loadLocalEvidenceTranslator(onProgress);
+      onProgress?.('正在进行本机英译简体中文…');
+      const translate = text => translator.translate({ from: 'en', to: localTranslationConfig.runtimeTargetLanguage, text: String(text || ''), html: false })
+        .then(result => String(result?.target?.text || '').trim());
+      const [title, summary] = await Promise.all([translate(englishSummary.title), translate(englishSummary.summary)]);
+      const failure = getLocalChineseSummaryValidationError(title, summary);
+      if (failure) throw new Error(`离线翻译失败：译文未通过质量检查（${failure}）。`);
+      return { title, summary };
+    }
+
+    const LOCAL_MODEL_CACHE_NAME = 'local-evidence-model-v1';
+    const LOCAL_MODEL_WEIGHT_URLS = [
+      localEvidenceModelConfig.manifestUrl,
+      localEvidenceModelConfig.auxUrl,
+      localEvidenceModelConfig.dataUrl,
+      localEvidenceModelConfig.tokenizerJsonUrl,
+      localEvidenceModelConfig.tokenizerConfigUrl
+    ];
+
+    /* 模型缓存状态：区分真实网络下载与从 Cache Storage 读取，避免把 WebGPU 解码进度误标成重复下载。 */
+    const localModelCacheState = { hits: 0, misses: 0, weightCacheHit: false, unavailableReason: '' };
+    async function fetchWithPersistentCache(url, onBytesProgress) {
+      if ('caches' in window) {
+        try {
+          const cache = await window.caches.open(LOCAL_MODEL_CACHE_NAME);
+          const cachedResponse = await cache.match(url);
+          if (cachedResponse) {
+            const blob = await cachedResponse.blob();
+            localModelCacheState.hits += 1;
+            onBytesProgress?.(blob.size, blob.size, { cacheHit: true });
+            return new Response(blob, { status: 200, headers: cachedResponse.headers });
+          }
+          localModelCacheState.misses += 1;
+        } catch (error) {
+          localModelCacheState.unavailableReason = error?.message || '浏览器拒绝访问 Cache Storage';
+        }
+      } else {
+        localModelCacheState.unavailableReason = '当前浏览器未提供 Cache Storage';
+      }
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`模型权重下载失败 (${response.status})`);
+      const total = Number(response.headers.get('content-length') || 0);
+      if (!response.body || !('caches' in window)) {
+        onBytesProgress?.(total, total);
+        return response;
+      }
+      const reader = response.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.byteLength;
+        onBytesProgress?.(loaded, total || loaded);
+      }
+      const blob = new Blob(chunks, { type: response.headers.get('content-type') || 'application/octet-stream' });
+      try {
+        const cache = await window.caches.open(LOCAL_MODEL_CACHE_NAME);
+        await cache.put(url, new Response(blob, { status: 200, headers: response.headers }));
+      } catch (error) { /* 缓存写入失败不阻塞模型使用 */ }
+      return new Response(blob, { status: 200, headers: response.headers });
+    }
+    function formatProgressSize(bytes) {
+      if (!bytes || Number.isNaN(bytes)) return '0 MB';
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    async function loadLocalEvidenceModel(onProgress) {
+      if (window.localEvidenceModel?.generate) return window.localEvidenceModel;
+      if (!localEvidenceModelPromise) {
+        localEvidenceModelPromise = (async () => {
+          if (navigator.storage?.persist) await navigator.storage.persist().catch(() => false);
+          const [{ createEngine }, { createChat }] = await Promise.all([
+            import(localEvidenceModelConfig.runtimeUrl), import(localEvidenceModelConfig.chatUrl)
+          ]);
+          let lastDownloadedBytes = -1;
+          const engine = await createEngine({
+            manifestUrl: localEvidenceModelConfig.manifestUrl,
+            auxUrl: localEvidenceModelConfig.auxUrl,
+            dataUrl: localEvidenceModelConfig.dataUrl,
+            kvCache: 'q8', maxSeqLen: 2048,
+            fetchJson: async url => (await fetchWithPersistentCache(url)).json(),
+            fetchArrayBuffer: async url => {
+              const response = await fetchWithPersistentCache(url, (loaded, total, { cacheHit = false } = {}) => {
+                const percent = Math.min(99, Math.floor((loaded / (total || 248302272)) * 100));
+                const prefix = cacheHit ? '正在从本机模型缓存加载' : '正在下载本地模型';
+                if (cacheHit) localModelCacheState.weightCacheHit = true;
+                onProgress?.(`${prefix} ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total || 248302272)}）…`, { downloadProgress: !cacheHit, cacheHit });
+              });
+              return response.arrayBuffer();
+            },
+            onProgress(progress) {
+              if (progress.phase === 'weights') {
+                const loaded = progress.loaded || 0;
+                const total = progress.total || 248302272;
+                const percent = Math.min(99, Math.floor((loaded / total) * 100));
+                const progressed = loaded > lastDownloadedBytes;
+                lastDownloadedBytes = Math.max(lastDownloadedBytes, loaded);
+                const fromCache = localModelCacheState.weightCacheHit;
+                const prefix = fromCache ? '正在从本机模型缓存加载' : '正在下载本地模型';
+                onProgress?.(`${prefix} ${percent}%（${formatProgressSize(loaded)} / ${formatProgressSize(total)}）…`, { downloadProgress: progressed && !fromCache, cacheHit: fromCache });
+              } else if (progress.phase === 'manifest') {
+                onProgress?.('正在读取本地模型配置…');
+              } else {
+                onProgress?.('正在初始化 WebGPU 推理管线…');
+              }
+            }
+          });
+          onProgress?.('正在加载本地分词器…');
+          const chat = await createChat(engine, {
+            tokenizerJsonUrl: localEvidenceModelConfig.tokenizerJsonUrl,
+            tokenizerConfigUrl: localEvidenceModelConfig.tokenizerConfigUrl
+          });
+          window.localEvidenceModel = {
+            async generate({ sourceTitle, publishedAt, text, repair = false, repairReason = '', repairField = '', previousTitle = '', previousSummary = '' }) {
+                          const systemPrompt = 'You are a competitor-research assistant. Return concise factual English only as the requested JSON object. Do not translate: a separate local offline translator translates the completed JSON to Simplified Chinese.';
+                          const repairInstruction = repairField === 'featureSummary'
+                            ? `只修复 featureSummary。上一轮英文主题：${previousTitle}\n上一轮英文总结：${previousSummary}\n将上一轮英文总结改写成简体中文，不得复制任何英文。`
+                            : repairField === 'featureTitle'
+                              ? `只修复 featureTitle。上一轮英文主题：${previousTitle}\n上一轮英文总结：${previousSummary}\n将上一轮英文主题改写成简体中文，不得复制任何英文。`
+                              : `将上一轮英文主题和英文总结均改写为简体中文。上一轮主题：${previousTitle}\n上一轮总结：${previousSummary}\n不得复制任何英文。`;
+                          const prompt = `Return English JSON only; do not use Markdown or an explanation. Identify the concrete feature change and its user impact from the source.\nSource title: ${sourceTitle}\nPublication date: ${publishedAt}\nSource text: ${text}`;
+                          const response = await chat.send([{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }], {
+                format: { json: { schema: {
+                  type: 'object', additionalProperties: false,
+                  required: ['featureTitle', 'featureSummary'],
+                  properties: {
+                    featureTitle: { type: 'string', minLength: 2, maxLength: 40 },
+                    featureSummary: { type: 'string', minLength: 10, maxLength: 400 }
+                  }
+                } } },
+                maxTokens: 512,
+                thinkBudget: 128,
+                temperature: 0.5,
+                topK: 20,
+                topP: 0.9
+              });
+              if (response.finishReason !== 'stop') throw new Error('本地模型输出未完成，请点击“重试本地总结”。');
+              try { return JSON.parse(response.text); }
+              catch { throw new Error('本地模型输出格式不完整，请点击“重试本地总结”。'); }
+            }
+          };
+          return window.localEvidenceModel;
+        })().catch(error => { localEvidenceModelPromise = null; throw error; });
+      }
+      return localEvidenceModelPromise;
+    }
+
+    /* 浏览器本地模型就绪检查：WebGPU 与适配器缺一不可，不存在云端推理回退。 */
+    async function checkLocalEvidenceModelReadiness(onProgress) {
+      if (!navigator.gpu) return { ready: false, message: '当前浏览器不支持 WebGPU。请使用支持 WebGPU 的设备和浏览器，请重新加载后重试。' };
+      onProgress?.('检查本机 WebGPU…');
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) return { ready: false, message: '未找到可用图形设备。请检查设备加速设置，请重新加载后重试。' };
+      onProgress?.('正在加载本地模型…');
+      try { return { ready: true, adapter, model: await loadLocalEvidenceModel(onProgress) }; }
+      catch (error) { return { ready: false, message: `本地模型加载失败：${error.message || '请检查网络、存储与显存'}。请重新加载后重试。` }; }
+    }
+
+    /* 在 2K 上下文中为输出 JSON 留出余量；CJK 字符按单 token 保守计费，拉丁字符按 0.35 token 估算。 */
+    function truncateLocalEvidenceText(text, maxBudget = 1400) {
+      let budget = 0;
+      let output = '';
+      for (const character of String(text || '')) {
+        const cost = /[\u3400-\u9fff\uF900-\uFAFF]/.test(character) ? 1 : 0.35;
+        if (budget + cost > maxBudget) break;
+        budget += cost;
+        output += character;
+      }
+      return output.trim();
+    }
+
+    /* BitGPU 的 JSON 约束解码在本浏览器设备完成结构化中文总结，不请求云端推理接口。 */
+    async function generateLocalEvidenceSummary(rawItem, model) {
+      const text = truncateLocalEvidenceText(`${rawItem.title || ''}\n${rawItem.rawText || ''}`, 900);
+      const request = { sourceTitle: rawItem.title || '未命名更新', publishedAt: rawItem.publishedAt || '未知日期', text };
+      let result;
+      try {
+        result = await model.generate(request);
+      } catch (error) {
+        if (String(error?.message || error).includes('generate: prompt length')) {
+          throw new Error('原始页面内容过长，已按本地模型上下文上限截取后仍无法总结。请缩短来源内容后重试。');
+        }
+        throw error;
+      }
+      const title = String(result?.featureTitle || '').trim();
+      const summary = String(result?.featureSummary || '').trim();
+      if (title.length < 2 || title.length > 160 || summary.length < 2 || summary.length > 800) {
+        throw new Error('本地模型英文 JSON 未通过长度检查，未开始翻译或创建 Candidate。');
+      }
+      return { title, summary };
+    }
+
+    function isValidLocalChineseSummary(title, summary) {
+      return !getLocalChineseSummaryValidationError(title, summary);
+    }
+
+    /* 对本地模型输出给出可操作的质量原因，帮助第二次本地修复与用户诊断。 */
+    function getLocalChineseSummaryValidationError(title, summary) {
+      if (isPlaceholderLocalChineseSummary(title, summary)) return '输出了通用占位主题或总结';
+      if (!/[\u3400-\u9fff]/.test(title)) return '功能主题缺少简体中文';
+      if (!/[\u3400-\u9fff]/.test(summary)) return '功能总结缺少简体中文';
+      if (title.length > 40) return '功能主题超过 40 个字符';
+      if (summary.length < 2) return '功能总结少于 2 个字符';
+      if (summary.length > 400) return '功能总结超过 400 个字符';
+      return '';
+    }
+
+    /* 只在一个字段不合格时让本地模型聚焦修复该字段；两个字段均异常则整体重写。 */
+    function getLocalChineseSummaryRepairField(title, summary) {
+      const titleInvalid = isPlaceholderLocalChineseSummary(title, '')
+        || !/[\u3400-\u9fff]/.test(title) || title.length > 40;
+      const summaryInvalid = isPlaceholderLocalChineseSummary('', summary)
+        || !/[\u3400-\u9fff]/.test(summary)
+        || summary.length < 2 || summary.length > 400;
+      if (titleInvalid && !summaryInvalid) return 'featureTitle';
+      if (summaryInvalid && !titleInvalid) return 'featureSummary';
+      return '';
+    }
+
+    /* 拒绝模型复读提示词中的泛化占位输出，避免把无事实价值内容创建为 Candidate。 */
+    function isPlaceholderLocalChineseSummary(title, summary) {
+      const normalizedTitle = String(title || '').replace(/\s+/g, '');
+      const normalizedSummary = String(summary || '').replace(/\s+/g, '');
+      return normalizedTitle === '中文功能主题'
+        || normalizedSummary === '中文功能总结，说明事实和影响。'
+        || /^(功能主题|功能总结|待补充|暂无内容)$/.test(normalizedTitle);
+    }
+
+    /* 失败模型输出仅保留于当前页面并安全地呈现在审核状态；不上传、写库或跨刷新持久化。 */
+    function formatLocalOutputDiagnostic(localOutputs) {
+      if (!Array.isArray(localOutputs) || !localOutputs.length) return '';
+      const compact = value => String(value || '（空）').replace(/\s+/g, ' ').trim().slice(0, 360);
+      return ` 本机输出诊断：${localOutputs.map(output => `${output.round}主题「${compact(output.title)}」；总结「${compact(output.summary)}」`).join(' / ')}。`;
+    }
+
+    function getLocalModelButtonLabel(message) {
+      if (message.startsWith('正在下载本地模型')) return '正在下载本地模型…';
+      if (message.startsWith('正在读取本地模型配置')) return '正在读取模型配置…';
+      if (message.startsWith('正在初始化 WebGPU')) return '正在初始化 WebGPU…';
+      if (message.startsWith('正在加载本地分词器')) return '正在加载本地分词器…';
+      return message.replace(/（.*$/, '').replace(/…$/, '') + '…';
+    }
+
+    /* 单击按抓取批次顺序生成 Candidate：先完成全部本地总结，再经受控 RPC 写入 pending 记录。 */
+    async function createCandidatesFromLocalSummary(sourceId, runId, batchId, button) {
+      const rawItems = sourceCaptureState.rawItems.filter(item =>
+        item.tabId === activeWorkspaceTab.id && item.sourceId === sourceId &&
+        (item.runId || item.id) === runId && item.summaryStatus === 'pending'
+      );
+      if (!rawItems.length) return;
+      const startTime = Date.now();
+      let timerId = null;
+      let timedOut = false;
+      let lastDownloadProgressAt = startTime;
+      let currentStageMessage = '检查本机 WebGPU…';
+      const setProgress = (message, options = {}) => {
+        if (options.downloadProgress) lastDownloadProgressAt = Date.now();
+        currentStageMessage = message || currentStageMessage;
+        const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+        const elapsedLabel = elapsedSec > 0 ? `（已用 ${elapsedSec}s）` : '';
+        const fullMessage = `${currentStageMessage}${elapsedLabel}`;
+        const buttonMessage = getLocalModelButtonLabel(currentStageMessage);
+        localSummaryBatchState.set(batchId, { processing: true, message: fullMessage, buttonMessage });
+        const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
+        if (status) { status.textContent = `${fullMessage} 仅在此浏览器设备运行本地模型。`; status.classList.add('is-processing'); }
+        if (button?.isConnected) { button.disabled = true; button.classList.add('is-loading'); button.innerHTML = `<svg class="local-summary-loader" aria-hidden="true" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" stroke-dasharray="25 10"></circle></svg><span class="button-label">${escapeHtml(buttonMessage)}</span>`; }
+      };
+      setProgress('检查本机 WebGPU…');
+      timerId = window.setInterval(() => {
+        const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+        const stalledDownloadMs = Date.now() - lastDownloadProgressAt;
+        if (currentStageMessage.startsWith('正在下载本地模型') && stalledDownloadMs > 300000) {
+          timedOut = true;
+          window.clearInterval(timerId); timerId = null;
+          localSummaryBatchState.delete(batchId);
+          const status = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
+          if (status) { status.textContent = '本地模型下载进度超过 5 分钟没有增加，可能因网络或浏览器缓存阻塞。请点击“重新加载”后重试。'; status.classList.remove('is-processing'); }
+          if (button?.isConnected) { button.disabled = false; button.classList.remove('is-loading'); button.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重新加载本地模型</span>'; }
+          return;
+        }
+        setProgress(currentStageMessage);
+      }, 1000);
+      try {
+        const readiness = await checkLocalEvidenceModelReadiness(setProgress);
+        if (timedOut) return;
+        if (!readiness.ready) throw new Error(readiness.message);
+        const englishSummaries = [];
+        for (let index = 0; index < rawItems.length; index += 1) {
+          setProgress(`正在生成英文 JSON（${index + 1}/${rawItems.length}）`);
+          englishSummaries.push(await generateLocalEvidenceSummary(rawItems[index], readiness.model));
+        }
+        const summaries = [];
+        for (let index = 0; index < rawItems.length; index += 1) {
+          setProgress(`正在进行本机英译简体中文（${index + 1}/${rawItems.length}）`);
+          /* 翻译失败会直接跳到 catch；因此在任何 Candidate RPC 前保持写入闸门关闭。 */
+          summaries.push(await translateLocalEvidenceSummary(englishSummaries[index], setProgress));
+        }
+        for (let index = 0; index < rawItems.length; index += 1) {
+          setProgress(`正在保存待审核证据（${index + 1}/${rawItems.length}）`);
+          const rawItem = rawItems[index]; const summary = summaries[index];
+          await cloudRestRequest('rpc/create_local_summary_candidate', { method: 'POST', body: { target_snapshot_id: rawItem.id, feature_title: summary.title, feature_summary: summary.summary } });
+        }
+        if (timerId) { window.clearInterval(timerId); timerId = null; }
+        localSummaryBatchState.delete(batchId);
+        await pullCloudWorkspaceSafely();
+        renderReviewQueue();
+      } catch (error) {
+        if (timerId) { window.clearInterval(timerId); timerId = null; }
+        localSummaryBatchState.delete(batchId);
+        renderReviewQueue();
+        const currentStatus = reviewQueueList.querySelector(`[data-local-model-status="${batchId}"]`);
+        const currentButton = reviewQueueList.querySelector(`[data-generate-summary-source-id="${sourceId}"][data-generate-summary-run-id="${runId}"]`);
+        const retryMessage = error.message || '本次批量生成失败。';
+        const localOutputDiagnostic = formatLocalOutputDiagnostic(error.localOutputs);
+        if (currentStatus) { currentStatus.textContent = `${retryMessage}${localOutputDiagnostic} 请点击“重试本地总结”。`; currentStatus.classList.remove('is-processing'); }
+        if (currentButton) { currentButton.disabled = false; currentButton.classList.remove('is-loading'); currentButton.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重试本地总结</span>'; }
+        if (button?.isConnected) { button.innerHTML = '<svg class="button-icon" aria-hidden="true"><use href="#icon-check"></use></svg><span class="button-label">重试本地总结</span>'; }
+      } finally {
+        if (timerId) { window.clearInterval(timerId); }
+        if (button?.isConnected) { button.disabled = false; button.classList.remove('is-loading'); }
+      }
     }
 
     /* 人工动作仅把候选内容带入既有证据编辑器；提交前不改变任何研究数据 */
@@ -7156,19 +7748,54 @@
       const captureButton = pendingCaptureButton;
       captureWindowDialog.close();
       pendingCaptureButton = null;
-      setCaptureButtonLoading(captureButton, true);
+      setSourceCaptureLoading(sourceIdValue, true);
       updateSourceSyncNotice('pending', '正在抓取此来源…');
       try {
         const result = await requestManualSourceCapture(sourceIdValue, validation.observationWindow);
-        updateSourceSyncNotice('success', result.result?.candidateQueued ? '已生成待审核候选。' : '抓取完成，未发现内容变化。');
-        renderSourceList(); renderReviewQueue();
+        const capturedPages = Number(result.result?.capturedPages || 0);
+        const subpageFailures = Number(result.result?.subpageFailures || 0);
+        const detail = result.result?.pendingSummary
+          ? `抓取完成，已加入待总结证据（${capturedPages} 页）${subpageFailures ? `；${subpageFailures} 个子页面未能抓取` : ''}。`
+          : '抓取完成。';
+        updateSourceSyncNotice('success', detail);
+        renderReviewQueue();
       } catch (error) {
         updateSourceSyncNotice('error', error.message);
+        setSourceCaptureLoading(sourceIdValue, false);
         window.alert(`抓取失败：${error.message}`);
-        setCaptureButtonLoading(captureButton, false);
+      } finally {
+        setSourceCaptureLoading(sourceIdValue, false);
       }
     });
     reviewQueueList.addEventListener('click', async event => {
+      const deleteCaptureRunButton = event.target.closest('[data-delete-capture-run-id]');
+      if (deleteCaptureRunButton) {
+        const runId = deleteCaptureRunButton.dataset.deleteCaptureRunId;
+        if (!runId || !window.confirm('确定删除此抓取批次吗？这会永久删除本批原始快照、采集图片和待审核 Candidate；正式证据、矩阵和洞察不会被删除。')) return;
+        deleteCaptureRunButton.disabled = true;
+        try {
+          if (sourceCaptureState.cloudSynced) await hardDeleteCloudCaptureRun(runId);
+          sourceCaptureState.rawItems = sourceCaptureState.rawItems.filter(item => item.runId !== runId);
+          sourceCaptureState.candidates = sourceCaptureState.candidates.filter(item => item.runId !== runId);
+          persistSourceCaptureState();
+          renderReviewQueue();
+        } catch (error) {
+          updateSourceSyncNotice('error', error.message);
+          window.alert(`抓取批次未删除：${error.message}`);
+          if (deleteCaptureRunButton.isConnected) deleteCaptureRunButton.disabled = false;
+        }
+        return;
+      }
+      const generateButton = event.target.closest('[data-generate-summary-source-id]');
+      if (generateButton) {
+        await createCandidatesFromLocalSummary(
+          generateButton.dataset.generateSummarySourceId,
+          generateButton.dataset.generateSummaryRunId,
+          generateButton.dataset.localSummaryBatchId,
+          generateButton
+        );
+        return;
+      }
       const attachmentButton = event.target.closest('[data-candidate-attachment-id]');
       if (attachmentButton) {
         try {

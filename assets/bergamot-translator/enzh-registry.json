@@ -1,0 +1,20 @@
+{
+  "enzh": {
+    "model": {
+      "name": "https://huggingface.co/TiberiuCristianLeon/Bergamot/resolve/004d535a7a754590888eceec5ac3a9a43ae7d384/base/enzh/model.enzh.intgemm.alphas.bin.gz",
+      "expectedSha256Hash": "927de8ae55e97d9ebc29a051dfef37dd4310a1ee065b205f8e9cccfccb636a59"
+    },
+    "lex": {
+      "name": "https://huggingface.co/TiberiuCristianLeon/Bergamot/resolve/004d535a7a754590888eceec5ac3a9a43ae7d384/base/enzh/lex.50.50.enzh.s2t.bin.gz",
+      "expectedSha256Hash": "a6a86815587ea3920b9e61f19b6b69d8507944ed4a15d277639619ce0a709bc8"
+    },
+    "srcvocab": {
+      "name": "https://huggingface.co/TiberiuCristianLeon/Bergamot/resolve/004d535a7a754590888eceec5ac3a9a43ae7d384/base/enzh/srcvocab.enzh.spm.gz",
+      "expectedSha256Hash": "06a2e7c235ab702ab9018588048316e81546b5f24c02d293dab0b338549cfd01"
+    },
+    "trgvocab": {
+      "name": "https://huggingface.co/TiberiuCristianLeon/Bergamot/resolve/004d535a7a754590888eceec5ac3a9a43ae7d384/base/enzh/trgvocab.enzh.spm.gz",
+      "expectedSha256Hash": "6548dbda9f8636774f76a3d49b7a514f7d2084a0ced8883931aa07e736f6803b"
+    }
+  }
+}

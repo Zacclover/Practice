@@ -13,7 +13,7 @@ class CandidateAttachmentUiContractTests(unittest.TestCase):
         return match.group("body")
 
     def test_metadata_is_hydrated_and_mapped_to_its_candidate(self):
-        self.assertIn("[...cloudSnapshotTables, 'candidate_attachments']", SOURCE)
+        self.assertIn("'source_capture_snapshot_images', 'candidate_attachments'", SOURCE)
         mapping = self.function_body("mapCloudSnapshotToV3")
         self.assertIn("attachment.candidate_id === item.id", mapping)
         self.assertIn("attachments:", mapping)
@@ -57,9 +57,16 @@ class CandidateAttachmentUiContractTests(unittest.TestCase):
         handler = re.search(r"reviewQueueList\.addEventListener\('click', async event => \{(?P<body>.*?)\n    \}\);", SOURCE, re.S)
         self.assertIsNotNone(handler)
         body = handler.group("body")
-        self.assertLess(body.index("await hardDeleteCloudCandidate(candidateId)"), body.index("sourceCaptureState.candidates = sourceCaptureState.candidates.filter"))
+        candidate_handler = body[body.index("const candidateId = deleteButton.dataset.deleteCandidateId;"):]
+        self.assertLess(candidate_handler.index("await hardDeleteCloudCandidate(candidateId)"), candidate_handler.index("sourceCaptureState.candidates = sourceCaptureState.candidates.filter"))
         for forbidden in ("evidenceItems", "comparisonData", "insights", "source_capture_runs", "source_capture_snapshots"):
             self.assertNotIn(forbidden, deletion)
+
+    def test_candidate_cards_do_not_repeat_capture_batch_deletion(self):
+        candidate_renderer = self.function_body("renderReviewQueue")
+        candidate_section = candidate_renderer[candidate_renderer.index("const candidateHtml = pending.map"):candidate_renderer.index("reviewQueueList.innerHTML")]
+        self.assertNotIn('data-delete-capture-run-id', candidate_section)
+        self.assertIn('data-delete-capture-run-id', candidate_renderer[:candidate_renderer.index("const candidateHtml = pending.map")])
 
     def test_local_candidates_have_no_attachment_ui(self):
         strip = self.function_body("renderCandidateAttachmentStrip")

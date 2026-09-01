@@ -39,7 +39,15 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIsNotNone(source_click)
         self.assertIn("openCaptureWindow", source_click.group("body"))
         self.assertNotIn("requestManualSourceCapture", source_click.group("body"))
-        self.assertIn("setCaptureButtonLoading(captureButton, true)", SOURCE)
+        self.assertIn("setSourceCaptureLoading(sourceIdValue, true)", SOURCE)
+
+    def test_capture_loading_is_rendered_from_source_id_state_and_cleared_before_failure_alert(self):
+        self.assertIn("const capturingSourceIds = new Set();", SOURCE)
+        self.assertIn("function setSourceCaptureLoading(sourceId, isLoading)", SOURCE)
+        self.assertIn("capturingSourceIds.has(item.id)", SOURCE)
+        self.assertIn("setSourceCaptureLoading(sourceIdValue, true);", SOURCE)
+        self.assertIn("setSourceCaptureLoading(sourceIdValue, false);\n        window.alert(`抓取失败：${error.message}`);", SOURCE)
+        self.assertIn("finally {\n        setSourceCaptureLoading(sourceIdValue, false);", SOURCE)
 
     def test_local_only_source_cannot_request_worker(self):
         opener = self.function_body("openCaptureWindow", "setCaptureButtonLoading")
@@ -53,6 +61,21 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIsNotNone(submit)
         self.assertIn("!sourceCaptureState.cloudSynced || !cloudSyncState.accessToken", submit.group("body"))
 
+    def test_capture_syncs_the_complete_local_graph_before_worker_request(self):
+        request = self.function_body("requestManualSourceCapture")
+        self.assertIn("await ensureCaptureSourceGraph(sourceId)", request)
+        self.assertLess(
+            request.find("await ensureCaptureSourceGraph(sourceId)"),
+            request.find("fetch(`${config.sourceCaptureWorkerUrl}/manual-capture`"),
+        )
+        self.assertIn("const sourceCaptureGraphPromises = new Map();", SOURCE)
+        self.assertIn("async function ensureCaptureSourceGraph(sourceId)", SOURCE)
+        self.assertIn("serializeCaptureSourceGraph(localSource, workspaceId)", SOURCE)
+        self.assertIn("rpc/upsert_capture_source_graph", SOURCE)
+        self.assertIn("workspace_id=eq.${encodeURIComponent(workspaceId)}", SOURCE)
+        self.assertNotIn("ensureSourceAvailableForManualCapture", SOURCE)
+        self.assertNotIn("competitor_sources?on_conflict=id", SOURCE)
+
     def test_candidate_card_only_renders_feature_summary_and_chinese_title(self):
         title = self.function_body("getCandidateFeatureTitle", "renderCandidateAnalysis")
         self.assertIn("'feature_title'", title)
@@ -65,14 +88,10 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
         self.assertIn("'feature_summary'", structured)
         self.assertIn("'featureSummary'", structured)
         self.assertIn("AI 分析暂不可用，暂无功能总结。", structured)
-        self.assertIn("candidate.analysisStatus === 'pending'", structured)
-        self.assertIn("等待 AI 分析", structured)
-        self.assertIn("candidate.analysisStatus === 'rate_limited'", structured)
-        self.assertIn("等待限流恢复", structured)
-        self.assertIn("candidate.analysisStatus === 'unavailable'", structured)
-        self.assertIn("AI 分析暂不可用", structured)
+        self.assertNotIn("analysisStatus", structured)
+        self.assertNotIn("rate_limited", structured)
         analysis = self.function_body("getCandidateAnalysis", "analysisText")
-        self.assertIn("candidate.analysisStatus === 'available'", analysis)
+        self.assertIn("candidate?.title", analysis)
         for forbidden in ("quotedText", "candidate.summary", "facts", "inference", "competitive_impact", "quotes", "quotePairs", "原始摘录", "原文引句"):
             self.assertNotIn(forbidden, structured)
 
@@ -86,9 +105,13 @@ class SourceCaptureFrontendContractTests(unittest.TestCase):
     def test_hard_delete_is_candidate_only_and_uses_worker(self):
         deletion = self.function_body("hardDeleteCloudCandidate")
         self.assertIn("sourceCaptureWorkerUrl", deletion)
-        self.assertIn("/candidate-attachments/", deletion)
-        self.assertIn("method: 'DELETE'", deletion)
-        self.assertIn("Authorization", deletion)
+        self.assertIn("hardDeleteCloudCaptureRun", SOURCE)
+        self.assertIn("data-delete-capture-run-id", SOURCE)
+        self.assertIn("删除此抓取批次", SOURCE)
+        self.assertIn("删除 Candidate", SOURCE)
+        self.assertIn("正式证据、矩阵和洞察不会被删除", SOURCE)
+        self.assertIn("抓取批次删除后端尚未发布", SOURCE)
+        self.assertIn("ensureFreshCloudAccessToken", deletion)
         self.assertNotIn("cloudRestRequest", deletion)
         self.assertNotIn("enqueueCloudMutation", deletion)
         for forbidden in ("source_capture_runs", "source_capture_snapshots", "evidence", "matrix", "insight"):
